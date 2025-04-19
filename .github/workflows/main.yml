@@ -1,17 +1,49 @@
 name: Build APK
-on: [push, workflow_dispatch]  # Runs on push or manual trigger
+
+on:
+  push:
+    branches:
+      - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      # Step 1: Checkout the repository
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Step 2: Set up Java (required for Android builds)
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
         with:
-          flutter-version: '3.29.2 '  
-      - run: flutter pub get
-      - run: flutter build apk --release
-      - uses: actions/upload-artifact@v4
+          java-version: '17'
+          distribution: 'adopt'
+
+      # Step 3: Set up Flutter
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
         with:
-          name: app-release.apk
+          channel: 'stable'
+          flutter-version: '3.22.2' # Matches your pubspec.yaml constraint (>=3.0.0 <4.0.0)
+
+      # Step 4: Get dependencies
+      - name: Get dependencies
+        run: flutter pub get
+
+      # Step 5: Build the APK
+      - name: Build APK
+        run: flutter build apk --release
+
+      # Step 6: Debug - List files to confirm APK exists
+      - name: List build files
+        run: ls -la build/app/outputs/flutter-apk/
+
+      # Step 7: Upload the APK as an artifact
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
           path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error # Fail if the file isn't found
