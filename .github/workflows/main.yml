@@ -32,15 +32,29 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      # Step 5: Build the APK
+      # Step 5: Decode Keystore (NEW STEP)
+      - name: Decode Keystore
+        env:
+          KEYSTORE_FILE: ${{ secrets.KEYSTORE_FILE }}
+        run: echo "$KEYSTORE_FILE" | base64 -d > android/app/keystore.jks
+
+      # Step 6: Create key.properties (NEW STEP)
+      - name: Create key.properties
+        run: |
+          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> android/key.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
+          echo "storeFile=keystore.jks" >> android/key.properties
+
+      # Step 7: Build the APK (previously Step 5)
       - name: Build APK
         run: flutter build apk --release
 
-      # Step 6: Debug - List files to confirm APK exists
+      # Step 8: Debug - List files to confirm APK exists (previously Step 6)
       - name: List build files
         run: ls -la build/app/outputs/flutter-apk/
 
-      # Step 7: Upload the APK as an artifact
+      # Step 9: Upload the APK as an artifact (previously Step 7)
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
