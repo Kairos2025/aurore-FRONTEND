@@ -1,3 +1,25 @@
+// Load local.properties to get flutterVersionCode and flutterVersionName
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader('UTF-8') { reader ->
+        localProperties.load(reader)
+    }
+}
+
+// Define versionCode and versionName with fallback values
+def flutterVersionCode = localProperties.getProperty('flutterVersionCode') ?: "1"
+def flutterVersionName = localProperties.getProperty('flutterVersionName') ?: "1.0.0"
+
+// Load key.properties for signing configuration
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withReader('UTF-8') { reader ->
+        keystoreProperties.load(reader)
+    }
+}
+
 plugins {
     id "com.android.application"
     id "kotlin-android"
@@ -6,7 +28,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.school_management2"
+    namespace = "com.yourcompany.aurore"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -19,23 +41,39 @@ android {
         jvmTarget = JavaVersion.VERSION_1_8
     }
 
-defaultConfig {
-    applicationId = "com.yourcompany.aurore"
-    minSdk = flutter.minSdkVersion
-    targetSdk = flutter.targetSdkVersion
-    versionCode flutterVersionCode.toInteger()  // Use flutterVersionCode from local.properties
-    versionName flutterVersionName              // Use flutterVersionName from local.properties
-}
+    // Define signing configuration for release builds
+    signingConfigs {
+        release {
+            keyAlias keystoreProperties['keyAlias']
+            keyPassword keystoreProperties['keyPassword']
+            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+            storePassword keystoreProperties['storePassword']
+        }
+    }
+
+    defaultConfig {
+        applicationId = "com.yourcompany.aurore"
+        minSdk = flutter.minSdkVersion
+        targetSdk = flutter.targetSdkVersion
+        versionCode flutterVersionCode.toInteger()  // Now loaded from local.properties
+        versionName flutterVersionName              // Now loaded from local.properties
+    }
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.debug
+            signingConfig = signingConfigs.release  // Use release signing config
         }
     }
 }
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // Android Gradle Plugin (required by com.android.application)
+    classpath 'com.android.tools.build:gradle:8.5.0'
+
+    // Kotlin Gradle Plugin (required by kotlin-android)
+    classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.20"
 }
