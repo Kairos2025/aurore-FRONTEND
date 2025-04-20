@@ -4,6 +4,7 @@ plugins {
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id "dev.flutter.flutter-gradle-plugin"
 }
+
 // Load local.properties to get flutterVersionCode and flutterVersionName
 def localProperties = new Properties()
 def localPropertiesFile = rootProject.file('local.properties')
@@ -38,8 +39,6 @@ if (keystorePropertiesFile.exists()) {
     }
 }
 
-
-
 android {
     namespace = "com.yourcompany.aurore"
     compileSdk = flutter.compileSdkVersion
@@ -68,7 +67,7 @@ android {
         applicationId = "com.yourcompany.aurore"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode flutterVersionCode.toInteger()  // Line 26 - Now properly defined
+        versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
     }
 
@@ -84,9 +83,5 @@ flutter {
 }
 
 dependencies {
-    // Android Gradle Plugin (required by com.android.application)
-    classpath 'com.android.tools.build:gradle:8.5.0'
-
-    // Kotlin Gradle Plugin (required by kotlin-android)
-    classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.20"
+    // No app-level dependencies needed for a standard Flutter project
 }
