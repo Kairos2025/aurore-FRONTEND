@@ -28,21 +28,25 @@ jobs:
           channel: 'stable'
           flutter-version: '3.22.2'
 
-      # Step 4: Get dependencies
+      # Step 4: Clean Flutter build
+      - name: Clean Flutter build
+        run: flutter clean
+
+      # Step 5: Get dependencies
       - name: Get dependencies
         run: flutter pub get
 
-      # Step 5: Debug - Show local.properties
+      # Step 6: Debug - Show local.properties
       - name: Debug - Show local.properties
         run: cat android/local.properties || echo "local.properties not found"
 
-      # Step 6: Decode Keystore
+      # Step 7: Decode Keystore
       - name: Decode Keystore
         env:
           KEYSTORE_FILE: ${{ secrets.KEYSTORE_FILE }}
         run: echo "$KEYSTORE_FILE" | base64 -d > android/app/keystore.jks
 
-      # Step 7: Create key.properties
+      # Step 8: Create key.properties
       - name: Create key.properties
         run: |
           echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> android/key.properties
@@ -50,15 +54,15 @@ jobs:
           echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
           echo "storeFile=keystore.jks" >> android/key.properties
 
-      # Step 8: Build the APK
+      # Step 9: Build the APK
       - name: Build APK
         run: flutter build apk --release
 
-      # Step 9: Debug - List files to confirm APK exists
+      # Step 10: Debug - List files to confirm APK exists
       - name: List build files
         run: ls -la build/app/outputs/flutter-apk/
 
-      # Step 10: Upload the APK as an artifact
+      # Step 11: Upload the APK as an artifact
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
