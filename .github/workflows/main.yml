@@ -26,19 +26,23 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          flutter-version: '3.22.2' # Matches your pubspec.yaml constraint (>=3.0.0 <4.0.0)
+          flutter-version: '3.22.2'
 
       # Step 4: Get dependencies
       - name: Get dependencies
         run: flutter pub get
 
-      # Step 5: Decode Keystore (NEW STEP)
+      # Step 5: Debug - Show local.properties
+      - name: Debug - Show local.properties
+        run: cat android/local.properties || echo "local.properties not found"
+
+      # Step 6: Decode Keystore
       - name: Decode Keystore
         env:
           KEYSTORE_FILE: ${{ secrets.KEYSTORE_FILE }}
         run: echo "$KEYSTORE_FILE" | base64 -d > android/app/keystore.jks
 
-      # Step 6: Create key.properties (NEW STEP)
+      # Step 7: Create key.properties
       - name: Create key.properties
         run: |
           echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> android/key.properties
@@ -46,18 +50,18 @@ jobs:
           echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
           echo "storeFile=keystore.jks" >> android/key.properties
 
-      # Step 7: Build the APK (previously Step 5)
+      # Step 8: Build the APK
       - name: Build APK
         run: flutter build apk --release
 
-      # Step 8: Debug - List files to confirm APK exists (previously Step 6)
+      # Step 9: Debug - List files to confirm APK exists
       - name: List build files
         run: ls -la build/app/outputs/flutter-apk/
 
-      # Step 9: Upload the APK as an artifact (previously Step 7)
+      # Step 10: Upload the APK as an artifact
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: build/app/outputs/flutter-apk/app-release.apk
-          if-no-files-found: error # Fail if the file isn't found
+          if-no-files-found: error
