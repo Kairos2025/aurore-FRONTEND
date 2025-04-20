@@ -54,9 +54,9 @@ jobs:
           echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
           echo "storeFile=keystore.jks" >> android/key.properties
 
-      # Step 9: Build the APK
+      # Step 9: Build the APK with verbose output
       - name: Build APK
-        run: flutter build apk --release
+        run: flutter build apk --release --verbose
 
       # Step 10: Debug - List files to confirm APK exists
       - name: List build files
