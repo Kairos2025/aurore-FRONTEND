@@ -1,3 +1,9 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    id "dev.flutter.flutter-gradle-plugin"
+}
 // Load local.properties to get flutterVersionCode and flutterVersionName
 def localProperties = new Properties()
 def localPropertiesFile = rootProject.file('local.properties')
@@ -32,12 +38,7 @@ if (keystorePropertiesFile.exists()) {
     }
 }
 
-plugins {
-    id "com.android.application"
-    id "kotlin-android"
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
-    id "dev.flutter.flutter-gradle-plugin"
-}
+
 
 android {
     namespace = "com.yourcompany.aurore"
