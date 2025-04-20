@@ -5,11 +5,23 @@ if (localPropertiesFile.exists()) {
     localPropertiesFile.withReader('UTF-8') { reader ->
         localProperties.load(reader)
     }
+} else {
+    throw new GradleException("local.properties file not found. Ensure 'flutter pub get' has been run.")
 }
 
 // Define versionCode and versionName with fallback values
-def flutterVersionCode = localProperties.getProperty('flutterVersionCode') ?: "1"
-def flutterVersionName = localProperties.getProperty('flutterVersionName') ?: "1.0.0"
+def flutterVersionCode = localProperties.getProperty('flutterVersionCode')
+def flutterVersionName = localProperties.getProperty('flutterVersionName')
+
+// Validate and set fallback values
+if (!flutterVersionCode) {
+    println "flutterVersionCode not found in local.properties. Using fallback value: 1"
+    flutterVersionCode = "1"
+}
+if (!flutterVersionName) {
+    println "flutterVersionName not found in local.properties. Using fallback value: 1.0.0"
+    flutterVersionName = "1.0.0"
+}
 
 // Load key.properties for signing configuration
 def keystoreProperties = new Properties()
@@ -55,13 +67,13 @@ android {
         applicationId = "com.yourcompany.aurore"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode flutterVersionCode.toInteger()  // Now loaded from local.properties
-        versionName flutterVersionName              // Now loaded from local.properties
+        versionCode flutterVersionCode.toInteger()  // Line 26 - Now properly defined
+        versionName flutterVersionName
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.release  // Use release signing config
+            signingConfig = signingConfigs.release
         }
     }
 }
