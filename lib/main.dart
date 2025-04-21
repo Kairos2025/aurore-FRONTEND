@@ -894,7 +894,7 @@ class AiDetectorProvider with ChangeNotifier {
 
   double get aiProbability => _aiProbability;
   String get analysisResult => _analysisResult;
-  String get updateResults=> _updateResults;
+ // String get updateResults=> _updateResults;
   bool get isAnalyzing => _isAnalyzing;
   bool get isLoading => _isLoading;
   String? get error => _error;
@@ -2000,7 +2000,7 @@ Widget _buildTimetablePreview() {
               '${DateFormat('HH:mm').format(schedule.startTime)} - '
               '${DateFormat('HH:mm').format(schedule.endTime)}',
             ),
-            trailing: Text(schedule.roomId),
+            trailing: Text(schedule.room ?? 'N/A'),
           );
         },
       );
@@ -2013,6 +2013,7 @@ Widget _buildTimetablePreview() {
 //schedule class
 class Schedule {
   final String id;
+  final String courseId;
   final String title;
   final DateTime startTime;
   final DateTime endTime;
@@ -2021,7 +2022,7 @@ class Schedule {
 
   Schedule({
     required this.id,
-    required this.title,
+    required this.courseId,
     required this.startTime,
     required this.endTime,
     this.room,
@@ -2031,7 +2032,7 @@ class Schedule {
   factory Schedule.fromJson(Map<String, dynamic> json) {
     return Schedule(
       id: json['id'] as String? ?? '',
-      title: json['title'] as String? ?? '',
+      courseId: json['course_id'] as String? ?? '',
       startTime: DateTime.parse(json['startTime'] as String),
       endTime: DateTime.parse(json['endTime'] as String),
       room: json['room'] as String?,
@@ -2042,7 +2043,7 @@ class Schedule {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'title': title,
+      'course_id': courseId,
       'startTime': startTime.toIso8601String(),
       'endTime': endTime.toIso8601String(),
       'room': room,
