@@ -28,41 +28,53 @@ jobs:
           channel: 'stable'
           flutter-version: '3.22.2'
 
-      # Step 4: Clean Flutter build
+      # Step 4: Check Flutter version
+      - name: Check Flutter version
+        run: flutter --version
+
+      # Step 5: Run Flutter doctor
+      - name: Run Flutter doctor
+        run: flutter doctor --verbose
+
+      # Step 6: Clean Flutter build
       - name: Clean Flutter build
         run: flutter clean
 
-      # Step 5: Get dependencies
+      # Step 7: Get dependencies
       - name: Get dependencies
         run: flutter pub get
 
-      # Step 6: Debug - Show local.properties
+      # Step 8: Run Flutter analyze
+      - name: Run Flutter analyze
+        run: flutter analyze
+
+      # Step 9: Debug - Show local.properties
       - name: Debug - Show local.properties
         run: cat android/local.properties || echo "local.properties not found"
 
-      # Step 7: Decode Keystore
+      # Step 10: Decode Keystore
       - name: Decode Keystore
         env:
           KEYSTORE_FILE: ${{ secrets.KEYSTORE_FILE }}
         run: echo "$KEYSTORE_FILE" | base64 -d > android/app/keystore.jks
 
-      # Step 8: Create key.properties
+      # Step 11: Create key.properties
       - name: Create key.properties
         run: |
           echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> android/key.properties
-          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
+          echo "keyPassword=${{ secrets.KEYSTORE_PASSWORD }}" >> android/key.properties
           echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
           echo "storeFile=keystore.jks" >> android/key.properties
 
-      # Step 9: Build the APK with verbose output
+      # Step 12: Build the APK with verbose output
       - name: Build APK
         run: flutter build apk --release --verbose
 
-      # Step 10: Debug - List files to confirm APK exists
+      # Step 13: Debug - List files to confirm APK exists
       - name: List build files
         run: ls -la build/app/outputs/flutter-apk/
 
-      # Step 11: Upload the APK as an artifact
+      # Step 14: Upload the APK as an artifact
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
