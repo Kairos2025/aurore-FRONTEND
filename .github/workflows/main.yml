@@ -30,7 +30,7 @@ jobs:
 
     - name: Download and Set Up Gradle 8.9
       run: |
-        wget [invalid url, do not cite] -P /tmp
+        wget https://services.gradle.org/distributions/gradle-8.9-bin.zip -P /tmp
         unzip /tmp/gradle-8.9-bin.zip -d /tmp
         echo "GRADLE_HOME=/tmp/gradle-8.9" >> $GITHUB_ENV
         echo "/tmp/gradle-8.9/bin" >> $GITHUB_PATH
