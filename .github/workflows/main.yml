@@ -26,24 +26,58 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          flutter-version: '3.22.2' # Matches your pubspec.yaml constraint (>=3.0.0 <4.0.0)
+          flutter-version: '3.22.2'
 
-      # Step 4: Get dependencies
+      # Step 4: Check Flutter version
+      - name: Check Flutter version
+        run: flutter --version
+
+      # Step 5: Run Flutter doctor
+      - name: Run Flutter doctor
+        run: flutter doctor --verbose
+
+      # Step 6: Clean Flutter build
+      - name: Clean Flutter build
+        run: flutter clean
+
+      # Step 7: Get dependencies
       - name: Get dependencies
         run: flutter pub get
 
-      # Step 5: Build the APK
-      - name: Build APK
-        run: flutter build apk --release
+      # Step 8: Run Flutter analyze
+      - name: Run Flutter analyze
+        run: flutter analyze
 
-      # Step 6: Debug - List files to confirm APK exists
+      # Step 9: Debug - Show local.properties
+      - name: Debug - Show local.properties
+        run: cat android/local.properties || echo "local.properties not found"
+
+      # Step 10: Decode Keystore
+      - name: Decode Keystore
+        env:
+          KEYSTORE_FILE: ${{ secrets.KEYSTORE_FILE }}
+        run: echo "$KEYSTORE_FILE" | base64 -d > android/app/keystore.jks
+
+      # Step 11: Create key.properties
+      - name: Create key.properties
+        run: |
+          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> android/key.properties
+          echo "keyPassword=${{ secrets.KEYSTORE_PASSWORD }}" >> android/key.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
+          echo "storeFile=keystore.jks" >> android/key.properties
+
+      # Step 12: Build the APK with verbose output
+      - name: Build APK
+        run: flutter build apk --release --verbose
+
+      # Step 13: Debug - List files to confirm APK exists
       - name: List build files
         run: ls -la build/app/outputs/flutter-apk/
 
-      # Step 7: Upload the APK as an artifact
+      # Step 14: Upload the APK as an artifact
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: build/app/outputs/flutter-apk/app-release.apk
-          if-no-files-found: error # Fail if the file isn't found
+          if-no-files-found: error

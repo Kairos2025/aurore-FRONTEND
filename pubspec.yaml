@@ -1,8 +1,8 @@
-
 name: aurore_school
 description: A Flutter application for Aurore School.
 
 version: 1.0.0+1
+
 environment:
   sdk: '>=3.0.0 <4.0.0'
 
@@ -27,8 +27,5 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^4.0.0
 
-flutter:
-  uses-material-design: true
-  assets:
-    - assets/images/aurore_logo.png
-    - assets/images/login_logo.png
+dependency_overrides:
+  google_sign_in: 6.1.6

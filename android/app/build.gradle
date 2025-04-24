@@ -5,8 +5,42 @@ plugins {
     id "dev.flutter.flutter-gradle-plugin"
 }
 
+// Load local.properties to get flutterVersionCode and flutterVersionName
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader('UTF-8') { reader ->
+        localProperties.load(reader)
+    }
+} else {
+    throw new GradleException("local.properties file not found. Ensure 'flutter pub get' has been run.")
+}
+
+// Define versionCode and versionName with fallback values
+def flutterVersionCode = localProperties.getProperty('flutterVersionCode')
+def flutterVersionName = localProperties.getProperty('flutterVersionName')
+
+// Validate and set fallback values
+if (!flutterVersionCode) {
+    println "flutterVersionCode not found in local.properties. Using fallback value: 1"
+    flutterVersionCode = "1"
+}
+if (!flutterVersionName) {
+    println "flutterVersionName not found in local.properties. Using fallback value: 1.0.0"
+    flutterVersionName = "1.0.0"
+}
+
+// Load key.properties for signing configuration
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withReader('UTF-8') { reader ->
+        keystoreProperties.load(reader)
+    }
+}
+
 android {
-    namespace = "com.example.school_management2"
+    namespace = "com.yourcompany.aurore"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -19,26 +53,35 @@ android {
         jvmTarget = JavaVersion.VERSION_1_8
     }
 
+    // Define signing configuration for release builds
+    signingConfigs {
+        release {
+            keyAlias keystoreProperties['keyAlias']
+            keyPassword keystoreProperties['keyPassword']
+            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+            storePassword keystoreProperties['storePassword']
+        }
+    }
+
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.school_management2"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
+        applicationId = "com.yourcompany.aurore"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
     }
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.debug
+            signingConfig = signingConfigs.release
         }
     }
 }
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // No app-level dependencies needed for a standard Flutter project
 }
