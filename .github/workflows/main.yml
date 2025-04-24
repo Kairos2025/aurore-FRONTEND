@@ -27,16 +27,14 @@ jobs:
       run: |
         rm -rf ~/.gradle/caches
 
-    - name: Download and Set Up Gradle 8.9
+    - name: Download Gradle 8.9
       run: |
         wget https://services.gradle.org/distributions/gradle-8.9-bin.zip -P /tmp
         unzip /tmp/gradle-8.9-bin.zip -d /tmp
-        echo "GRADLE_HOME=/tmp/gradle-8.9" >> $GITHUB_ENV
-        echo "/tmp/gradle-8.9/bin" >> $GITHUB_PATH
 
     - name: Verify Gradle Version
       run: |
-        gradle --version
+        /tmp/gradle-8.9/bin/gradle --version
 
     - name: Install Android NDK 27.0.12077973
       run: |
@@ -65,10 +63,10 @@ jobs:
     - name: Install dependencies
       run: flutter pub get
 
-    - name: Build APK with Gradle
+    - name: Build APK with Gradle 8.9
       run: |
         cd android
-        gradle assembleRelease
+        /tmp/gradle-8.9/bin/gradle assembleRelease
 
     - name: Copy APK to Output
       run: |
