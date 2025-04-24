@@ -27,11 +27,23 @@ jobs:
       run: |
         rm -rf ~/.gradle/caches
 
+    - name: Debug Gradle Wrapper Setup
+      run: |
+        cd android
+        ls -la
+        chmod +x gradlew
+        ./gradlew --version
+
     - name: Update Gradle Wrapper
       run: |
         cd android
         chmod +x gradlew
         ./gradlew wrapper --gradle-version 8.9 --distribution-type all
+
+    - name: Verify Gradle Version After Update
+      run: |
+        cd android
+        ./gradlew --version
 
     - name: Install Android NDK 27.0.12077973
       run: |
