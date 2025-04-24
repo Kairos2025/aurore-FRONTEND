@@ -1,1 +1,181 @@
-// TODO Implement this library.
+import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:aurore_school/core/providers/qr_provider.dart';
+import 'package:aurore_school/widgets/aurore_app_bar.dart';
+import 'package:aurore_school/widgets/aurore_button.dart';
+import 'package:aurore_school/widgets/aurore_header.dart';
+import 'package:aurore_school/widgets/notion_card.dart';
+
+class TeacherDashboard extends StatefulWidget {
+  const TeacherDashboard({super.key});
+
+  @override
+  State<TeacherDashboard> createState() => _TeacherDashboardState();
+}
+
+class _TeacherDashboardState extends State<TeacherDashboard> {
+  final MobileScannerController _scannerController = MobileScannerController();
+
+  @override
+  void dispose() {
+    _scannerController.dispose();
+    super.dispose();
+  }
+
+  void _refresh() {
+    // Implement refresh logic here
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final qrProvider = Provider.of<QrProvider>(context);
+
+    return Scaffold(
+      appBar: AuroreAppBar(
+        title: 'Teacher Dashboard',
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _refresh,
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const AuroreHeader(title: 'Welcome, Teacher!'),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Column(
+                children: [
+                  const NotionCard(
+                    title: 'Scan Student QR Code',
+                    description: 'Scan a student QR code to mark attendance.',
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    height: 200,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: MobileScanner(
+                      controller: _scannerController,
+                      onDetect: (barcodeCapture) {
+                        final barcode = barcodeCapture.barcodes.first;
+                        qrProvider.scanQrCode(barcode).then((success) {
+                          if (success) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('QR Code Scanned: ${barcode.rawValue}')),
+                            );
+                          }
+                        });
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  AuroreButton(
+                    text: qrProvider.isScanning ? 'Stop Scanning' : 'Scan QR Code',
+                    onPressed: qrProvider.isScanning
+                        ? qrProvider.stopScanning
+                        : qrProvider.startScanning,
+                    icon: qrProvider.isScanning ? Icons.stop : Icons.qr_code_scanner,
+                  ),
+                  if (qrProvider.error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: Text(
+                        'Error: ${qrProvider.error}',
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                    ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Attendance Overview',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  if (qrProvider.isLoading)
+                    const Center(child: CircularProgressIndicator())
+                  else
+                    SizedBox(
+                      height: 200,
+                      child: BarChart(
+                        BarChartData(
+                          barGroups: [
+                            BarChartGroupData(
+                              x: 0,
+                              barRods: [
+                                BarChartRodData(
+                                  toY: 5,
+                                  color: Colors.blue,
+                                ),
+                              ],
+                            ),
+                            BarChartGroupData(
+                              x: 1,
+                              barRods: [
+                                BarChartRodData(
+                                  toY: 8,
+                                  color: Colors.blue,
+                                ),
+                              ],
+                            ),
+                          ],
+                          titlesData: FlTitlesData(
+                            leftTitles: const AxisTitles(
+                              sideTitles: SideTitles(showTitles: false),
+                            ),
+                            bottomTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                getTitlesWidget: (value, meta) {
+                                  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+                                  return Text(days[value.toInt()]);
+                                },
+                              ),
+                            ),
+                          ),
+                          gridData: const FlGridData(show: false),
+                          borderData: FlBorderData(show: false),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Recent Scans',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: 3,
+                    itemBuilder: (context, index) {
+                      return NotionCard(
+                        title: 'Student ${index + 1}',
+                        description: 'Scanned at ${DateFormat.yMMMd().add_jm().format(DateTime.now())}',
+                        timestamp: DateTime.now(),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  AuroreButton(
+                    text: 'View All Scans',
+                    onPressed: () {},
+                    icon: Icons.history,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

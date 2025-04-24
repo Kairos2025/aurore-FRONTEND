@@ -1,31 +1,84 @@
 name: aurore_school
-description: A Flutter application for Aurore School.
+description: A Flutter application for Aurore School management, providing scheduling, QR scanning, and analytics features.
 
-version: 1.0.0+1
+# Version format: major.minor.patch+build
+version: 1.0.1+2
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: '>=3.4.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
-  firebase_core: ^3.6.0
-  firebase_auth: ^5.3.1
-  google_sign_in: ^6.2.1
-  flutter_secure_storage: ^9.2.2
-  mobile_scanner: ^6.0.7
+
+  # Firebase dependencies
+  firebase_core: ^3.6.0  # Reverted to original
+  firebase_auth: ^5.3.1  # Reverted to original
+  firebase_analytics: ^11.3.0  # Reverted to original
+
+  # Authentication
+  google_sign_in: ^6.2.1  # Reverted to original
+
+  # Storage and security
+  flutter_secure_storage: ^9.2.4  # Reverted to original
+  crypto: ^3.0.5
+  path_provider: ^2.1.5  # Reverted to original
+
+  # QR and scanning
+  mobile_scanner: ^6.0.10  # Reverted to original
   qr_flutter: ^4.1.0
+
+  # Networking
   dio: ^5.7.0
+  http: ^1.2.2
+
+  # State management and dependency injection
   provider: ^6.1.2
-  google_mlkit_text_recognition: ^0.13.0
-  image_picker: ^1.1.2
-  intl: ^0.19.0
-  crypto: ^3.0.3
+  get_it: ^8.0.3
+
+  # ML and imaging
+  google_mlkit_text_recognition: ^0.15.0  # Reverted to original
+  google_mlkit_commons: ^0.11.0  # Reverted to original
+  image_picker: ^1.1.2  # Reverted to original
+  email_validator: ^3.0.0
+
+  # UI and visualizations
+  animations: ^2.0.8
+  vibration: ^1.7.5  # Kept downgraded due to compilation error
+  vibration_platform_interface: ^0.0.1  # Kept downgraded to match vibration
+  fl_chart: ^0.71.0
+  vector_math: 2.1.4
+
+  # Utilities
+  intl: ^0.20.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  lints: ^4.0.0
+  test: ^1.25.8
 
-dependency_overrides:
-  google_sign_in: 6.1.6
+# Analyzer configuration
+analyzer:
+  exclude:
+    - '**/*.g.dart'
+    - '**/*.freezed.dart'
+
+# Linter configuration
+linter:
+  rules:
+    prefer_final_fields: false
+    always_use_package_imports: true
+    avoid_print: true
+
+# Flutter-specific settings
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/icons/
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: fonts/Inter-Regular.ttf
