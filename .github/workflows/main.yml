@@ -3,47 +3,63 @@ name: Build APK
 on:
   push:
     branches:
-      - main
+      - update-gradle
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout the repository
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - uses: actions/checkout@v3
 
-      # Step 2: Set up Java (required for Android builds)
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'adopt'
+    - name: Set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
 
-      # Step 3: Set up Flutter
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
-          flutter-version: '3.22.2' # Matches your pubspec.yaml constraint (>=3.0.0 <4.0.0)
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.7.2'
+        channel: 'stable'
 
-      # Step 4: Get dependencies
-      - name: Get dependencies
-        run: flutter pub get
+    - name: Update Gradle Wrapper
+      run: |
+        cd android
+        ./gradlew wrapper --gradle-version 8.9 --distribution-type all
 
-      # Step 5: Build the APK
-      - name: Build APK
-        run: flutter build apk --release
+    - name: Install Android NDK 27.0.12077973
+      run: |
+        echo "Installing NDK 27.0.12077973..."
+        sdkmanager --install "ndk;27.0.12077973"
+        echo "NDK installed at $ANDROID_HOME/ndk/27.0.12077973"
+      env:
+        ANDROID_HOME: $ANDROID_SDK_ROOT
 
-      # Step 6: Debug - List files to confirm APK exists
-      - name: List build files
-        run: ls -la build/app/outputs/flutter-apk/
+    - name: Remove other NDK versions
+      run: |
+        echo "Removing other NDK versions..."
+        ls -d $ANDROID_HOME/ndk/* | grep -v 27.0.12077973 | xargs rm -rf
+      env:
+        ANDROID_HOME: $ANDROID_SDK_ROOT
 
-      # Step 7: Upload the APK as an artifact
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release
-          path: build/app/outputs/flutter-apk/app-release.apk
-          if-no-files-found: error # Fail if the file isn't found
+    - name: Debug NDK Setup
+      run: |
+        echo "ANDROID_HOME: $ANDROID_HOME"
+        ls -la $ANDROID_HOME/ndk
+
+    - name: Override minSdkVersion
+      run: |
+        sed -i 's/minSdkVersion [0-9]*/minSdkVersion 23/' android/app/build.gradle
+
+    - name: Install dependencies
+      run: flutter pub get
+
+    - name: Build APK
+      run: flutter build apk --release
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v3
+      with:
+        name: app-release.apk
+        path: build/app/outputs/flutter-apk/app-release.apk
