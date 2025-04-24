@@ -1,16 +1,43 @@
-# school_management2
+# Aurore School App
 
-A new Flutter project.
+A Flutter application for Aurore School management.
 
-## Getting Started
+## Setup
 
-This project is a starting point for a Flutter application.
+1. Clone the repository:
+   `ash
+   git clone https://github.com/your-username/aurore-school.git
+   ` 
 
-A few resources to get you started if this is your first Flutter project:
+2. Create ndroid/key.properties with your keystore details:
+   ` 
+   storePassword=your-store-password
+   keyPassword=your-key-password
+   keyAlias=your-key-alias
+   storeFile=/path/to/your/keystore.jks
+   ` 
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+3. Create ndroid/local.properties with your SDK paths:
+   ` 
+   flutter.sdk=/path/to/flutter
+   sdk.dir=/path/to/android-sdk
+   flutter.buildMode=release
+   flutterVersionCode=2
+   flutterVersionName=1.0.1
+   flutter.minSdkVersion=23
+   org.gradle.java.home=/path/to/jdk-17
+   android.useAndroidX=true
+   android.enableJetifier=true
+   ` 
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+4. Run the app:
+   `ash
+   flutter pub get
+   flutter run
+   ` 
+
+## Known Issues
+- **NDK Mismatch**: Build fails with NDK 26.3.11579264 being reinstalled despite requiring 27.0.12077973.
+- **minSdkVersion Conflict**: irebase_auth requires minSdkVersion 23, but build detects 21.
+
+See build logs for details and ongoing debugging efforts.
