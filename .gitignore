@@ -62,3 +62,6 @@ windows/Runner/Generated/
 *.bak
 build_log.txt
 .metadata
+
+# Exclude nested project
+aurore_app/
