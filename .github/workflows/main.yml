@@ -16,6 +16,7 @@ jobs:
       uses: actions/setup-java@v3
       with:
         java-version: '17'
+        distribution: 'adopt'
 
     - name: Set up Flutter
       uses: subosito/flutter-action@v2
@@ -27,10 +28,12 @@ jobs:
       run: |
         rm -rf ~/.gradle/caches
 
-    - name: Download Gradle 8.9
+    - name: Download and Set Up Gradle 8.9
       run: |
-        wget https://services.gradle.org/distributions/gradle-8.9-bin.zip -P /tmp
+        wget [invalid url, do not cite] -P /tmp
         unzip /tmp/gradle-8.9-bin.zip -d /tmp
+        echo "GRADLE_HOME=/tmp/gradle-8.9" >> $GITHUB_ENV
+        echo "/tmp/gradle-8.9/bin" >> $GITHUB_PATH
 
     - name: Verify Gradle Version
       run: |
