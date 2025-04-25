@@ -13,47 +13,47 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Setup Java
         uses: actions/setup-java@v3
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Set up Flutter
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.22.0'
           channel: 'stable'
-          flutter-cache: true
 
-      - name: Disable analytics
-        run: flutter config --no-analytics
+      - name: Clean workspace
+        run: |
+          flutter clean
+          rm -rf ~/.gradle/caches
+          rm -rf android/.gradle
 
-      - name: Set environment variables
+      - name: Set versions
         run: |
           echo "FLUTTER_VERSION_CODE=1" >> $GITHUB_ENV
           echo "FLUTTER_VERSION_NAME=1.0.0" >> $GITHUB_ENV
 
-      - name: Install dependencies
+      - name: Resolve dependencies
         run: flutter pub get
 
       - name: Build APK
         run: |
-          flutter clean
           flutter build apk --release --no-pub --verbose
 
-      - name: Verify APK
+      - name: Verify build
         run: |
           if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "::error::APK not found!"
+            echo "::error::Build failed - APK not found!"
             ls -la build/app/outputs/flutter-apk/
             exit 1
           fi
 
-      - name: Upload APK
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release.apk
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 7
-          if-no-files-found: error
