@@ -11,8 +11,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup Java
         uses: actions/setup-java@v3
@@ -32,53 +30,31 @@ jobs:
         with:
           flutter-version: '3.22.0'
           channel: 'stable'
-          flutter-cache: true
 
       - name: Configure environment
         run: |
+          # For nested project structure
+          cd aurore_app || echo "Already in root"
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           echo "flutter.sdk=$FLUTTER_HOME" >> android/local.properties
-          echo "flutter.versionCode=1" >> android/local.properties
-          echo "flutter.versionName=1.0.0" >> android/local.properties
 
-      - name: Run Flutter doctor
-        run: flutter doctor -v
-
-      - name: Build with full diagnostics
+      - name: Build with diagnostics
         run: |
-          set -ex  # Enable debug mode
+          cd aurore_app || echo "Already in root"
+          set -ex
           flutter clean
           flutter pub get
           
-          # First attempt with standard build
-          if ! flutter build apk --release --verbose 2>&1 | tee build.log; then
-            echo "::warning::First build attempt failed, trying alternatives"
-            
-            # Try with different configurations
-            flutter build apk --release --no-shrink --verbose 2>&1 | tee build.log ||
-            flutter build apk --release --no-tree-shake-icons --verbose 2>&1 | tee build.log ||
-            {
-              echo "::error::All build attempts failed"
-              echo "Last 50 lines of build log:"
-              tail -n 50 build.log
-              exit 1
-            }
-          fi
-
-          # Verify build directory exists
-          if [ ! -d "build/" ]; then
-            echo "::error::Build directory not created!"
-            echo "Project structure:"
-            ls -la
-            exit 1
-          fi
-
-          # Verify APK exists
+          # Build with debug info
+          flutter build apk --release --verbose 2>&1 | tee build.log
+          
+          # Verify APK
           if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "::error::APK not found in expected location"
-            echo "Build directory contents:"
-            ls -la build/app/outputs/flutter-apk/ || echo "No flutter-apk directory"
-            find . -name "*.apk" || echo "No APK files found"
+            echo "::error::APK not found!"
+            echo "Build log tail:"
+            tail -n 50 build.log
+            echo "Directory contents:"
+            ls -la build/app/outputs/flutter-apk/ || ls -la build/
             exit 1
           fi
 
@@ -86,6 +62,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-release.apk
-          path: build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 7
+          path: aurore_app/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
