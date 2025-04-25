@@ -4,25 +4,13 @@ plugins {
     id "dev.flutter.flutter-gradle-plugin"
 }
 
-def localProperties = new Properties()
-def localPropertiesFile = rootProject.file('local.properties')
-if (localPropertiesFile.exists()) {
-    localPropertiesFile.withReader('UTF-8') { reader ->
-        localProperties.load(reader)
-    }
-}
-
-// Set explicit versions - don't rely on Flutter extension
-def flutterVersionCode = localProperties.getProperty('versionCode') ?: '1'
-def flutterVersionName = localProperties.getProperty('versionName') ?: '1.0.0'
+def flutterVersionCode = System.getenv('FLUTTER_VERSION_CODE') ?: '1'
+def flutterVersionName = System.getenv('FLUTTER_VERSION_NAME') ?: '1.0.0'
 
 android {
     namespace "com.yourcompany.aurore"
-    compileSdkVersion 34  // Explicit SDK version
+    compileSdk 34
     
-    // NDK version (optional)
-    ndkVersion localProperties.getProperty('ndkVersion') ?: "25.2.9519653"
-
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
@@ -34,18 +22,18 @@ android {
 
     defaultConfig {
         applicationId "com.yourcompany.aurore"
-        minSdkVersion 21  // Explicit min SDK
-        targetSdkVersion 34  // Explicit target SDK
+        minSdk 21
+        targetSdk 34
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
     }
 
     buildTypes {
         release {
-            // Signing config if needed
+            signingConfig signingConfigs.debug
             minifyEnabled true
             shrinkResources true
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }
