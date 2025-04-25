@@ -17,7 +17,7 @@ jobs:
       uses: actions/setup-java@v3
       with:
         java-version: '17'
-        distribution: 'adopt'
+        distribution: 'temurin'  # Changed from 'adopt' (Adoptium is now Eclipse Temurin)
 
     - name: Set up Flutter
       uses: subosito/flutter-action@v2
@@ -27,7 +27,7 @@ jobs:
 
     - name: Clear Gradle Cache
       run: |
-        rm -rf $HOME/.gradle/caches
+        rm -rf ~/.gradle/caches
 
     - name: Download and Set Up Gradle 8.9
       run: |
@@ -47,7 +47,7 @@ jobs:
       run: flutter build apk --release
 
     - name: Upload APK
-      uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce  # Specific SHA for v3
+      uses: actions/upload-artifact@v3  # Changed from SHA to version tag
       with:
         name: app-release.apk
         path: build/app/outputs/flutter-apk/app-release.apk
