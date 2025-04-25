@@ -42,18 +42,12 @@ jobs:
           cache: true
           cache-key: flutter-${{ hashFiles('**/pubspec.yaml') }}
 
-      - name: Ensure Build Directory Exists
+      - name: Recreate Android Directory
         run: |
-          mkdir -p ../build
-          chmod -R 755 ../build
-        shell: bash
-
-      - name: Generate Android Files if Missing
-        run: |
-          if [ ! -d "android" ] || [ ! -f "android/gradlew" ]; then
-            echo "Generating Android files..."
-            flutter create --platforms android --project-name my_app .
+          if [ -d "android" ]; then
+            rm -rf android
           fi
+          flutter create --platforms android --project-name my_app .
         shell: bash
 
       - name: Fix Gradle Configuration
@@ -87,21 +81,9 @@ jobs:
 
       - name: Flutter Build Preparation
         run: |
-          flutter doctor --verbose
-          flutter clean
+          flutter doctor -v
           flutter pub get
-        shell: bash
-
-      - name: Make Gradle Wrapper Executable
-        run: |
-          if [ -f android/gradlew ]; then
-            chmod +x android/gradlew
-            echo "Gradle wrapper found and made executable"
-          else
-            echo "Error: gradlew still not found after generation attempts"
-            ls -la android/
-            exit 1
-          fi
+          cd android && ./gradlew clean && cd ..
         shell: bash
 
       - name: Build APK
