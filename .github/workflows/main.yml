@@ -17,6 +17,7 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: 'gradle'
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -28,39 +29,27 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.29.3'  # Updated to match your requirements
+          flutter-version: '3.29.3'
           channel: 'stable'
-          flutter-cache: true
 
-      - name: Configure environment
+      - name: Fix Gradle Java Home
         run: |
-          cd aurore_app || echo "Already in root"
-          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
-          echo "flutter.sdk=$FLUTTER_HOME" >> android/local.properties
-          echo "flutter.versionCode=1" >> android/local.properties
-          echo "flutter.versionName=1.0.0" >> android/local.properties
-
-      - name: Verify Flutter version
-        run: |
-          cd aurore_app || echo "Already in root"
-          flutter --version
-          dart --version
-
-      - name: Install dependencies
-        run: |
-          cd aurore_app || echo "Already in root"
-          flutter pub get
+          # Remove Windows-style Java home from Gradle properties
+          find ~/.gradle -name "gradle.properties" -exec sed -i '/org.gradle.java.home/d' {} \;
+          
+          # Create fresh Gradle properties with correct Java home
+          echo "org.gradle.java.home=$JAVA_HOME" > ~/.gradle/gradle.properties
+          echo "android.jvmargs=-Xmx4096m" >> ~/.gradle/gradle.properties
 
       - name: Build APK
         run: |
-          cd aurore_app || echo "Already in root"
           flutter clean
+          flutter pub get
           flutter build apk --release --verbose
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release.apk
-          path: aurore_app/build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 7
-          if-no-files-found: error
