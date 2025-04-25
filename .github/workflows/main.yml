@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
 
+env:
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2"
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -12,7 +15,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Important for Flutter projects
+          fetch-depth: 0
 
       - name: Setup Java
         uses: actions/setup-java@v3
@@ -26,7 +29,9 @@ jobs:
         with:
           accept-android-licenses: true
           android-sdk-platform: 34
-          build-tools-version: 34.0.0
+          build-tools-version: '34.0.0'
+          cmake-version: '3.22.1'
+          ndk-version: '25.2.9519653'
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -36,13 +41,15 @@ jobs:
           cache: true
           cache-key: flutter-${{ hashFiles('**/pubspec.yaml') }}
 
-      - name: Validate Flutter Installation
+      - name: Validate Environment
         run: |
           flutter doctor -v
-          flutter --version
+          java -version
+          echo "ANDROID_HOME: $ANDROID_HOME"
+          ls -la $ANDROID_HOME
         shell: bash
 
-      - name: Recreate Android Files
+      - name: Clean and Regenerate Android Files
         run: |
           if [ -d "android" ]; then
             rm -rf android
@@ -51,14 +58,18 @@ jobs:
           cd android && ./gradlew clean && cd ..
         shell: bash
 
-      - name: Configure Gradle
+      - name: Configure Gradle Properties
         run: |
           mkdir -p ~/.gradle
-          echo "org.gradle.java.home=$JAVA_HOME" > ~/.gradle/gradle.properties
-          echo "android.jvmargs=-Xmx6144m" >> ~/.gradle/gradle.properties
-          echo "org.gradle.jvmargs=-Xmx6144m -XX:+HeapDumpOnOutOfMemoryError" >> ~/.gradle/gradle.properties
-          echo "org.gradle.daemon=false" >> ~/.gradle/gradle.properties
-          echo "org.gradle.parallel=true" >> ~/.gradle/gradle.properties
+          cat <<EOF > ~/.gradle/gradle.properties
+          org.gradle.java.home=$JAVA_HOME
+          android.jvmargs=-Xmx6144m -XX:MaxPermSize=1024m
+          org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError
+          org.gradle.daemon=false
+          org.gradle.parallel=true
+          org.gradle.caching=true
+          org.gradle.configureondemand=true
+          EOF
         shell: bash
 
       - name: Setup Keystore
@@ -69,35 +80,26 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           echo "$KEYSTORE_BASE64" | base64 -d > android/app/my-release-key.jks
-          echo "storeFile=my-release-key.jks" > android/key.properties
-          echo "storePassword=$KEYSTORE_PASSWORD" >> android/key.properties
-          echo "keyAlias=$KEY_ALIAS" >> android/key.properties
-          echo "keyPassword=$KEY_PASSWORD" >> android/key.properties
+          cat <<EOF > android/key.properties
+          storeFile=my-release-key.jks
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
         shell: bash
 
-      - name: Build Preparation
+      - name: Prepare Dependencies
         run: |
           flutter pub get
-          flutter clean
+          cd android && ./gradlew dependencies && cd ..
         shell: bash
 
-      - name: Build APK (with retry)
+      - name: Build APK with Detailed Logging
         run: |
-          set +e
-          for i in 1 2 3; do
-            echo "Attempt $i/3"
-            flutter build apk --release --verbose > build.log 2>&1
-            if [ $? -eq 0 ]; then
-              cat build.log
-              echo "Build succeeded on attempt $i"
-              exit 0
-            fi
-            cat build.log
-            echo "Build failed on attempt $i, retrying..."
-            sleep 5
-          done
-          echo "All build attempts failed"
-          exit 1
+          set -x
+          flutter clean
+          flutter build apk --release --verbose > build.log 2>&1 || (cat build.log && exit 1)
+          cat build.log | grep -i "error\|exception\|fail" || echo "No errors found in logs"
         shell: bash
 
       - name: Upload APK
