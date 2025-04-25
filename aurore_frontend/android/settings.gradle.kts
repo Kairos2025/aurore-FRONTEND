@@ -6,9 +6,15 @@ pluginManagement {
     }
 
     // Safe Flutter SDK path resolution
-    val flutterSdkPath = System.getenv("FLUTTER_HOME") ?: file("../flutter").absolutePath
-    if (file("$flutterSdkPath/packages/flutter_tools/gradle").exists()) {
-        includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
+    val localProperties = file("../local.properties")
+    if (localProperties.exists()) {
+        val properties = java.util.Properties()
+        localProperties.inputStream().use { properties.load(it) }
+        properties.getProperty("flutter.sdk")?.let { flutterSdkPath ->
+            if (file("$flutterSdkPath/packages/flutter_tools/gradle").exists()) {
+                includeBuild(flutterSdkPath + "/packages/flutter_tools/gradle")
+            }
+        }
     }
 }
 
