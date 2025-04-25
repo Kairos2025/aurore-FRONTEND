@@ -29,39 +29,65 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.3'  # Updated to a more recent stable version (as of April 2025)
+          flutter-version: '3.24.3'
           channel: 'stable'
-          cache: true  # Enable caching for faster builds
-          cache-key: flutter-${{ hashFiles('**/pubspec.yaml') }}  # Cache based on pubspec.yaml changes
+          cache: true
+          cache-key: flutter-${{ hashFiles('**/pubspec.yaml') }}
 
       - name: Ensure Gradle Directory Exists
         run: |
-          mkdir -p ~/.gradle  # Create the .gradle directory if it doesn't exist
+          mkdir -p ~/.gradle
         shell: bash
 
       - name: Fix Gradle Java Home
         run: |
-          # Remove Windows-style Java home from Gradle properties if it exists
           if [ -d ~/.gradle ]; then
             find ~/.gradle -name "gradle.properties" -exec sed -i '/org.gradle.java.home/d' {} \; || echo "No gradle.properties files found, skipping sed."
           fi
-          
-          # Create or update Gradle properties with correct Java home
           echo "org.gradle.java.home=$JAVA_HOME" > ~/.gradle/gradle.properties
           echo "android.jvmargs=-Xmx4096m" >> ~/.gradle/gradle.properties
+          echo "org.gradle.jvmargs=-Xmx4096m -XX:+HeapDumpOnOutOfMemoryError" >> ~/.gradle/gradle.properties
+          echo "org.gradle.daemon=false" >> ~/.gradle/gradle.properties  # Disable Gradle daemon for CI
+          echo "org.gradle.parallel=true" >> ~/.gradle/gradle.properties  # Enable parallel builds
+        shell: bash
+
+      - name: Accept Android Licenses
+        run: |
+          yes | sdkmanager --licenses || true  # Ensure all licenses are accepted
         shell: bash
 
       - name: Flutter Build Preparation
         run: |
-          flutter doctor --verbose  # Helps debug environment issues
+          flutter doctor --verbose
           flutter clean
           flutter pub get
         shell: bash
 
-      - name: Build APK
+      - name: Check Signing Configuration
         run: |
-          flutter build apk --release --verbose
+          if [ ! -f "android/key.properties" ]; then
+            echo "Error: android/key.properties not found. Release builds require signing configuration."
+            echo "Create android/key.properties with the following content:"
+            echo "storeFile=<path-to-keystore>"
+            echo "storePassword=<password>"
+            echo "keyAlias=<alias>"
+            echo "keyPassword=<password>"
+            exit 1
+          fi
         shell: bash
+
+      - name: Build APK with Debug Output
+        run: |
+          flutter build apk --release --verbose > build-apk.log 2>&1 || (cat build-apk.log && exit 1)
+        shell: bash
+
+      - name: Upload Build Logs
+        if: failure()  # Upload logs only if the build fails
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-apk-logs
+          path: build-apk.log
+          retention-days: 7
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
