@@ -54,7 +54,7 @@ jobs:
           echo "android.jvmargs=-Xmx6144m" >> ~/.gradle/gradle.properties
           echo "org.gradle.jvmargs=-Xmx6144m -XX:+HeapDumpOnOutOfMemoryError -XX:MaxMetaspaceSize=512m" >> ~/.gradle/gradle.properties
           echo "org.gradle.daemon=false" >> ~/.gradle/gradle.properties
-          echo "org.gradle.parallel=true" >> ~/.gradle/gradle.properties
+          echo "org.gradle.parallel=false" >> ~/.gradle/gradle.properties
         shell: bash
 
       - name: Accept Android Licenses
@@ -88,25 +88,31 @@ jobs:
           flutter pub get
         shell: bash
 
+      - name: Run Gradle Build Directly for Detailed Logs
+        run: |
+          cd android
+          ./gradlew assembleRelease --stacktrace --info > ../gradle-build.log 2>&1 || (cat ../gradle-build.log && exit 1)
+        shell: bash
+
       - name: Build APK with Debug Output
         run: |
           flutter build apk --release --verbose > build-apk.log 2>&1 || (cat build-apk.log && exit 1)
         shell: bash
 
-      - name: Upload Build Logs
+      - name: Upload Gradle Build Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-build-logs
+          path: gradle-build.log
+          retention-days: 7
+
+      - name: Upload Flutter Build Logs
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: build-apk-logs
           path: build-apk.log
-          retention-days: 7
-
-      - name: Upload Gradle Logs
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: gradle-logs
-          path: android/app/build.gradle.log
           retention-days: 7
 
       - name: Upload APK
