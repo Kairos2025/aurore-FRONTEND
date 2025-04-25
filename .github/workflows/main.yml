@@ -12,20 +12,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Required for Gradle wrapper
+          fetch-depth: 0
 
-      - name: Setup Java
+      - name: Set up Java
         uses: actions/setup-java@v3
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Android SDK
+      - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
           accept-android-licenses: true
+          android-sdk-platform: 34
+          build-tools-version: 34.0.0
 
-      - name: Setup Flutter
+      - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.22.0'
@@ -34,41 +36,45 @@ jobs:
 
       - name: Configure environment
         run: |
-          # Get exact Flutter path
-          FLUTTER_PATH=$(dirname $(dirname $(which flutter)))
-          echo "FLUTTER_HOME=$FLUTTER_PATH" >> $GITHUB_ENV
+          # Set correct Flutter path
+          FLUTTER_ROOT=$(dirname $(dirname $(which flutter)))
+          echo "FLUTTER_HOME=$FLUTTER_ROOT" >> $GITHUB_ENV
           
-          # Create essential configuration
+          # Create essential config files
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
-          echo "flutter.sdk=$FLUTTER_PATH" >> android/local.properties
+          echo "flutter.sdk=$FLUTTER_ROOT" >> android/local.properties
           echo "flutter.versionCode=1" >> android/local.properties
           echo "flutter.versionName=1.0.0" >> android/local.properties
 
-      - name: Verify environment
+      - name: Verify setup
         run: |
           flutter doctor -v
           ls -la "$FLUTTER_HOME/packages/flutter_tools/gradle"
 
-      - name: Build with full diagnostics
+      - name: Build with debug
         run: |
-          set -ex  # Enable debug and exit on error
+          set -ex  # Enable debug mode and exit on error
           flutter clean
           flutter pub get
           
-          # Build with debug info
-          flutter build apk --release --verbose --no-shrink 2>&1 | tee build.log
-          
-          # Verify APK exists
-          APK_PATH=$(find . -name "app-release.apk" | head -1)
-          if [ -z "$APK_PATH" ]; then
-            echo "::error::No APK found!"
+          # First try normal build
+          if ! flutter build apk --release --verbose; then
+            echo "::warning::Standard build failed, trying with --no-shrink"
+            flutter build apk --release --no-shrink --verbose
+          fi
+
+          # Verify APK exists in all possible locations
+          if [ -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
+            echo "APK found at standard location"
+          elif [ -f "build/app/outputs/apk/release/app-release.apk" ]; then
+            echo "APK found at alternative location"
+            mkdir -p build/app/outputs/flutter-apk/
+            cp build/app/outputs/apk/release/app-release.apk build/app/outputs/flutter-apk/
+          else
+            echo "::error::APK not found in any standard location!"
             find . -name "*.apk" || echo "No APK files found"
             exit 1
           fi
-          
-          # Standardize APK location
-          mkdir -p build/app/outputs/flutter-apk/
-          cp "$APK_PATH" build/app/outputs/flutter-apk/app-release.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
