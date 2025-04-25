@@ -1,36 +1,26 @@
 plugins {
     id "com.android.application"
     id "kotlin-android"
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id "dev.flutter.flutter-gradle-plugin"
 }
 
-// Load local.properties to get flutterVersionCode and flutterVersionName
 def localProperties = new Properties()
 def localPropertiesFile = rootProject.file('local.properties')
 if (localPropertiesFile.exists()) {
     localPropertiesFile.withReader('UTF-8') { reader ->
         localProperties.load(reader)
     }
-} else {
-    throw new GradleException("local.properties file not found. Ensure 'flutter pub get' has been run.")
 }
 
-// Define versionCode and versionName with fallback values
-def flutterVersionCode = localProperties.getProperty('flutterVersionCode')
-def flutterVersionName = localProperties.getProperty('flutterVersionName')
+// Get flutter properties with proper fallbacks
+def flutterVersionCode = localProperties.getProperty('flutter.versionCode') ?: '1'
+def flutterVersionName = localProperties.getProperty('flutter.versionName') ?: '1.0.0'
+def flutterCompileSdkVersion = localProperties.getProperty('flutter.compileSdkVersion') ?: '34'
+def flutterMinSdkVersion = localProperties.getProperty('flutter.minSdkVersion') ?: '21'
+def flutterTargetSdkVersion = localProperties.getProperty('flutter.targetSdkVersion') ?: '34'
+def flutterNdkVersion = localProperties.getProperty('flutter.ndkVersion')
 
-// Validate and set fallback values
-if (!flutterVersionCode) {
-    println "flutterVersionCode not found in local.properties. Using fallback value: 1"
-    flutterVersionCode = "1"
-}
-if (!flutterVersionName) {
-    println "flutterVersionName not found in local.properties. Using fallback value: 1.0.0"
-    flutterVersionName = "1.0.0"
-}
-
-// Load key.properties for signing configuration
+// Load signing config if key.properties exists
 def keystoreProperties = new Properties()
 def keystorePropertiesFile = rootProject.file('key.properties')
 if (keystorePropertiesFile.exists()) {
@@ -40,48 +30,54 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.yourcompany.aurore"
-    compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    namespace "com.yourcompany.aurore"
+    compileSdk flutterCompileSdkVersion.toInteger()
+
+    if (flutterNdkVersion) {
+        ndkVersion flutterNdkVersion
+    }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_1_8
-    }
-
-    // Define signing configuration for release builds
-    signingConfigs {
-        release {
-            keyAlias keystoreProperties['keyAlias']
-            keyPassword keystoreProperties['keyPassword']
-            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
-            storePassword keystoreProperties['storePassword']
-        }
+        jvmTarget = '1.8'
     }
 
     defaultConfig {
-        applicationId = "com.yourcompany.aurore"
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        applicationId "com.yourcompany.aurore"
+        minSdk flutterMinSdkVersion.toInteger()
+        targetSdk flutterTargetSdkVersion.toInteger()
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
     }
 
+    signingConfigs {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+                storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+                storePassword keystoreProperties['storePassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig = signingConfigs.release
+            if (keystorePropertiesFile.exists()) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }
 
 flutter {
-    source = "../.."
+    source '../..'
 }
 
 dependencies {
-    // No app-level dependencies needed for a standard Flutter project
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
 }
