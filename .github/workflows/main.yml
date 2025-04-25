@@ -88,6 +88,16 @@ jobs:
           flutter pub get
         shell: bash
 
+      - name: Ensure Gradle Wrapper is Executable
+        run: |
+          if [ -f android/gradlew ]; then
+            chmod +x android/gradlew
+          else
+            echo "Error: gradlew not found in android directory"
+            exit 1
+          fi
+        shell: bash
+
       - name: Run Gradle Build Directly for Detailed Logs
         run: |
           cd android
