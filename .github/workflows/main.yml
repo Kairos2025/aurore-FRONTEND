@@ -12,40 +12,58 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Set up Java 17
+      - name: Setup Java
         uses: actions/setup-java@v3
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Set up Flutter
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.22.0'
           channel: 'stable'
+          flutter-cache: true
 
       - name: Configure environment
         run: |
-          # Get Flutter SDK path from Flutter installation
-          FLUTTER_PATH=$(which flutter | sed 's/\/bin\/flutter$//')
-          echo "FLUTTER_HOME=${FLUTTER_PATH}" >> $GITHUB_ENV
+          # Get exact Flutter SDK path
+          FLUTTER_PATH=$(dirname $(which flutter))
+          FLUTTER_PATH=${FLUTTER_PATH%/bin}
+          echo "FLUTTER_HOME=$FLUTTER_PATH" >> $GITHUB_ENV
           
-          # Create local.properties
+          # Create essential configuration files
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
-          echo "flutter.sdk=${FLUTTER_PATH}" >> android/local.properties
+          echo "flutter.sdk=$FLUTTER_PATH" >> android/local.properties
           echo "flutter.versionCode=1" >> android/local.properties
           echo "flutter.versionName=1.0.0" >> android/local.properties
 
-          echo "Flutter SDK path: ${FLUTTER_PATH}"
-          ls -la "${FLUTTER_PATH}/packages/flutter_tools/gradle"
+      - name: Verify environment
+        run: |
+          flutter doctor -v
+          ls -la $FLUTTER_HOME/packages/flutter_tools/gradle
 
-      - name: Build APK
+      - name: Clean workspace
+        run: |
+          flutter clean
+          rm -rf ~/.gradle/caches
+          rm -rf android/.gradle
+
+      - name: Build APK (with full logging)
         run: |
           flutter pub get
-          flutter build apk --release --verbose
+          flutter build apk --release --verbose 2>&1 | tee build.log
+          if [ $? -ne 0 ]; then
+            echo "::error::Build failed!"
+            cat build.log
+            exit 1
+          fi
 
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: app-release.apk
