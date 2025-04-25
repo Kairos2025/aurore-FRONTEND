@@ -11,14 +11,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Debug Project Structure
-        run: |
-          echo "Project structure:"
-          ls -la
-          echo "Android directory contents:"
-          ls -la android/ || echo "No android directory found"
-        shell: bash
+        with:
+          fetch-depth: 0  # Important for Flutter projects
 
       - name: Setup Java
         uses: actions/setup-java@v3
@@ -42,27 +36,29 @@ jobs:
           cache: true
           cache-key: flutter-${{ hashFiles('**/pubspec.yaml') }}
 
-      - name: Recreate Android Directory
+      - name: Validate Flutter Installation
+        run: |
+          flutter doctor -v
+          flutter --version
+        shell: bash
+
+      - name: Recreate Android Files
         run: |
           if [ -d "android" ]; then
             rm -rf android
           fi
           flutter create --platforms android --project-name my_app .
+          cd android && ./gradlew clean && cd ..
         shell: bash
 
-      - name: Fix Gradle Configuration
+      - name: Configure Gradle
         run: |
           mkdir -p ~/.gradle
           echo "org.gradle.java.home=$JAVA_HOME" > ~/.gradle/gradle.properties
           echo "android.jvmargs=-Xmx6144m" >> ~/.gradle/gradle.properties
-          echo "org.gradle.jvmargs=-Xmx6144m -XX:+HeapDumpOnOutOfMemoryError -XX:MaxMetaspaceSize=512m" >> ~/.gradle/gradle.properties
+          echo "org.gradle.jvmargs=-Xmx6144m -XX:+HeapDumpOnOutOfMemoryError" >> ~/.gradle/gradle.properties
           echo "org.gradle.daemon=false" >> ~/.gradle/gradle.properties
-          echo "org.gradle.parallel=false" >> ~/.gradle/gradle.properties
-        shell: bash
-
-      - name: Accept Android Licenses
-        run: |
-          yes | sdkmanager --licenses || true
+          echo "org.gradle.parallel=true" >> ~/.gradle/gradle.properties
         shell: bash
 
       - name: Setup Keystore
@@ -79,25 +75,30 @@ jobs:
           echo "keyPassword=$KEY_PASSWORD" >> android/key.properties
         shell: bash
 
-      - name: Flutter Build Preparation
+      - name: Build Preparation
         run: |
-          flutter doctor -v
           flutter pub get
-          cd android && ./gradlew clean && cd ..
+          flutter clean
         shell: bash
 
-      - name: Build APK
+      - name: Build APK (with retry)
         run: |
-          flutter build apk --release --verbose > build.log 2>&1 || (cat build.log && exit 1)
+          set +e
+          for i in 1 2 3; do
+            echo "Attempt $i/3"
+            flutter build apk --release --verbose > build.log 2>&1
+            if [ $? -eq 0 ]; then
+              cat build.log
+              echo "Build succeeded on attempt $i"
+              exit 0
+            fi
+            cat build.log
+            echo "Build failed on attempt $i, retrying..."
+            sleep 5
+          done
+          echo "All build attempts failed"
+          exit 1
         shell: bash
-
-      - name: Upload Build Logs
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-logs
-          path: build.log
-          retention-days: 7
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
