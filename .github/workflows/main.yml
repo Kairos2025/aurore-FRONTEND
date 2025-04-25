@@ -13,7 +13,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # Ensures Gradle wrapper files are included
 
       - name: Set up Java 17
         uses: actions/setup-java@v3
@@ -26,38 +26,27 @@ jobs:
         with:
           flutter-version: '3.22.0'
           channel: 'stable'
-          flutter-cache: true
 
-      - name: Generate local.properties
+      - name: Generate Gradle wrapper (if missing)
         run: |
-          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
-          echo "flutter.sdk=$FLUTTER_HOME" >> android/local.properties
-          echo "flutter.versionCode=1" >> android/local.properties
-          echo "flutter.versionName=1.0.0" >> android/local.properties
+          if [ ! -f "android/gradlew" ]; then
+            echo "Generating Gradle wrapper..."
+            cd android
+            gradle wrapper --gradle-version 8.1.2
+            cd ..
+          fi
 
-      - name: Prepare Gradle
+      - name: Verify Gradle wrapper
         run: |
           cd android
-          ./gradlew wrapper --gradle-version 8.1.2
+          chmod +x gradlew
+          ./gradlew --version
           cd ..
 
-      - name: Build with debug
+      - name: Build APK
         run: |
           flutter pub get
-          flutter build apk --release --no-shrink --verbose 2>&1 | tee build.log
-          if [ $? -ne 0 ]; then
-            echo "::error::Build failed!"
-            cat build.log
-            exit 1
-          fi
-
-      - name: Verify APK
-        run: |
-          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "::error::APK not found!"
-            find . -name "*.apk"
-            exit 1
-          fi
+          flutter build apk --release --verbose
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
