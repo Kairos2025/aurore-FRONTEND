@@ -29,23 +29,39 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.29.3'
+          flutter-version: '3.24.3'  # Updated to a more recent stable version (as of April 2025)
           channel: 'stable'
+          cache: true  # Enable caching for faster builds
+          cache-key: flutter-${{ hashFiles('**/pubspec.yaml') }}  # Cache based on pubspec.yaml changes
+
+      - name: Ensure Gradle Directory Exists
+        run: |
+          mkdir -p ~/.gradle  # Create the .gradle directory if it doesn't exist
+        shell: bash
 
       - name: Fix Gradle Java Home
         run: |
-          # Remove Windows-style Java home from Gradle properties
-          find ~/.gradle -name "gradle.properties" -exec sed -i '/org.gradle.java.home/d' {} \;
+          # Remove Windows-style Java home from Gradle properties if it exists
+          if [ -d ~/.gradle ]; then
+            find ~/.gradle -name "gradle.properties" -exec sed -i '/org.gradle.java.home/d' {} \; || echo "No gradle.properties files found, skipping sed."
+          fi
           
-          # Create fresh Gradle properties with correct Java home
+          # Create or update Gradle properties with correct Java home
           echo "org.gradle.java.home=$JAVA_HOME" > ~/.gradle/gradle.properties
           echo "android.jvmargs=-Xmx4096m" >> ~/.gradle/gradle.properties
+        shell: bash
+
+      - name: Flutter Build Preparation
+        run: |
+          flutter doctor --verbose  # Helps debug environment issues
+          flutter clean
+          flutter pub get
+        shell: bash
 
       - name: Build APK
         run: |
-          flutter clean
-          flutter pub get
           flutter build apk --release --verbose
+        shell: bash
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
