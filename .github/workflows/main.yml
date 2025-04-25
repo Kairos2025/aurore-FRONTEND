@@ -29,14 +29,12 @@ jobs:
       - name: Disable analytics
         run: flutter config --no-analytics
 
-      - name: Setup local.properties
+      - name: Set environment variables
         run: |
-          echo "flutter.sdk=$FLUTTER_HOME" > android/local.properties
-          echo "versionCode=1" >> android/local.properties
-          echo "versionName=1.0.0" >> android/local.properties
-          echo "ndkVersion=$(ls $ANDROID_HOME/ndk | sort -V | tail -n1)" >> android/local.properties
+          echo "FLUTTER_VERSION_CODE=1" >> $GITHUB_ENV
+          echo "FLUTTER_VERSION_NAME=1.0.0" >> $GITHUB_ENV
 
-      - name: Resolve dependencies
+      - name: Install dependencies
         run: flutter pub get
 
       - name: Build APK
