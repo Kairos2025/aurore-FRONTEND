@@ -24,22 +24,33 @@ jobs:
         with:
           flutter-version: '3.22.0'
           channel: 'stable'
+          flutter-cache: true
 
-      - name: Generate local.properties
+      - name: Disable analytics
+        run: flutter config --no-analytics
+
+      - name: Setup local.properties
         run: |
           echo "flutter.sdk=$FLUTTER_HOME" > android/local.properties
-          echo "flutter.versionCode=1" >> android/local.properties
-          echo "flutter.versionName=1.0.0" >> android/local.properties
-          # Explicitly set SDK versions
-          echo "flutter.compileSdkVersion=34" >> android/local.properties
-          echo "flutter.minSdkVersion=21" >> android/local.properties
-          echo "flutter.targetSdkVersion=34" >> android/local.properties
+          echo "versionCode=1" >> android/local.properties
+          echo "versionName=1.0.0" >> android/local.properties
+          echo "ndkVersion=$(ls $ANDROID_HOME/ndk | sort -V | tail -n1)" >> android/local.properties
+
+      - name: Resolve dependencies
+        run: flutter pub get
 
       - name: Build APK
         run: |
           flutter clean
-          flutter pub get
-          flutter build apk --release
+          flutter build apk --release --no-pub --verbose
+
+      - name: Verify APK
+        run: |
+          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
+            echo "::error::APK not found!"
+            ls -la build/app/outputs/flutter-apk/
+            exit 1
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -47,3 +58,4 @@ jobs:
           name: app-release.apk
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 7
+          if-no-files-found: error
