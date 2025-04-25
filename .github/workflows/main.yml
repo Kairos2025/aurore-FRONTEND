@@ -1,9 +1,9 @@
-name: Build APK
+name: Flutter Build APK
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -12,49 +12,32 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Setup Java
+      - name: Set up Java
         uses: actions/setup-java@v3
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Flutter
+      - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.22.0'
           channel: 'stable'
-          flutter-cache: true
 
-      - name: Configure environment
+      - name: Create local.properties
         run: |
-          # Get exact Flutter SDK path
-          FLUTTER_PATH=$(dirname $(which flutter))
-          FLUTTER_PATH=${FLUTTER_PATH%/bin}
-          echo "FLUTTER_HOME=$FLUTTER_PATH" >> $GITHUB_ENV
-          
-          # Create essential configuration files
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
-          echo "flutter.sdk=$FLUTTER_PATH" >> android/local.properties
+          echo "flutter.sdk=$FLUTTER_HOME" >> android/local.properties
           echo "flutter.versionCode=1" >> android/local.properties
           echo "flutter.versionName=1.0.0" >> android/local.properties
 
-      - name: Verify environment
-        run: |
-          flutter doctor -v
-          ls -la $FLUTTER_HOME/packages/flutter_tools/gradle
+      - name: Install dependencies
+        run: flutter pub get
 
-      - name: Clean workspace
+      - name: Build APK (with debug logs)
         run: |
           flutter clean
-          rm -rf ~/.gradle/caches
-          rm -rf android/.gradle
-
-      - name: Build APK (with full logging)
-        run: |
-          flutter pub get
           flutter build apk --release --verbose 2>&1 | tee build.log
           if [ $? -ne 0 ]; then
             echo "::error::Build failed!"
@@ -62,10 +45,29 @@ jobs:
             exit 1
           fi
 
-      - name: Upload APK
-        if: success()
+      - name: Verify APK exists
+        run: |
+          APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
+          if [ ! -f "$APK_PATH" ]; then
+            echo "::error::APK not found at $APK_PATH"
+            echo "Directory contents:"
+            ls -la build/app/outputs/flutter-apk/
+            find . -name "*.apk"
+            exit 1
+          fi
+          echo "APK found at $APK_PATH"
+          ls -la "$APK_PATH"
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release.apk
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 7
+          if-no-files-found: error
+
+      - name: Show success message
+        if: success()
+        run: |
+          echo "APK successfully built and uploaded as artifact!"
+          echo "Download it from the Artifacts section"
