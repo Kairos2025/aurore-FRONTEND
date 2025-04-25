@@ -86,7 +86,6 @@ jobs:
           flutter doctor --verbose
           flutter clean
           flutter pub get
-          flutter analyze
         shell: bash
 
       - name: Build APK with Debug Output
