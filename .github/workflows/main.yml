@@ -5,11 +5,13 @@ on:
     branches: [main]
 
 env:
-  GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2"
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Xmx6144m"
+  _JAVA_OPTIONS: "-Xmx4096m"
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
@@ -69,6 +71,7 @@ jobs:
           org.gradle.parallel=true
           org.gradle.caching=true
           org.gradle.configureondemand=true
+          android.enableJetifier=true
           EOF
         shell: bash
 
@@ -91,7 +94,7 @@ jobs:
       - name: Prepare Dependencies
         run: |
           flutter pub get
-          cd android && ./gradlew dependencies && cd ..
+          cd android && ./gradlew dependencies --stacktrace --info && cd ..
         shell: bash
 
       - name: Build APK with Detailed Logging
@@ -101,6 +104,14 @@ jobs:
           flutter build apk --release --verbose > build.log 2>&1 || (cat build.log && exit 1)
           cat build.log | grep -i "error\|exception\|fail" || echo "No errors found in logs"
         shell: bash
+
+      - name: Upload Build Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: build.log
+          retention-days: 7
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
