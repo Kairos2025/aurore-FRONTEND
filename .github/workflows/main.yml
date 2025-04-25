@@ -23,8 +23,7 @@ jobs:
 
       - name: Accept Android licenses
         run: |
-          yes | sdkmanager --licenses || true
-          flutter doctor --android-licenses --verbose
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -33,28 +32,26 @@ jobs:
           channel: 'stable'
           flutter-cache: true
 
+      - name: Accept Flutter licenses
+        run: flutter doctor --android-licenses
+
       - name: Configure environment
         run: |
-          # Correct Flutter SDK path
           FLUTTER_ROOT=$(dirname $(dirname $(which flutter)))
           echo "FLUTTER_HOME=$FLUTTER_ROOT" >> $GITHUB_ENV
-          
-          # Create essential files
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           echo "flutter.sdk=$FLUTTER_ROOT" >> android/local.properties
-          echo "flutter.versionCode=1" >> android/local.properties
-          echo "flutter.versionName=1.0.0" >> android/local.properties
 
       - name: Verify setup
         run: |
           flutter doctor -v
-          ls -la $FLUTTER_HOME/packages/flutter_tools/gradle
+          ls -la "$FLUTTER_HOME/packages/flutter_tools/gradle"
 
       - name: Build APK
         run: |
           flutter clean
           flutter pub get
-          flutter build apk --release --verbose --no-shrink
+          flutter build apk --release --no-shrink --verbose
 
       - name: Find and upload APK
         run: |
@@ -64,12 +61,10 @@ jobs:
             find . -name "*.apk" || echo "No APK files found"
             exit 1
           fi
-          
-          echo "APK found at: $APK_PATH"
           mkdir -p build/app/outputs/flutter-apk/
           cp "$APK_PATH" build/app/outputs/flutter-apk/
 
-      - name: Upload APK artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release.apk
