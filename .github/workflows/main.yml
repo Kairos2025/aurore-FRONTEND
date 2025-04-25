@@ -28,39 +28,39 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.0'
+          flutter-version: '3.29.3'  # Updated to match your requirements
           channel: 'stable'
+          flutter-cache: true
 
       - name: Configure environment
         run: |
-          # For nested project structure
           cd aurore_app || echo "Already in root"
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           echo "flutter.sdk=$FLUTTER_HOME" >> android/local.properties
+          echo "flutter.versionCode=1" >> android/local.properties
+          echo "flutter.versionName=1.0.0" >> android/local.properties
 
-      - name: Build with diagnostics
+      - name: Verify Flutter version
         run: |
           cd aurore_app || echo "Already in root"
-          set -ex
-          flutter clean
+          flutter --version
+          dart --version
+
+      - name: Install dependencies
+        run: |
+          cd aurore_app || echo "Already in root"
           flutter pub get
-          
-          # Build with debug info
-          flutter build apk --release --verbose 2>&1 | tee build.log
-          
-          # Verify APK
-          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "::error::APK not found!"
-            echo "Build log tail:"
-            tail -n 50 build.log
-            echo "Directory contents:"
-            ls -la build/app/outputs/flutter-apk/ || ls -la build/
-            exit 1
-          fi
+
+      - name: Build APK
+        run: |
+          cd aurore_app || echo "Already in root"
+          flutter clean
+          flutter build apk --release --verbose
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release.apk
           path: aurore_app/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
           if-no-files-found: error
