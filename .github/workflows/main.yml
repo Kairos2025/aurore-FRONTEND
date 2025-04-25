@@ -47,13 +47,29 @@ jobs:
           echo "org.gradle.java.home=$JAVA_HOME" > ~/.gradle/gradle.properties
           echo "android.jvmargs=-Xmx4096m" >> ~/.gradle/gradle.properties
           echo "org.gradle.jvmargs=-Xmx4096m -XX:+HeapDumpOnOutOfMemoryError" >> ~/.gradle/gradle.properties
-          echo "org.gradle.daemon=false" >> ~/.gradle/gradle.properties  # Disable Gradle daemon for CI
-          echo "org.gradle.parallel=true" >> ~/.gradle/gradle.properties  # Enable parallel builds
+          echo "org.gradle.daemon=false" >> ~/.gradle/gradle.properties
+          echo "org.gradle.parallel=true" >> ~/.gradle/gradle.properties
         shell: bash
 
       - name: Accept Android Licenses
         run: |
-          yes | sdkmanager --licenses || true  # Ensure all licenses are accepted
+          yes | sdkmanager --licenses || true
+        shell: bash
+
+      - name: Setup Keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          # Decode the keystore from base64
+          echo "$KEYSTORE_BASE64" | base64 -d > android/my-release-key.jks
+          # Create key.properties
+          echo "storeFile=$(pwd)/android/my-release-key.jks" > android/key.properties
+          echo "storePassword=$KEYSTORE_PASSWORD" >> android/key.properties
+          echo "keyAlias=$KEY_ALIAS" >> android/key.properties
+          echo "keyPassword=$KEY_PASSWORD" >> android/key.properties
         shell: bash
 
       - name: Flutter Build Preparation
@@ -63,26 +79,13 @@ jobs:
           flutter pub get
         shell: bash
 
-      - name: Check Signing Configuration
-        run: |
-          if [ ! -f "android/key.properties" ]; then
-            echo "Error: android/key.properties not found. Release builds require signing configuration."
-            echo "Create android/key.properties with the following content:"
-            echo "storeFile=<path-to-keystore>"
-            echo "storePassword=<password>"
-            echo "keyAlias=<alias>"
-            echo "keyPassword=<password>"
-            exit 1
-          fi
-        shell: bash
-
       - name: Build APK with Debug Output
         run: |
           flutter build apk --release --verbose > build-apk.log 2>&1 || (cat build-apk.log && exit 1)
         shell: bash
 
       - name: Upload Build Logs
-        if: failure()  # Upload logs only if the build fails
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: build-apk-logs
