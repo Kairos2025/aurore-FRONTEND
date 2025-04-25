@@ -3,14 +3,14 @@ name: Build APK
 on:
   push:
     branches:
-      - main  # Replace with your branch name, e.g., 'update-gradle'
+      - main  # Adjust this to match your default branch, e.g., 'develop' or 'master'
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Code
+    - name: Checkout code
       uses: actions/checkout@v3
 
     - name: Set up JDK 17
@@ -22,24 +22,32 @@ jobs:
     - name: Set up Flutter
       uses: subosito/flutter-action@v2
       with:
-        flutter-version: '3.7.2'  # Adjust to match your project's Flutter version
+        flutter-version: '3.7.2'  # Replace with your project's Flutter version
         channel: 'stable'
 
-    - name: Make Gradle Wrapper Executable
+    - name: Clear Gradle Cache
       run: |
-        cd android
-        chmod +x gradlew
+        rm -rf $HOME/.gradle/caches
+
+    - name: Download and Set Up Gradle 8.9
+      run: |
+        wget https://services.gradle.org/distributions/gradle-8.9-bin.zip -P /tmp
+        unzip /tmp/gradle-8.9-bin.zip -d /tmp
+        echo "GRADLE_HOME=/tmp/gradle-8.9" >> $GITHUB_ENV
+        echo "/tmp/gradle-8.9/bin" >> $GITHUB_PATH
+
+    - name: Verify Gradle Version
+      run: |
+        /tmp/gradle-8.9/bin/gradle --version
 
     - name: Install Flutter Dependencies
       run: flutter pub get
 
-    - name: Build APK with Gradle Wrapper
-      run: |
-        cd android
-        ./gradlew assembleRelease
+    - name: Build APK
+      run: flutter build apk --release
 
     - name: Upload APK
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce  # Specific SHA for v3
       with:
         name: app-release.apk
-        path: android/app/build/outputs/apk/release/app-release.apk
+        path: build/app/outputs/flutter-apk/app-release.apk
