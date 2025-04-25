@@ -9,7 +9,7 @@ def flutterVersionName = System.getenv('FLUTTER_VERSION_NAME') ?: '1.0.0'
 
 android {
     namespace "com.yourcompany.aurore"
-    compileSdkVersion 34
+    compileSdk 34
     
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -22,8 +22,8 @@ android {
 
     defaultConfig {
         applicationId "com.yourcompany.aurore"
-        minSdkVersion 21
-        targetSdkVersion 34
+        minSdk 21
+        targetSdk 34
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
     }
@@ -31,6 +31,9 @@ android {
     buildTypes {
         release {
             signingConfig signingConfigs.debug
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }
