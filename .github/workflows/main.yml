@@ -12,22 +12,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # Required for Gradle wrapper
 
-      - name: Set up Java
+      - name: Setup Java
         uses: actions/setup-java@v3
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Set up Android SDK
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
           accept-android-licenses: true
           android-sdk-platform: 34
           build-tools-version: 34.0.0
 
-      - name: Set up Flutter
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.22.0'
@@ -46,35 +46,45 @@ jobs:
           echo "flutter.versionCode=1" >> android/local.properties
           echo "flutter.versionName=1.0.0" >> android/local.properties
 
-      - name: Verify setup
+      - name: Verify environment
         run: |
           flutter doctor -v
           ls -la "$FLUTTER_HOME/packages/flutter_tools/gradle"
 
-      - name: Build with debug
+      - name: Build APK (with nuclear fallback)
         run: |
           set -ex  # Enable debug mode and exit on error
-          flutter clean
-          flutter pub get
           
           # First try normal build
-          if ! flutter build apk --release --verbose; then
-            echo "::warning::Standard build failed, trying with --no-shrink"
-            flutter build apk --release --no-shrink --verbose
+          if ! flutter build apk --release --verbose 2>&1 | tee build.log; then
+            echo "::warning::Standard build failed, trying nuclear option"
+            
+            # Nuclear clean
+            rm -rf ~/.gradle
+            rm -rf android/.gradle
+            flutter pub cache repair
+            
+            # Retry with different configurations
+            flutter build apk --release --no-shrink --verbose 2>&1 | tee build.log ||
+            flutter build apk --release --no-tree-shake-icons --verbose 2>&1 | tee build.log ||
+            {
+              echo "::error::All build attempts failed"
+              cat build.log
+              exit 1
+            }
           fi
 
-          # Verify APK exists in all possible locations
-          if [ -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "APK found at standard location"
-          elif [ -f "build/app/outputs/apk/release/app-release.apk" ]; then
-            echo "APK found at alternative location"
-            mkdir -p build/app/outputs/flutter-apk/
-            cp build/app/outputs/apk/release/app-release.apk build/app/outputs/flutter-apk/
-          else
-            echo "::error::APK not found in any standard location!"
+          # Verify APK exists
+          APK_PATH=$(find . -name "app-release.apk" | head -1)
+          if [ -z "$APK_PATH" ]; then
+            echo "::error::No APK found after successful build!"
             find . -name "*.apk" || echo "No APK files found"
             exit 1
           fi
+          
+          # Standardize APK location
+          mkdir -p build/app/outputs/flutter-apk/
+          cp "$APK_PATH" build/app/outputs/flutter-apk/app-release.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
