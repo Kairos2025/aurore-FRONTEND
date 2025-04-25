@@ -12,6 +12,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Debug Project Structure
+        run: |
+          echo "Project structure:"
+          ls -la
+          echo "Android directory contents:"
+          ls -la android/ || echo "No android directory found"
+        shell: bash
+
       - name: Setup Java
         uses: actions/setup-java@v3
         with:
@@ -34,22 +42,23 @@ jobs:
           cache: true
           cache-key: flutter-${{ hashFiles('**/pubspec.yaml') }}
 
-      - name: Ensure Build Directory Exists and Is Writable
+      - name: Ensure Build Directory Exists
         run: |
           mkdir -p ../build
           chmod -R 755 ../build
         shell: bash
 
-      - name: Ensure Gradle Directory Exists
+      - name: Generate Android Files if Missing
         run: |
-          mkdir -p ~/.gradle
+          if [ ! -d "android" ] || [ ! -f "android/gradlew" ]; then
+            echo "Generating Android files..."
+            flutter create --platforms android --project-name my_app .
+          fi
         shell: bash
 
-      - name: Fix Gradle Java Home
+      - name: Fix Gradle Configuration
         run: |
-          if [ -d ~/.gradle ]; then
-            find ~/.gradle -name "gradle.properties" -exec sed -i '/org.gradle.java.home/d' {} \; || echo "No gradle.properties files found, skipping sed."
-          fi
+          mkdir -p ~/.gradle
           echo "org.gradle.java.home=$JAVA_HOME" > ~/.gradle/gradle.properties
           echo "android.jvmargs=-Xmx6144m" >> ~/.gradle/gradle.properties
           echo "org.gradle.jvmargs=-Xmx6144m -XX:+HeapDumpOnOutOfMemoryError -XX:MaxMetaspaceSize=512m" >> ~/.gradle/gradle.properties
@@ -69,16 +78,11 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          echo "$KEYSTORE_BASE64" | base64 -d > android/my-release-key.jks
-          echo "storeFile=$(pwd)/android/my-release-key.jks" > android/key.properties
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/my-release-key.jks
+          echo "storeFile=my-release-key.jks" > android/key.properties
           echo "storePassword=$KEYSTORE_PASSWORD" >> android/key.properties
           echo "keyAlias=$KEY_ALIAS" >> android/key.properties
           echo "keyPassword=$KEY_PASSWORD" >> android/key.properties
-        shell: bash
-
-      - name: Set Keystore Permissions
-        run: |
-          chmod 644 android/my-release-key.jks
         shell: bash
 
       - name: Flutter Build Preparation
@@ -88,59 +92,34 @@ jobs:
           flutter pub get
         shell: bash
 
-      - name: Debug Android Directory Contents
-        run: |
-          if [ -d android ]; then
-            echo "Android directory exists"
-            ls -la android
-            ls -la android/gradle/wrapper 2>/dev/null || echo "gradle/wrapper directory not found"
-          else
-            echo "Error: android directory not found"
-            exit 1
-          fi
-        shell: bash
-
-      - name: Ensure Gradle Wrapper is Executable
+      - name: Make Gradle Wrapper Executable
         run: |
           if [ -f android/gradlew ]; then
             chmod +x android/gradlew
             echo "Gradle wrapper found and made executable"
           else
-            echo "Error: gradlew not found in android directory"
+            echo "Error: gradlew still not found after generation attempts"
+            ls -la android/
             exit 1
           fi
         shell: bash
 
-      - name: Run Gradle Build Directly for Detailed Logs
+      - name: Build APK
         run: |
-          cd android
-          ./gradlew assembleRelease --stacktrace --info > ../gradle-build.log 2>&1 || (cat ../gradle-build.log && exit 1)
+          flutter build apk --release --verbose > build.log 2>&1 || (cat build.log && exit 1)
         shell: bash
 
-      - name: Build APK with Debug Output
-        run: |
-          flutter build apk --release --verbose > build-apk.log 2>&1 || (cat build-apk.log && exit 1)
-        shell: bash
-
-      - name: Upload Gradle Build Logs
+      - name: Upload Build Logs
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: gradle-build-logs
-          path: gradle-build.log
-          retention-days: 7
-
-      - name: Upload Flutter Build Logs
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-apk-logs
-          path: build-apk.log
+          name: build-logs
+          path: build.log
           retention-days: 7
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release.apk
+          name: app-release
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 7
