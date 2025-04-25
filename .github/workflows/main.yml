@@ -34,6 +34,12 @@ jobs:
           cache: true
           cache-key: flutter-${{ hashFiles('**/pubspec.yaml') }}
 
+      - name: Ensure Build Directory Exists and Is Writable
+        run: |
+          mkdir -p ../build
+          chmod -R 755 ../build
+        shell: bash
+
       - name: Ensure Gradle Directory Exists
         run: |
           mkdir -p ~/.gradle
@@ -45,8 +51,8 @@ jobs:
             find ~/.gradle -name "gradle.properties" -exec sed -i '/org.gradle.java.home/d' {} \; || echo "No gradle.properties files found, skipping sed."
           fi
           echo "org.gradle.java.home=$JAVA_HOME" > ~/.gradle/gradle.properties
-          echo "android.jvmargs=-Xmx4096m" >> ~/.gradle/gradle.properties
-          echo "org.gradle.jvmargs=-Xmx4096m -XX:+HeapDumpOnOutOfMemoryError" >> ~/.gradle/gradle.properties
+          echo "android.jvmargs=-Xmx6144m" >> ~/.gradle/gradle.properties  # Increased memory
+          echo "org.gradle.jvmargs=-Xmx6144m -XX:+HeapDumpOnOutOfMemoryError -XX:MaxMetaspaceSize=512m" >> ~/.gradle/gradle.properties  # Increased memory
           echo "org.gradle.daemon=false" >> ~/.gradle/gradle.properties
           echo "org.gradle.parallel=true" >> ~/.gradle/gradle.properties
         shell: bash
@@ -63,13 +69,16 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          # Decode the keystore from base64
           echo "$KEYSTORE_BASE64" | base64 -d > android/my-release-key.jks
-          # Create key.properties
           echo "storeFile=$(pwd)/android/my-release-key.jks" > android/key.properties
           echo "storePassword=$KEYSTORE_PASSWORD" >> android/key.properties
           echo "keyAlias=$KEY_ALIAS" >> android/key.properties
           echo "keyPassword=$KEY_PASSWORD" >> android/key.properties
+        shell: bash
+
+      - name: Set Keystore Permissions
+        run: |
+          chmod 644 android/my-release-key.jks
         shell: bash
 
       - name: Flutter Build Preparation
@@ -77,6 +86,7 @@ jobs:
           flutter doctor --verbose
           flutter clean
           flutter pub get
+          flutter analyze  # Added to catch Dart code issues
         shell: bash
 
       - name: Build APK with Debug Output
