@@ -51,8 +51,8 @@ jobs:
             find ~/.gradle -name "gradle.properties" -exec sed -i '/org.gradle.java.home/d' {} \; || echo "No gradle.properties files found, skipping sed."
           fi
           echo "org.gradle.java.home=$JAVA_HOME" > ~/.gradle/gradle.properties
-          echo "android.jvmargs=-Xmx6144m" >> ~/.gradle/gradle.properties  # Increased memory
-          echo "org.gradle.jvmargs=-Xmx6144m -XX:+HeapDumpOnOutOfMemoryError -XX:MaxMetaspaceSize=512m" >> ~/.gradle/gradle.properties  # Increased memory
+          echo "android.jvmargs=-Xmx6144m" >> ~/.gradle/gradle.properties
+          echo "org.gradle.jvmargs=-Xmx6144m -XX:+HeapDumpOnOutOfMemoryError -XX:MaxMetaspaceSize=512m" >> ~/.gradle/gradle.properties
           echo "org.gradle.daemon=false" >> ~/.gradle/gradle.properties
           echo "org.gradle.parallel=true" >> ~/.gradle/gradle.properties
         shell: bash
@@ -86,7 +86,7 @@ jobs:
           flutter doctor --verbose
           flutter clean
           flutter pub get
-          flutter analyze  # Added to catch Dart code issues
+          flutter analyze
         shell: bash
 
       - name: Build APK with Debug Output
