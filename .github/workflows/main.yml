@@ -7,6 +7,7 @@ on:
 env:
   GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1 -Xmx6144m"
   _JAVA_OPTIONS: "-Xmx6144m -XX:MaxMetaspaceSize=2048m"
+  ANDROID_SDK_ROOT: "/usr/local/lib/android/sdk"
 
 jobs:
   build:
@@ -43,27 +44,21 @@ jobs:
           cache: true
           cache-key: flutter-${{ hashFiles('**/pubspec.yaml') }}
 
-      - name: Initialize Gradle Wrapper
+      - name: Create Android Configuration
         run: |
-          # Ensure Android directory exists
+          # Create Android directory if missing
           if [ ! -d "android" ]; then
             flutter create --platforms android --project-name app .
           fi
           
-          # Generate Gradle wrapper if missing
-          if [ ! -f "android/gradlew" ]; then
-            echo "Generating Gradle wrapper..."
-            cd android && gradle wrapper --gradle-version 8.0.2 && cd ..
-          fi
+          # Create local.properties with SDK path
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
+          
+          # Generate Gradle wrapper
+          cd android && gradle wrapper --gradle-version 8.0.2 && cd ..
           
           # Make gradlew executable
           chmod +x android/gradlew
-          
-          # Verify Gradle wrapper
-          if [ ! -f "android/gradlew" ]; then
-            echo "Error: Gradle wrapper generation failed!"
-            exit 1
-          fi
         shell: bash
 
       - name: Build APK
@@ -72,7 +67,6 @@ jobs:
           flutter clean
           flutter pub get
           
-          # Build with full diagnostics
           cd android && ./gradlew clean assembleRelease \
             --stacktrace \
             --info \
@@ -81,10 +75,8 @@ jobs:
             --no-parallel \
             > ../gradle.log 2>&1 || (cat ../gradle.log && exit 1)
           
-          # Verify APK exists
           if [ ! -f "../build/app/outputs/flutter-apk/app-release.apk" ]; then
             echo "APK generation failed!"
-            echo "Listing build directory contents:"
             ls -la ../build/app/outputs/flutter-apk/
             exit 1
           fi
