@@ -7,8 +7,7 @@ on:
 env:
   GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Xmx6144m"
   _JAVA_OPTIONS: "-Xmx4096m"
-  ANDROID_BUILD_TOOLS_VERSION: "34.0.0"
-  ANDROID_COMPILE_SDK_VERSION: "34"
+  FLUTTER_BUILD_ARGS: "--release --verbose --no-shrink"
 
 jobs:
   build:
@@ -32,8 +31,8 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           accept-android-licenses: true
-          android-sdk-platform: ${{ env.ANDROID_COMPILE_SDK_VERSION }}
-          build-tools-version: ${{ env.ANDROID_BUILD_TOOLS_VERSION }}
+          android-sdk-platform: 34
+          build-tools-version: '34.0.0'
           cmake-version: '3.22.1'
           ndk-version: '25.2.9519653'
 
@@ -45,78 +44,52 @@ jobs:
           cache: true
           cache-key: flutter-${{ hashFiles('**/pubspec.yaml') }}
 
-      - name: Validate Environment
+      - name: Debug Environment
         run: |
+          echo "### FLUTTER DOCTOR ###"
           flutter doctor -v
+          echo "### JAVA VERSION ###"
           java -version
-          echo "ANDROID_HOME: $ANDROID_HOME"
+          echo "### GRADLE VERSION ###"
+          ./android/gradlew --version || echo "Gradle wrapper not available yet"
+          echo "### ANDROID SDK CONTENTS ###"
           ls -la $ANDROID_HOME
         shell: bash
 
-      - name: Clean and Regenerate Android Files
+      - name: Build with Full Diagnostics
         run: |
-          if [ -d "android" ]; then
-            rm -rf android
-          fi
-          flutter create --platforms android --project-name my_app .
-          cd android && ./gradlew clean && cd ..
-        shell: bash
-
-      - name: Configure Gradle Properties
-        run: |
-          mkdir -p ~/.gradle
-          cat <<EOF > ~/.gradle/gradle.properties
-          org.gradle.java.home=$JAVA_HOME
-          android.jvmargs=-Xmx6144m -XX:MaxPermSize=1024m
-          org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError
-          org.gradle.daemon=false
-          org.gradle.parallel=true
-          org.gradle.caching=true
-          android.enableJetifier=true
-          android.useAndroidX=true
-          EOF
-        shell: bash
-
-      - name: Prepare Dependencies
-        run: |
+          set -ex
+          flutter clean
           flutter pub get
-          cd android && ./gradlew dependencies --stacktrace --info && cd ..
+          
+          # Generate complete debug logs
+          flutter build apk $FLUTTER_BUILD_ARGS > build.log 2>&1 || {
+            echo "### BUILD FAILED ###"
+            cat build.log
+            echo "### GRADLE LOGS ###"
+            cat android/build/outputs/logs/*.log || echo "No Gradle logs found"
+            echo "### FLUTTER ERROR DETAILS ###"
+            cat /tmp/flutter_build_*.log || echo "No Flutter error logs found"
+            exit 1
+          }
+          
+          echo "### BUILD SUCCEEDED ###"
+          cat build.log | grep -i "warning\|error" || echo "No warnings found"
         shell: bash
 
-      - name: Build APK with Retry
-        run: |
-          set -x
-          max_attempts=3
-          attempt=1
-          while [ $attempt -le $max_attempts ]; do
-            echo "Attempt $attempt/$max_attempts"
-            flutter clean
-            flutter build apk --release --verbose > build.log 2>&1
-            if [ $? -eq 0 ]; then
-              echo "Build succeeded on attempt $attempt"
-              cat build.log | grep -i "warning\|error" || echo "No warnings detected"
-              exit 0
-            fi
-            echo "Build failed on attempt $attempt"
-            cat build.log | grep -i "error\|exception\|fail" || echo "No specific errors found"
-            ((attempt++))
-            sleep 10
-          done
-          echo "All build attempts failed"
-          exit 1
-        shell: bash
-
-      - name: Upload Build Logs
+      - name: Upload Diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: build-logs
+          name: build-diagnostics
           path: |
             build.log
-            android/build/reports/
+            android/build/outputs/logs/
+            /tmp/flutter_build_*.log
           retention-days: 7
 
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: app-release
