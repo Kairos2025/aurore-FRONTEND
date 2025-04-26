@@ -34,8 +34,8 @@ jobs:
 
       - name: Check for invalid references
         run: |
-          echo "Checking for school_management2 references..."
-          grep -r "school_management2" . || echo "No school_management2 references found"
+          echo "Checking for school_management2 or aurore_app references..."
+          grep -r "school_management2\|aurore_app" . || echo "No invalid references found"
 
       - name: Install dependencies
         run: |
