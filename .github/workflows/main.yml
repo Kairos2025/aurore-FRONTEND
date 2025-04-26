@@ -7,12 +7,12 @@ on:
 env:
   GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Xmx6144m"
   _JAVA_OPTIONS: "-Xmx4096m"
-  ANDROID_BUILD_TOOLS: "34.0.0"
+  FLUTTER_BUILD_ARGS: "--release --verbose --no-shrink"
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 60  # Increased timeout
+    timeout-minutes: 60
 
     steps:
       - name: Checkout code
@@ -32,7 +32,7 @@ jobs:
         with:
           accept-android-licenses: true
           android-sdk-platform: 34
-          build-tools-version: ${{ env.ANDROID_BUILD_TOOLS }}
+          build-tools-version: '34.0.0'
           cmake-version: '3.22.1'
           ndk-version: '25.2.9519653'
 
@@ -44,52 +44,55 @@ jobs:
           cache: true
           cache-key: flutter-${{ hashFiles('**/pubspec.yaml') }}
 
-      - name: Prepare Environment
+      - name: Debug Environment
         run: |
-          mkdir -p ~/.gradle
-          cat <<EOF > ~/.gradle/gradle.properties
-          org.gradle.java.home=$JAVA_HOME
-          android.jvmargs=-Xmx6144m
-          org.gradle.jvmargs=-Xmx6144m -XX:+HeapDumpOnOutOfMemoryError
-          org.gradle.daemon=false
-          org.gradle.parallel=true
-          android.enableJetifier=true
-          android.useAndroidX=true
-          org.gradle.internal.publish.checksums.insecure=true
-          EOF
-          
+          echo "### FLUTTER DOCTOR ###"
           flutter doctor -v
+          echo "### JAVA VERSION ###"
+          java -version
+          echo "### ANDROID SDK ###"
+          ls -la $ANDROID_HOME
         shell: bash
 
-      - name: Clean and Rebuild
+      - name: Full Clean
         run: |
           flutter clean
           rm -rf android
           flutter create --platforms android --project-name app .
+          chmod +x android/gradlew
+        shell: bash
+
+      - name: Build with Complete Logging
+        run: |
+          set -ex
+          flutter pub get
           
-          # Build with retry logic
-          for i in 1 2; do
-            echo "Attempt $i/2"
-            flutter build apk --release --verbose > build.log 2>&1 && break
-            cat build.log
-            sleep 10
-          done
+          # Run Gradle directly for better logs
+          cd android && ./gradlew clean assembleRelease --stacktrace --info > ../gradle.log 2>&1 || (cat ../gradle.log && exit 1)
           
-          # Final verification
-          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "APK generation failed after 2 attempts!"
-            cat android/build/**/*.log || echo "No detailed logs found"
+          # Verify outputs
+          if [ ! -f "../build/app/outputs/flutter-apk/app-release.apk" ]; then
+            echo "### APK NOT FOUND ###"
+            find ../build -type f | xargs ls -la
             exit 1
           fi
         shell: bash
 
-      - name: Upload Artifacts
+      - name: Upload Diagnostics
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: build-artifacts
+          name: build-diagnostics
           path: |
-            build/app/outputs/flutter-apk/app-release.apk
-            build.log
+            gradle.log
             android/build/**/*.log
-          if-no-files-found: warn
+            $HOME/.gradle/caches/
+          retention-days: 7
+
+      - name: Upload APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 7
