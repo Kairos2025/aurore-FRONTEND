@@ -7,7 +7,6 @@ on:
 env:
   GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1 -Xmx6144m"
   _JAVA_OPTIONS: "-Xmx6144m -XX:MaxMetaspaceSize=2048m"
-  ANDROID_BUILD_TOOLS: "34.0.0"
 
 jobs:
   build:
@@ -32,7 +31,7 @@ jobs:
         with:
           accept-android-licenses: true
           android-sdk-platform: 34
-          build-tools-version: ${{ env.ANDROID_BUILD_TOOLS }}
+          build-tools-version: '34.0.0'
           cmake-version: '3.22.1'
           ndk-version: '25.2.9519653'
 
@@ -44,30 +43,34 @@ jobs:
           cache: true
           cache-key: flutter-${{ hashFiles('**/pubspec.yaml') }}
 
-      - name: Configure Gradle
+      - name: Initialize Gradle Wrapper
         run: |
-          mkdir -p ~/.gradle
-          cat <<EOF > ~/.gradle/gradle.properties
-          org.gradle.java.home=$JAVA_HOME
-          android.jvmargs=-Xmx6144m -XX:MaxPermSize=1024m
-          org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=2048m -XX:+HeapDumpOnOutOfMemoryError
-          org.gradle.daemon=false
-          org.gradle.parallel=false
-          android.enableJetifier=true
-          android.useAndroidX=true
-          org.gradle.unsafe.configuration-cache=true
-          EOF
+          # Ensure Android directory exists
+          if [ ! -d "android" ]; then
+            flutter create --platforms android --project-name app .
+          fi
+          
+          # Generate Gradle wrapper if missing
+          if [ ! -f "android/gradlew" ]; then
+            echo "Generating Gradle wrapper..."
+            cd android && gradle wrapper --gradle-version 8.0.2 && cd ..
+          fi
+          
+          # Make gradlew executable
+          chmod +x android/gradlew
+          
+          # Verify Gradle wrapper
+          if [ ! -f "android/gradlew" ]; then
+            echo "Error: Gradle wrapper generation failed!"
+            exit 1
+          fi
         shell: bash
 
-      - name: Build with Debugging
+      - name: Build APK
         run: |
           set -ex
           flutter clean
           flutter pub get
-          
-          # Accept Gradle terms automatically
-          mkdir -p ~/.gradle
-          echo "org.gradle.internal.publish.checksums.insecure=true" >> ~/.gradle/gradle.properties
           
           # Build with full diagnostics
           cd android && ./gradlew clean assembleRelease \
@@ -80,11 +83,9 @@ jobs:
           
           # Verify APK exists
           if [ ! -f "../build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "### BUILD FAILED ###"
-            echo "### Gradle tasks ###"
-            ./gradlew tasks
-            echo "### Dependency tree ###"
-            ./gradlew android:dependencies
+            echo "APK generation failed!"
+            echo "Listing build directory contents:"
+            ls -la ../build/app/outputs/flutter-apk/
             exit 1
           fi
         shell: bash
