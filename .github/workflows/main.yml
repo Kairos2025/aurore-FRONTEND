@@ -7,7 +7,6 @@ on:
 env:
   GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Xmx6144m"
   _JAVA_OPTIONS: "-Xmx4096m"
-  FLUTTER_BUILD_ARGS: "--release --verbose --no-shrink"
 
 jobs:
   build:
@@ -44,16 +43,40 @@ jobs:
           cache: true
           cache-key: flutter-${{ hashFiles('**/pubspec.yaml') }}
 
-      - name: Debug Environment
+      - name: Validate Environment
         run: |
-          echo "### FLUTTER DOCTOR ###"
           flutter doctor -v
-          echo "### JAVA VERSION ###"
           java -version
-          echo "### GRADLE VERSION ###"
-          ./android/gradlew --version || echo "Gradle wrapper not available yet"
-          echo "### ANDROID SDK CONTENTS ###"
+          echo "ANDROID_HOME: $ANDROID_HOME"
           ls -la $ANDROID_HOME
+        shell: bash
+
+      - name: Recreate Android Project
+        run: |
+          # Completely reset Android configuration
+          rm -rf android
+          flutter create --platforms android --project-name app .
+          
+          # Ensure gradlew exists and is executable
+          if [ ! -f "android/gradlew" ]; then
+            cd android && gradle wrapper --gradle-version 8.0.2 && cd ..
+          fi
+          chmod +x android/gradlew
+        shell: bash
+
+      - name: Configure Gradle
+        run: |
+          mkdir -p ~/.gradle
+          cat <<EOF > ~/.gradle/gradle.properties
+          org.gradle.java.home=$JAVA_HOME
+          android.jvmargs=-Xmx6144m -XX:MaxPermSize=1024m
+          org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError
+          org.gradle.daemon=false
+          org.gradle.parallel=true
+          org.gradle.caching=true
+          android.enableJetifier=true
+          android.useAndroidX=true
+          EOF
         shell: bash
 
       - name: Build with Full Diagnostics
@@ -62,34 +85,27 @@ jobs:
           flutter clean
           flutter pub get
           
-          # Generate complete debug logs
-          flutter build apk $FLUTTER_BUILD_ARGS > build.log 2>&1 || {
-            echo "### BUILD FAILED ###"
-            cat build.log
-            echo "### GRADLE LOGS ###"
-            cat android/build/outputs/logs/*.log || echo "No Gradle logs found"
-            echo "### FLUTTER ERROR DETAILS ###"
-            cat /tmp/flutter_build_*.log || echo "No Flutter error logs found"
-            exit 1
-          }
+          # Run gradle tasks directly for better logging
+          cd android && ./gradlew clean assembleRelease --stacktrace --info --scan && cd ..
           
-          echo "### BUILD SUCCEEDED ###"
-          cat build.log | grep -i "warning\|error" || echo "No warnings found"
+          # Verify APK exists
+          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
+            echo "APK not generated!"
+            exit 1
+          fi
         shell: bash
 
-      - name: Upload Diagnostics
+      - name: Upload Build Reports
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: build-diagnostics
+          name: build-reports
           path: |
-            build.log
-            android/build/outputs/logs/
-            /tmp/flutter_build_*.log
+            android/build/reports/
+            ~/.gradle/
           retention-days: 7
 
       - name: Upload APK
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: app-release
