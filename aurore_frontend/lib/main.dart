@@ -1,7 +1,7 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:dio/dio.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:provider/provider.dart';
@@ -21,34 +21,11 @@ import 'package:aurore_school/features/dashboard/support/support_screen.dart';
 import 'package:aurore_school/features/timetable_screen.dart';
 import 'package:aurore_school/utils/secure_storage.dart';
 
-class AuroreResponsiveLayout extends StatelessWidget {
-  final Widget mobile;
-  final Widget tablet;
-  final Widget desktop;
-
-  const AuroreResponsiveLayout({
-    super.key,
-    required this.mobile,
-    required this.tablet,
-    required this.desktop,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth >= 1200) return desktop;
-        if (constraints.maxWidth >= 600) return tablet;
-        return mobile;
-      },
-    );
-  }
-}
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
     await Firebase.initializeApp();
+    await FirebaseAnalytics.instance.logAppOpen();
   } catch (e) {
     debugPrint('Firebase initialization failed: $e');
   }
@@ -123,7 +100,7 @@ class AuroreApp extends StatelessWidget {
           elevatedButtonTheme: ElevatedButtonThemeData(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white
+              foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
@@ -185,7 +162,32 @@ class AuroreApp extends StatelessWidget {
               ),
         },
         debugShowCheckedModeBanner: false,
+        navigatorObservers: [FirebaseAnalyticsObserver(analytics: FirebaseAnalytics.instance)],
       ),
+    );
+  }
+}
+
+class AuroreResponsiveLayout extends StatelessWidget {
+  final Widget mobile;
+  final Widget tablet;
+  final Widget desktop;
+
+  const AuroreResponsiveLayout({
+    super.key,
+    required this.mobile,
+    required this.tablet,
+    required this.desktop,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= 1200) return desktop;
+        if (constraints.maxWidth >= 600) return tablet;
+        return mobile;
+      },
     );
   }
 }
@@ -227,6 +229,10 @@ class _LoadingScreenState extends State<LoadingScreen> with SingleTickerProvider
       if (context.mounted) {
         final route = auth.user != null ? _roleBasedRoute(auth.role ?? 'student') : '/login';
         Navigator.pushReplacementNamed(context, route);
+        await FirebaseAnalytics.instance.logEvent(
+          name: 'auth_state_checked',
+          parameters: {'role': auth.role ?? 'unknown'},
+        );
       }
     } catch (e) {
       if (context.mounted) {
