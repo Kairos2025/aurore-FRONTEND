@@ -37,19 +37,23 @@ jobs:
           echo "Checking for school_management2 or aurore_app references..."
           grep -r "school_management2\|aurore_app" . || echo "No invalid references found"
 
+      - name: Verify project structure
+        run: |
+          echo "Checking critical files..."
+          ls -la pubspec.yaml lib/main.dart test/widget_test.dart || exit 1
+          echo "Checking assets..."
+          ls -la assets/images/ assets/icons/ || exit 1
+          echo "Checking fonts..."
+          ls -la fonts/ || exit 1
+          echo "Checking lib structure..."
+          find lib/ -type f || exit 1
+
       - name: Install dependencies
         run: |
           flutter pub get
           flutter pub upgrade
           flutter analyze > flutter_analyze.log 2>&1 || (cat flutter_analyze.log && exit 1)
           flutter pub deps > flutter_deps.log 2>&1 || (cat flutter_deps.log && exit 1)
-
-      - name: Verify project files
-        run: |
-          echo "Checking critical files..."
-          ls -la pubspec.yaml android/app/build.gradle android/app/src/main/AndroidManifest.xml || exit 1
-          echo "Checking lib structure..."
-          find lib/ -type f || exit 1
 
       - name: Build APK
         run: |
