@@ -43,34 +43,39 @@ jobs:
           cache: true
           cache-key: flutter-${{ hashFiles('**/pubspec.yaml') }}
 
-      - name: Configure Build Environment
+      - name: Initialize Project
         run: |
-          # Create Gradle properties
-          mkdir -p ~/.gradle
-          cat <<EOF > ~/.gradle/gradle.properties
-          org.gradle.java.home=$JAVA_HOME
-          android.jvmargs=-Xmx6144m
-          org.gradle.jvmargs=-Xmx6144m -XX:+HeapDumpOnOutOfMemoryError
-          org.gradle.daemon=false
-          org.gradle.parallel=false
-          # Disable build scans
-          org.gradle.enterprise.url=https://gradle.com
-          scan.capture-task-input-files=false
-          scan.uploadInBackground=false
-          EOF
-
+          # Clean existing files
+          flutter clean
+          rm -rf android
+          
+          # Regenerate Android project
+          flutter create --platforms android --project-name app .
+          
+          # Ensure gradlew exists
+          if [ ! -f "android/gradlew" ]; then
+            echo "Generating Gradle wrapper..."
+            cd android && gradle wrapper --gradle-version 8.0.2 && cd ..
+          fi
+          
+          # Make gradlew executable
+          chmod +x android/gradlew
+          
           # Create local.properties
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           echo "flutter.sdk=$FLUTTER_ROOT" >> android/local.properties
+          
+          # Verify files
+          ls -la android/
+          ls -la android/gradle*
         shell: bash
 
       - name: Build APK
         run: |
           set -ex
-          flutter clean
           flutter pub get
           
-          # Build with maximum logging but without scan
+          # Build with detailed logging
           cd android && ./gradlew clean assembleRelease \
             --stacktrace \
             --info \
