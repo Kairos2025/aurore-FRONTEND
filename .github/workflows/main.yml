@@ -32,21 +32,16 @@ jobs:
           cache: true
           cache-key: flutter-${{ hashFiles('**/pubspec.yaml') }}
 
-      - name: Check for invalid references
+      - name: Log project structure
         run: |
-          echo "Checking for school_management2 or aurore_app references..."
-          grep -r "school_management2\|aurore_app" . || echo "No invalid references found"
-
-      - name: Verify project structure
-        run: |
+          echo "Listing all files..."
+          find . -type f
           echo "Checking critical files..."
           ls -la pubspec.yaml lib/main.dart test/widget_test.dart || exit 1
           echo "Checking assets..."
-          ls -la assets/images/ assets/icons/ || echo "Assets not found, continuing..."
+          ls -laR assets/ || echo "Assets not found, continuing..."
           echo "Checking fonts..."
           ls -la fonts/ || echo "Fonts not found, continuing..."
-          echo "Checking lib structure..."
-          find lib/ -type f || exit 1
 
       - name: Install dependencies
         run: |
