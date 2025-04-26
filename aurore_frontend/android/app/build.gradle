@@ -15,13 +15,14 @@ android {
 
     signingConfigs {
         release {
-            try {
+            if (System.getenv("KEYSTORE_PATH") && file(System.getenv("KEYSTORE_PATH")).exists()) {
                 keyAlias System.getenv("KEY_ALIAS") ?: 'your-key-alias'
                 keyPassword System.getenv("KEY_PASSWORD") ?: 'your-key-password'
-                storeFile file(System.getenv("KEYSTORE_PATH") ?: 'keystore.jks')
+                storeFile file(System.getenv("KEYSTORE_PATH"))
                 storePassword System.getenv("STORE_PASSWORD") ?: 'your-store-password'
-            } catch (Exception e) {
-                println "Warning: Release signing configuration failed: ${e.message}. Using debug signing."
+                println "Using release signing with keystore: ${System.getenv('KEYSTORE_PATH')}"
+            } else {
+                println "Warning: Release keystore not found or not configured. Using debug signing."
                 storeFile file('debug.keystore')
                 storePassword 'android'
                 keyAlias 'androiddebugkey'
