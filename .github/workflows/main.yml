@@ -5,12 +5,8 @@ on:
     branches: [main]
 
 env:
-  GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1 -Xmx6144m"
-  _JAVA_OPTIONS: "-Xmx6144m -XX:MaxMetaspaceSize=2048m -XX:+HeapDumpOnOutOfMemoryError"
-  KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-  KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-  KEYSTORE_PATH: ${{ secrets.KEYSTORE_PATH }}
-  STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+  FLUTTER_VERSION: '3.24.3'
+  JAVA_VERSION: '17'
 
 jobs:
   build:
@@ -24,167 +20,54 @@ jobs:
       - name: Setup Java
         uses: actions/setup-java@v3
         with:
-          java-version: '17'
+          java-version: ${{ env.JAVA_VERSION }}
           distribution: 'temurin'
           cache: 'gradle'
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          accept-android-licenses: true
-          android-sdk-platform: 34
-          build-tools-version: '34.0.0'
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.3'
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
           cache: true
           cache-key: flutter-${{ hashFiles('**/pubspec.yaml') }}
 
-      - name: Nuclear Clean
+      - name: Install dependencies
         run: |
-          # Clean project-specific build artifacts
-          flutter clean
-          rm -rf android/.gradle android/build build
-        shell: bash
-
-      - name: Configure Project
-        run: |
-          # Ensure local.properties is correctly configured
-          mkdir -p ~/.gradle
-          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
-          echo "flutter.sdk=$FLUTTER_ROOT" >> android/local.properties
-          
-          # Verify gradle-wrapper.properties
-          cat android/gradle/wrapper/gradle-wrapper.properties
-          
-          # Set up Gradle wrapper
-          cd android && gradle wrapper --gradle-version 8.9 --distribution-type=bin && cd ..
-          chmod +x android/gradlew
-          
-          # Gradle configuration
-          cat <<EOF > ~/.gradle/gradle.properties
-          org.gradle.java.home=$JAVA_HOME
-          android.jvmargs=-Xmx6144m
-          org.gradle.jvmargs=-Xmx6144m -XX:+HeapDumpOnOutOfMemoryError
-          org.gradle.daemon=false
-          org.gradle.parallel=false
-          org.gradle.caching=true
-          org.gradle.configureondemand=false
-          android.enableJetifier=true
-          android.useAndroidX=true
-          EOF
-          
-          # Verify signing configuration
-          if [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ] || [ -z "$KEYSTORE_PATH" ] || [ -z "$STORE_PASSWORD" ]; then
-            echo "Warning: Signing secrets are missing. Using debug signing as fallback."
-          fi
-        shell: bash
-
-      - name: Analyze and Build
-        run: |
-          set -ex
-          
-          # Print environment diagnostics
-          echo "Java version:"
-          java -version
-          echo "Gradle version:"
-          ./android/gradlew --version
-          echo "Flutter environment:"
-          flutter doctor -v
-          
-          # Check pubspec.yaml
-          echo "pubspec.yaml contents:"
-          cat pubspec.yaml
-          
-          # Check AndroidManifest.xml
-          if [ -f "android/app/src/main/AndroidManifest.xml" ]; then
-            echo "AndroidManifest.xml contents:"
-            cat android/app/src/main/AndroidManifest.xml
-          else
-            echo "Error: AndroidManifest.xml not found!"
-            exit 1
-          fi
-          
-          # Get dependencies
           flutter pub get
-          
-          # Run Flutter analysis
-          echo "Running flutter analyze..."
-          flutter analyze > flutter_analyze.log 2>&1 || (cat flutter_analyze.log && echo "Flutter analysis found issues, but continuing build..." && true)
-          
-          # Try Flutter build
-          echo "Running flutter build apk..."
-          flutter build apk --release --verbose > flutter_build.log 2>&1 || (cat flutter_build.log && exit 1)
-          
-          # If Flutter build fails, try Gradle build
-          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "Flutter build failed, trying Gradle build..."
-            cd android && ./gradlew clean assembleRelease \
-              --stacktrace \
-              --info \
-              --no-daemon \
-              --no-build-cache \
-              --no-configure-on-demand \
-              --no-parallel \
-              --warning-mode all \
-              > ../gradle.log 2>&1 || (cat ../gradle.log && exit 1)
-          fi
-          
-          # Verify APK existence
-          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "### ULTIMATE BUILD FAILURE ANALYSIS ###"
-            echo "### FLUTTER DOCTOR ###"
-            flutter doctor -v
-            echo "### FLUTTER ANALYZE ###"
-            cat flutter_analyze.log || true
-            echo "### GRADLE DEPENDENCIES ###"
-            cd android && ./gradlew dependencies || true
-            echo "### BUILD FILES ###"
-            find ../build -type f | xargs ls -la || true
-            echo "### ANDROID MANIFEST ###"
-            cat android/app/src/main/AndroidManifest.xml || true
-            echo "### GRADLE PROPERTIES ###"
-            cat ~/.gradle/gradle.properties
-            echo "### GRADLE WRAPPER PROPERTIES ###"
-            cat android/gradle/wrapper/gradle-wrapper.properties
-            echo "### PROGUARD RULES ###"
-            cat android/app/proguard-rules.pro || true
-            echo "### PUBSPEC.YAML ###"
-            cat pubspec.yaml || true
-            echo "### RESOURCE FILES ###"
-            find android/app/src/main/res -type f || true
-            echo "### FLUTTER BUILD LOG ###"
-            cat flutter_build.log || true
-            echo "### GRADLE LOG ###"
-            cat gradle.log || true
-            exit 1
-          fi
-        shell: bash
+          flutter pub upgrade
+          flutter analyze > flutter_analyze.log 2>&1 || (cat flutter_analyze.log && exit 1)
+          flutter pub deps > flutter_deps.log 2>&1 || (cat flutter_deps.log && exit 1)
 
-      - name: Upload Nuclear Logs
+      - name: Verify project files
+        run: |
+          echo "Checking critical files..."
+          ls -la pubspec.yaml android/app/build.gradle android/app/src/main/AndroidManifest.xml || exit 1
+          echo "Checking assets..."
+          ls -la assets/images/ || echo "Assets directory missing, continuing..."
+          echo "Checking lib structure..."
+          find lib/ -type f || exit 1
+
+      - name: Build APK
+        run: |
+          flutter clean
+          flutter build apk --release --verbose > flutter_build.log 2>&1 || (cat flutter_build.log && exit 1)
+
+      - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: nuclear-debug-data
+          name: build-logs
           path: |
-            gradle.log
-            flutter_build.log
             flutter_analyze.log
+            flutter_deps.log
+            flutter_build.log
+            gradle.log
             android/build/**/*
-            ~/.gradle/
             build/
-            android/app/build.gradle
-            android/build.gradle
-            pubspec.yaml
-            android/app/src/main/AndroidManifest.xml
-            android/app/proguard-rules.pro
-            android/app/src/main/res/**/*
           retention-days: 7
 
-      - name: Upload APK
+      - name: Upload APK on success
         if: success()
         uses: actions/upload-artifact@v4
         with:
