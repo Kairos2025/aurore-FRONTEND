@@ -14,14 +14,8 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - name: Nuclear Clean
-        run: |
-          # Obliterate all caches and build artifacts
-          flutter clean
-          rm -rf android .gradle build
-          rm -rf ~/.gradle/caches
-          rm -rf ~/.android/build-cache
-        shell: bash
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Setup Java
         uses: actions/setup-java@v3
@@ -46,6 +40,14 @@ jobs:
           channel: 'stable'
           cache: true
           cache-key: flutter-${{ hashFiles('**/pubspec.yaml') }}
+
+      - name: Nuclear Clean
+        run: |
+          # Obliterate all caches and build artifacts
+          flutter clean
+          rm -rf android/.gradle android/build build
+          # Avoid removing ~/.gradle/caches to respect GitHub Actions caching
+        shell: bash
 
       - name: Regenerate Project
         run: |
