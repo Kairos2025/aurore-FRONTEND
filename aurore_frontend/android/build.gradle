@@ -3,7 +3,6 @@ buildscript {
     repositories {
         google()
         mavenCentral()
-        gradlePluginPortal()
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:8.0.2'
@@ -16,12 +15,6 @@ allprojects {
         google()
         mavenCentral()
     }
-}
-
-tasks.withType(JavaCompile).configureEach {
-    options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
-    options.fork = true
-    options.forkOptions.jvmArgs << "-Xmx2048m"
 }
 
 tasks.register('clean', Delete) {
