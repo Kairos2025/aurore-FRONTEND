@@ -5,20 +5,25 @@ on:
     branches: [main]
 
 env:
-  GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Xmx6144m"
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false -Xmx6144m"
   _JAVA_OPTIONS: "-Xmx4096m"
-  FLUTTER_BUILD_ARGS: "--release --verbose --no-shrink"
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Setup Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev
+        shell: bash
 
       - name: Setup Java
         uses: actions/setup-java@v3
@@ -44,71 +49,38 @@ jobs:
           cache: true
           cache-key: flutter-${{ hashFiles('**/pubspec.yaml') }}
 
-      - name: Validate Environment
+      - name: Generate Gradle Wrapper
         run: |
           flutter doctor -v
-          java -version
-          ./gradlew --version
-        shell: bash
-
-      - name: Clean and Reset
-        run: |
-          flutter clean
-          if [ -d "android" ]; then
-            rm -rf android
+          if [ ! -f "android/gradlew" ]; then
+            echo "Generating Android files..."
+            flutter create --platforms android --project-name my_app .
+            cd android && gradle wrapper --gradle-version 8.0.2 && cd ..
           fi
-          flutter create --platforms android --project-name my_app .
+          chmod +x android/gradlew
         shell: bash
 
-      - name: Configure Gradle
+      - name: Configure Build Environment
         run: |
           mkdir -p ~/.gradle
           cat <<EOF > ~/.gradle/gradle.properties
           org.gradle.java.home=$JAVA_HOME
-          android.jvmargs=-Xmx6144m -XX:MaxPermSize=1024m
-          org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError
+          android.jvmargs=-Xmx6144m
+          org.gradle.jvmargs=-Xmx6144m -XX:+HeapDumpOnOutOfMemoryError
           org.gradle.daemon=false
           org.gradle.parallel=true
-          org.gradle.caching=true
           android.enableJetifier=true
           android.useAndroidX=true
           EOF
         shell: bash
 
-      - name: Prepare Dependencies
+      - name: Build APK
         run: |
+          flutter clean
           flutter pub get
-          cd android && ./gradlew clean && ./gradlew dependencies --stacktrace --info && cd ..
+          cd android && ./gradlew clean && cd ..
+          flutter build apk --release --verbose
         shell: bash
-
-      - name: Build APK (with retry)
-        run: |
-          set -x
-          for i in {1..3}; do
-            echo "Attempt $i/3"
-            flutter build apk $FLUTTER_BUILD_ARGS > build.log 2>&1
-            if [ $? -eq 0 ]; then
-              echo "Build succeeded on attempt $i"
-              cat build.log | grep -i "warning\|error" || echo "No warnings detected"
-              exit 0
-            fi
-            echo "Build failed on attempt $i"
-            cat build.log | grep -i "error\|exception\|fail" || echo "No specific errors found"
-            sleep 10
-          done
-          echo "All build attempts failed"
-          exit 1
-        shell: bash
-
-      - name: Upload Build Logs
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-logs
-          path: |
-            build.log
-            android/build/reports/
-          retention-days: 7
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
