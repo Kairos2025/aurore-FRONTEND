@@ -32,6 +32,11 @@ jobs:
           cache: true
           cache-key: flutter-${{ hashFiles('**/pubspec.yaml') }}
 
+      - name: Check for invalid references
+        run: |
+          echo "Checking for school_management2 references..."
+          grep -r "school_management2" . || echo "No school_management2 references found"
+
       - name: Install dependencies
         run: |
           flutter pub get
@@ -43,8 +48,6 @@ jobs:
         run: |
           echo "Checking critical files..."
           ls -la pubspec.yaml android/app/build.gradle android/app/src/main/AndroidManifest.xml || exit 1
-          echo "Checking assets..."
-          ls -la assets/images/ || echo "Assets directory missing, continuing..."
           echo "Checking lib structure..."
           find lib/ -type f || exit 1
 
