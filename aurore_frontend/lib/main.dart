@@ -123,7 +123,7 @@ class AuroreApp extends StatelessWidget {
           elevatedButtonTheme: ElevatedButtonThemeData(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
+              foregroundColor: Colors.white
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
@@ -268,10 +268,10 @@ class _LoadingScreenState extends State<LoadingScreen> with SingleTickerProvider
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(
-                  Icons.school,
-                  size: 120,
-                  color: AppColors.primary,
+                Image.asset(
+                  'assets/images/aurore_logo.png',
+                  width: 120,
+                  height: 120,
                   semanticLabel: 'Aurore School Logo',
                 ),
                 const SizedBox(height: 24),
