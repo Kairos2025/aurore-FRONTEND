@@ -7,8 +7,6 @@ on:
 env:
   GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1 -Xmx6144m"
   _JAVA_OPTIONS: "-Xmx6144m -XX:MaxMetaspaceSize=2048m"
-  ANDROID_SDK_ROOT: "/usr/local/lib/android/sdk"
-  FLUTTER_ROOT: "/opt/hostedtoolcache/flutter/stable-3.24.3-x64"
 
 jobs:
   build:
@@ -45,37 +43,30 @@ jobs:
           cache: true
           cache-key: flutter-${{ hashFiles('**/pubspec.yaml') }}
 
-      - name: Create Android Configuration
+      - name: Clean and Reconfigure
         run: |
-          # Create Android directory if missing
-          if [ ! -d "android" ]; then
-            flutter create --platforms android --project-name app .
-          fi
+          # Clean existing files
+          flutter clean
+          rm -rf android
           
-          # Create complete local.properties
-          cat <<EOF > android/local.properties
-          sdk.dir=$ANDROID_SDK_ROOT
-          flutter.sdk=$FLUTTER_ROOT
-          flutter.versionName=1.0.0
-          flutter.versionCode=1
-          EOF
+          # Regenerate Android project
+          flutter create --platforms android --project-name app .
           
-          # Generate Gradle wrapper
-          cd android && gradle wrapper --gradle-version 8.0.2 && cd ..
+          # Create proper local.properties
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+          echo "flutter.sdk=$FLUTTER_ROOT" >> android/local.properties
           
-          # Make gradlew executable
+          # Update gradle wrapper
+          cd android && ./gradlew wrapper --gradle-version 8.0.2 --distribution-type=bin && cd ..
           chmod +x android/gradlew
-          
-          # Verify files exist
-          ls -la android/
         shell: bash
 
       - name: Build APK
         run: |
           set -ex
-          flutter clean
           flutter pub get
           
+          # Build with debugging
           cd android && ./gradlew clean assembleRelease \
             --stacktrace \
             --info \
@@ -84,9 +75,10 @@ jobs:
             --no-parallel \
             > ../gradle.log 2>&1 || (cat ../gradle.log && exit 1)
           
+          # Verify APK
           if [ ! -f "../build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "APK generation failed!"
-            ls -la ../build/app/outputs/flutter-apk/
+            echo "Build failed - APK not found"
+            find ../build -type f | xargs ls -la
             exit 1
           fi
         shell: bash
