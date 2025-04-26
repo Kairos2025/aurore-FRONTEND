@@ -64,12 +64,16 @@ jobs:
           android.useAndroidX=true
           EOF
           
-          # Create local.properties
+          # Create proper local.properties
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           echo "flutter.sdk=$FLUTTER_ROOT" >> android/local.properties
+          
+          # Verify files
+          ls -la android/
+          cat android/local.properties
         shell: bash
 
-      - name: Build with Debugging
+      - name: Build with Maximum Debugging
         run: |
           set -ex
           flutter pub get
@@ -81,6 +85,7 @@ jobs:
             --no-daemon \
             --no-build-cache \
             --no-parallel \
+            --scan \
             > ../gradle.log 2>&1 || (cat ../gradle.log && exit 1)
           
           # Verify APK exists
