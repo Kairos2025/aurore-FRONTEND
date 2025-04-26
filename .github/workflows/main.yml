@@ -78,6 +78,11 @@ jobs:
           android.enableJetifier=true
           android.useAndroidX=true
           EOF
+          
+          # Verify signing configuration
+          if [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ] || [ -z "$KEYSTORE_PATH" ] || [ -z "$STORE_PASSWORD" ]; then
+            echo "Warning: Signing secrets are missing. Build may fail if release signing is required."
+          fi
         shell: bash
 
       - name: Build with Enhanced Debugging
@@ -92,16 +97,21 @@ jobs:
           echo "Flutter environment:"
           flutter doctor -v
           
-          # Check native build setup
-          if [ -f "android/app/src/main/cpp/CMakeLists.txt" ]; then
-            echo "CMakeLists.txt found, checking contents:"
-            cat android/app/src/main/cpp/CMakeLists.txt
-          else
-            echo "No CMakeLists.txt found, assuming no native code."
-          fi
+          # Check pubspec.yaml
+          echo "pubspec.yaml contents:"
+          cat pubspec.yaml
           
           # Get dependencies
           flutter pub get
+          
+          # Verify AndroidManifest.xml
+          if [ -f "android/app/src/main/AndroidManifest.xml" ]; then
+            echo "AndroidManifest.xml contents:"
+            cat android/app/src/main/AndroidManifest.xml
+          else
+            echo "Error: AndroidManifest.xml not found!"
+            exit 1
+          fi
           
           # Build with detailed diagnostics and deprecation warnings
           cd android && ./gradlew clean assembleRelease \
@@ -131,6 +141,8 @@ jobs:
             cat android/gradle/wrapper/gradle-wrapper.properties
             echo "### PROGUARD RULES ###"
             cat app/proguard-rules.pro || true
+            echo "### PUBSPEC.YAML ###"
+            cat pubspec.yaml || true
             exit 1
           fi
         shell: bash
@@ -148,7 +160,7 @@ jobs:
             android/app/build.gradle
             android/build.gradle
             pubspec.yaml
-            android/app/src/main/cpp/CMakeLists.txt
+            android/app/src/main/AndroidManifest.xml
             android/app/proguard-rules.pro
           retention-days: 7
 
