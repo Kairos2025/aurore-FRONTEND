@@ -1,38 +1,25 @@
 android {
     compileSdkVersion 34
-    ndkVersion "25.2.9519653"
 
     defaultConfig {
         minSdkVersion 21
         targetSdkVersion 34
         multiDexEnabled true
-        
-        // Add these experimental flags
-        externalNativeBuild {
-            cmake {
-                cppFlags "-std=c++17"
-                arguments "-DANDROID_STL=c++_shared"
-            }
-        }
     }
 
     buildTypes {
         release {
-            minifyEnabled false // Disable for debugging
+            minifyEnabled false
             shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.debug // Temporary debug signing
         }
     }
 
-    // Add packaging options
-    packagingOptions {
-        pickFirst '**/*.so'
-        exclude 'META-INF/*.version'
-    }
-
-    lintOptions {
-        checkReleaseBuilds false
-        abortOnError false
+    // Add these if using NDK
+    ndkVersion "25.2.9519653"
+    externalNativeBuild {
+        cmake {
+            version "3.22.1"
+        }
     }
 }
