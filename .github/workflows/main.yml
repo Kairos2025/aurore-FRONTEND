@@ -64,7 +64,7 @@ jobs:
           cd android && gradle wrapper --gradle-version 8.9 --distribution-type=bin && cd ..
           chmod +x android/gradlew
           
-          # Gradle configuration with optimized settings
+          # Gradle configuration
           cat <<EOF > ~/.gradle/gradle.properties
           org.gradle.java.home=$JAVA_HOME
           android.jvmargs=-Xmx6144m
@@ -79,8 +79,7 @@ jobs:
           
           # Verify signing configuration
           if [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ] || [ -z "$KEYSTORE_PATH" ] || [ -z "$STORE_PASSWORD" ]; then
-            echo "Warning: Signing secrets are missing. Attempting debug build as fallback."
-            sed -i 's/signingConfig signingConfigs.release/signingConfig signingConfigs.debug/' android/app/build.gradle
+            echo "Warning: Signing secrets are missing. Using debug signing as fallback."
           fi
         shell: bash
 
@@ -112,7 +111,7 @@ jobs:
           # Get dependencies
           flutter pub get
           
-          # Build with detailed diagnostics
+          # Try Gradle build
           cd android && ./gradlew clean assembleRelease \
             --stacktrace \
             --info \
@@ -121,7 +120,13 @@ jobs:
             --no-configure-on-demand \
             --no-parallel \
             --warning-mode all \
-            > ../gradle.log 2>&1 || (cat ../gradle.log && exit 1)
+            > ../gradle.log 2>&1 || echo "Gradle build failed, attempting Flutter build..."
+          
+          # If Gradle build fails, try Flutter build
+          if [ ! -f "../build/app/outputs/flutter-apk/app-release.apk" ]; then
+            echo "Trying Flutter build as fallback..."
+            flutter build apk --release --verbose > flutter_build.log 2>&1 || (cat flutter_build.log && exit 1)
+          fi
           
           # Verify APK existence
           if [ ! -f "../build/app/outputs/flutter-apk/app-release.apk" ]; then
@@ -129,21 +134,25 @@ jobs:
             echo "### FLUTTER DOCTOR ###"
             flutter doctor -v
             echo "### GRADLE DEPENDENCIES ###"
-            ./gradlew dependencies || true
+            cd android && ./gradlew dependencies || true
             echo "### BUILD FILES ###"
             find ../build -type f | xargs ls -la || true
             echo "### ANDROID MANIFEST ###"
-            cat app/src/main/AndroidManifest.xml || true
+            cat android/app/src/main/AndroidManifest.xml || true
             echo "### GRADLE PROPERTIES ###"
             cat ~/.gradle/gradle.properties
             echo "### GRADLE WRAPPER PROPERTIES ###"
             cat android/gradle/wrapper/gradle-wrapper.properties
             echo "### PROGUARD RULES ###"
-            cat app/proguard-rules.pro || true
+            cat android/app/proguard-rules.pro || true
             echo "### PUBSPEC.YAML ###"
             cat pubspec.yaml || true
             echo "### RESOURCE FILES ###"
             find android/app/src/main/res -type f || true
+            echo "### GRADLE LOG ###"
+            cat gradle.log || true
+            echo "### FLUTTER BUILD LOG ###"
+            cat flutter_build.log || true
             exit 1
           fi
         shell: bash
@@ -155,6 +164,7 @@ jobs:
           name: nuclear-debug-data
           path: |
             gradle.log
+            flutter_build.log
             android/build/**/*
             ~/.gradle/
             build/
