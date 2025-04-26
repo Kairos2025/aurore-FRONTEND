@@ -12,7 +12,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
@@ -44,20 +44,8 @@ jobs:
           cache: true
           cache-key: flutter-${{ hashFiles('**/pubspec.yaml') }}
 
-      - name: Full Environment Reset
+      - name: Configure Gradle
         run: |
-          # Clean everything
-          flutter clean
-          rm -rf android
-          
-          # Regenerate project
-          flutter create --platforms android --project-name app .
-          
-          # Force gradle wrapper generation
-          cd android && gradle wrapper --gradle-version 8.0.2 && cd ..
-          chmod +x android/gradlew
-          
-          # Configure environment
           mkdir -p ~/.gradle
           cat <<EOF > ~/.gradle/gradle.properties
           org.gradle.java.home=$JAVA_HOME
@@ -67,44 +55,48 @@ jobs:
           org.gradle.parallel=false
           android.enableJetifier=true
           android.useAndroidX=true
+          org.gradle.unsafe.configuration-cache=true
           EOF
         shell: bash
 
-      - name: Build with Maximum Debugging
+      - name: Build with Debugging
         run: |
           set -ex
+          flutter clean
           flutter pub get
           
-          # Build with all debugging enabled
+          # Accept Gradle terms automatically
+          mkdir -p ~/.gradle
+          echo "org.gradle.internal.publish.checksums.insecure=true" >> ~/.gradle/gradle.properties
+          
+          # Build with full diagnostics
           cd android && ./gradlew clean assembleRelease \
             --stacktrace \
             --info \
             --no-daemon \
             --no-build-cache \
             --no-parallel \
-            --scan \
             > ../gradle.log 2>&1 || (cat ../gradle.log && exit 1)
           
-          # Verify outputs
+          # Verify APK exists
           if [ ! -f "../build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "### BUILD FAILED - APK NOT GENERATED ###"
-            echo "### Listing build directory contents ###"
-            find ../build -type f | xargs ls -la
-            echo "### Gradle build directory contents ###"
-            find . -name "build" -type d | xargs ls -la
+            echo "### BUILD FAILED ###"
+            echo "### Gradle tasks ###"
+            ./gradlew tasks
+            echo "### Dependency tree ###"
+            ./gradlew android:dependencies
             exit 1
           fi
         shell: bash
 
-      - name: Upload Diagnostics
+      - name: Upload Logs
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: build-diagnostics
+          name: build-logs
           path: |
             gradle.log
             android/build/**/*.log
-            android/build/reports/
           retention-days: 7
 
       - name: Upload APK
