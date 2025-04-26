@@ -10,10 +10,9 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled false // Disabled for debugging
+            minifyEnabled false  // Disable for debugging
             shrinkResources false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.debug // Use debug signing for testing
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 
