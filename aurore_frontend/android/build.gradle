@@ -19,14 +19,6 @@ allprojects {
     }
 }
 
-// Critical performance config
-tasks.withType(JavaCompile).configureEach {
-    options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
-    options.fork = true
-    options.forkOptions.jvmArgs << "-Xmx2048m"
-    options.incremental = true
-}
-
-....................................................................................................................................................tasks.register('clean', Delete) {
+tasks.register('clean', Delete) {
     delete rootProject.buildDir
 }
