@@ -83,7 +83,7 @@ jobs:
           fi
         shell: bash
 
-      - name: Build with Enhanced Debugging
+      - name: Analyze and Build
         run: |
           set -ex
           
@@ -111,28 +111,35 @@ jobs:
           # Get dependencies
           flutter pub get
           
-          # Try Gradle build
-          cd android && ./gradlew clean assembleRelease \
-            --stacktrace \
-            --info \
-            --no-daemon \
-            --no-build-cache \
-            --no-configure-on-demand \
-            --no-parallel \
-            --warning-mode all \
-            > ../gradle.log 2>&1 || echo "Gradle build failed, attempting Flutter build..."
+          # Run Flutter analysis
+          echo "Running flutter analyze..."
+          flutter analyze > flutter_analyze.log 2>&1 || (cat flutter_analyze.log && echo "Flutter analysis found issues, but continuing build..." && true)
           
-          # If Gradle build fails, try Flutter build
-          if [ ! -f "../build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "Trying Flutter build as fallback..."
-            flutter build apk --release --verbose > flutter_build.log 2>&1 || (cat flutter_build.log && exit 1)
+          # Try Flutter build
+          echo "Running flutter build apk..."
+          flutter build apk --release --verbose > flutter_build.log 2>&1 || (cat flutter_build.log && exit 1)
+          
+          # If Flutter build fails, try Gradle build
+          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
+            echo "Flutter build failed, trying Gradle build..."
+            cd android && ./gradlew clean assembleRelease \
+              --stacktrace \
+              --info \
+              --no-daemon \
+              --no-build-cache \
+              --no-configure-on-demand \
+              --no-parallel \
+              --warning-mode all \
+              > ../gradle.log 2>&1 || (cat ../gradle.log && exit 1)
           fi
           
           # Verify APK existence
-          if [ ! -f "../build/app/outputs/flutter-apk/app-release.apk" ]; then
+          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
             echo "### ULTIMATE BUILD FAILURE ANALYSIS ###"
             echo "### FLUTTER DOCTOR ###"
             flutter doctor -v
+            echo "### FLUTTER ANALYZE ###"
+            cat flutter_analyze.log || true
             echo "### GRADLE DEPENDENCIES ###"
             cd android && ./gradlew dependencies || true
             echo "### BUILD FILES ###"
@@ -149,10 +156,10 @@ jobs:
             cat pubspec.yaml || true
             echo "### RESOURCE FILES ###"
             find android/app/src/main/res -type f || true
-            echo "### GRADLE LOG ###"
-            cat gradle.log || true
             echo "### FLUTTER BUILD LOG ###"
             cat flutter_build.log || true
+            echo "### GRADLE LOG ###"
+            cat gradle.log || true
             exit 1
           fi
         shell: bash
@@ -165,6 +172,7 @@ jobs:
           path: |
             gradle.log
             flutter_build.log
+            flutter_analyze.log
             android/build/**/*
             ~/.gradle/
             build/
