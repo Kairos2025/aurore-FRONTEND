@@ -20,7 +20,8 @@ android {
         release {
             minifyEnabled false // Disable for debugging
             shrinkResources false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.debug // Temporary for CI
         }
     }
 
@@ -33,5 +34,14 @@ android {
     lintOptions {
         checkReleaseBuilds false
         abortOnError false
+    }
+
+    // Fix for newer Gradle versions
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
     }
 }
