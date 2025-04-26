@@ -55,8 +55,11 @@ jobs:
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           echo "flutter.sdk=$FLUTTER_ROOT" >> android/local.properties
           
-          # Set up Gradle wrapper
-          cd android && gradle wrapper --gradle-version 8.0.2 --distribution-type=bin && cd ..
+          # Verify gradle-wrapper.properties
+          cat android/gradle/wrapper/gradle-wrapper.properties
+          
+          # Set up Gradle wrapper with updated version
+          cd android && gradle wrapper --gradle-version 8.9 --distribution-type=bin && cd ..
           chmod +x android/gradlew
           
           # Gradle configuration with optimized settings
@@ -80,6 +83,8 @@ jobs:
           # Print environment diagnostics
           echo "Java version:"
           java -version
+          echo "Gradle version:"
+          ./android/gradlew --version
           echo "Flutter environment:"
           flutter doctor -v
           
@@ -109,6 +114,8 @@ jobs:
             cat app/src/main/AndroidManifest.xml || true
             echo "### GRADLE PROPERTIES ###"
             cat ~/.gradle/gradle.properties
+            echo "### GRADLE WRAPPER PROPERTIES ###"
+            cat android/gradle/wrapper/gradle-wrapper.properties
             exit 1
           fi
         shell: bash
@@ -124,6 +131,7 @@ jobs:
             ~/.gradle/
             build/
             android/app/build.gradle
+            android/build.gradle
             pubspec.yaml
           retention-days: 7
 
