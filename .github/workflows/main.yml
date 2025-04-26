@@ -8,6 +8,7 @@ env:
   GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1 -Xmx6144m"
   _JAVA_OPTIONS: "-Xmx6144m -XX:MaxMetaspaceSize=2048m"
   ANDROID_SDK_ROOT: "/usr/local/lib/android/sdk"
+  FLUTTER_ROOT: "/opt/hostedtoolcache/flutter/stable-3.24.3-x64"
 
 jobs:
   build:
@@ -51,14 +52,22 @@ jobs:
             flutter create --platforms android --project-name app .
           fi
           
-          # Create local.properties with SDK path
-          echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
+          # Create complete local.properties
+          cat <<EOF > android/local.properties
+          sdk.dir=$ANDROID_SDK_ROOT
+          flutter.sdk=$FLUTTER_ROOT
+          flutter.versionName=1.0.0
+          flutter.versionCode=1
+          EOF
           
           # Generate Gradle wrapper
           cd android && gradle wrapper --gradle-version 8.0.2 && cd ..
           
           # Make gradlew executable
           chmod +x android/gradlew
+          
+          # Verify files exist
+          ls -la android/
         shell: bash
 
       - name: Build APK
