@@ -11,7 +11,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout code
@@ -43,39 +43,43 @@ jobs:
           cache: true
           cache-key: flutter-${{ hashFiles('**/pubspec.yaml') }}
 
-      - name: Initialize Project
+      - name: Nuclear Reset
         run: |
-          # Clean existing files
+          # Complete cleanup
           flutter clean
           rm -rf android
+          rm -rf ~/.gradle/caches
           
-          # Regenerate Android project
+          # Regenerate project
           flutter create --platforms android --project-name app .
           
-          # Ensure gradlew exists
-          if [ ! -f "android/gradlew" ]; then
-            echo "Generating Gradle wrapper..."
-            cd android && gradle wrapper --gradle-version 8.0.2 && cd ..
-          fi
-          
-          # Make gradlew executable
-          chmod +x android/gradlew
-          
-          # Create local.properties
+          # Create critical files
+          mkdir -p ~/.gradle
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           echo "flutter.sdk=$FLUTTER_ROOT" >> android/local.properties
           
-          # Verify files
-          ls -la android/
-          ls -la android/gradle*
+          # Force Gradle wrapper generation
+          cd android && gradle wrapper --gradle-version 8.0.2 --distribution-type=bin && cd ..
+          chmod +x android/gradlew
+          
+          # Configure environment
+          cat <<EOF > ~/.gradle/gradle.properties
+          org.gradle.java.home=$JAVA_HOME
+          android.jvmargs=-Xmx6144m
+          org.gradle.jvmargs=-Xmx6144m -XX:+HeapDumpOnOutOfMemoryError
+          org.gradle.daemon=false
+          org.gradle.parallel=false
+          android.enableJetifier=true
+          android.useAndroidX=true
+          EOF
         shell: bash
 
-      - name: Build APK
+      - name: Build with Ultimate Debugging
         run: |
           set -ex
           flutter pub get
           
-          # Build with detailed logging
+          # Build with maximum diagnostics
           cd android && ./gradlew clean assembleRelease \
             --stacktrace \
             --info \
@@ -84,22 +88,26 @@ jobs:
             --no-parallel \
             > ../gradle.log 2>&1 || (cat ../gradle.log && exit 1)
           
-          # Verify APK exists
+          # Nuclear verification
           if [ ! -f "../build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "APK generation failed!"
-            ls -la ../build/app/outputs/flutter-apk/
+            echo "### CRITICAL BUILD FAILURE ###"
+            echo "### BUILD DIRECTORY TREE ###"
+            find ../build -type d | xargs ls -la
+            echo "### GRADLE FILES ###"
+            find android -name "*.gradle" -o -name "*.properties" | xargs cat
             exit 1
           fi
         shell: bash
 
-      - name: Upload Logs
+      - name: Upload Nuclear Logs
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: build-logs
+          name: nuclear-logs
           path: |
             gradle.log
-            android/build/**/*.log
+            android/build/**/*
+            ~/.gradle/
           retention-days: 7
 
       - name: Upload APK
