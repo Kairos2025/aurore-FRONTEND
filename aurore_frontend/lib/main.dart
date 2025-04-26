@@ -1,17 +1,16 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:dio/dio.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:provider/provider.dart';
 import 'package:aurore_school/core/constants/app_colors.dart';
-import 'package:aurore_school/core/providers/timetable_controller.dart';
-import 'package:aurore_school/core/providers/ai_detector_provider.dart';
 import 'package:aurore_school/core/providers/auth_provider.dart' as app_auth;
 import 'package:aurore_school/core/providers/qr_provider.dart';
 import 'package:aurore_school/core/providers/api_service.dart';
+import 'package:aurore_school/core/providers/timetable_controller.dart';
+import 'package:aurore_school/core/providers/ai_detector_provider.dart';
 import 'package:aurore_school/features/auth/login_screen.dart';
 import 'package:aurore_school/features/auth/reset_password_screen.dart';
 import 'package:aurore_school/features/auth/sign_up_screen.dart';
@@ -21,7 +20,6 @@ import 'package:aurore_school/features/dashboard/admin/admin_dashboard.dart';
 import 'package:aurore_school/features/dashboard/support/support_screen.dart';
 import 'package:aurore_school/features/timetable_screen.dart';
 import 'package:aurore_school/utils/secure_storage.dart';
-import 'package:aurore_school/models/schedule.dart';
 
 class AuroreResponsiveLayout extends StatelessWidget {
   final Widget mobile;
@@ -67,10 +65,11 @@ class AuroreApp extends StatelessWidget {
     final dio = Dio();
     final secureStorage = SecureStorage();
     final apiService = ApiService(dio, secureStorage);
+    final googleSignIn = GoogleSignIn(scopes: ['email']);
 
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => app_auth.AuthProvider(dio, secureStorage)),
+        ChangeNotifierProvider(create: (_) => app_auth.AuthProvider(dio, secureStorage, googleSignIn)),
         ChangeNotifierProvider(create: (_) => QrProvider()),
         ChangeNotifierProvider(create: (_) => TimetableController(dio, secureStorage)),
         ChangeNotifierProvider(create: (_) => AiDetectorProvider(apiService: apiService)),
@@ -84,7 +83,7 @@ class AuroreApp extends StatelessWidget {
           colorScheme: const ColorScheme.light(
             primary: AppColors.primary,
             secondary: AppColors.secondary,
-            surface: AppColors.background, // Replaced background with surface
+            surface: AppColors.background,
             brightness: Brightness.light,
           ),
           textTheme: const TextTheme(
@@ -201,15 +200,20 @@ class LoadingScreen extends StatefulWidget {
 class _LoadingScreenState extends State<LoadingScreen> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
+  late Animation<double> _scaleAnimation;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1000),
+      duration: const Duration(milliseconds: 1200),
     )..repeat(reverse: true);
     _fadeAnimation = Tween<double>(begin: 0.4, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+    _scaleAnimation = Tween<double>(begin: 0.95, end: 1.05).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
 
@@ -218,10 +222,18 @@ class _LoadingScreenState extends State<LoadingScreen> with SingleTickerProvider
 
   Future<void> _checkAuthState() async {
     final auth = Provider.of<app_auth.AuthProvider>(context, listen: false);
-    await auth.checkAuthState();
-    if (context.mounted) {
-      final route = auth.user != null ? _roleBasedRoute(auth.role ?? 'student') : '/login';
-      Navigator.pushReplacementNamed(context, route);
+    try {
+      await auth.checkAuthState();
+      if (context.mounted) {
+        final route = auth.user != null ? _roleBasedRoute(auth.role ?? 'student') : '/login';
+        Navigator.pushReplacementNamed(context, route);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        setState(() {
+          _errorMessage = 'Failed to authenticate: $e';
+        });
+      }
     }
   }
 
@@ -251,79 +263,44 @@ class _LoadingScreenState extends State<LoadingScreen> with SingleTickerProvider
       body: Center(
         child: FadeTransition(
           opacity: _fadeAnimation,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Image.asset(
-                'assets/images/aurore_logo.png',
-                width: 120,
-                height: 120,
-                semanticLabel: 'Aurore School Logo',
-              ),
-              const SizedBox(height: 24),
-              const CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-                semanticsLabel: 'Loading Aurore School',
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Loading Aurore School...',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.darkGrey,
+          child: ScaleTransition(
+            scale: _scaleAnimation,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.school,
+                  size: 120,
+                  color: AppColors.primary,
+                  semanticLabel: 'Aurore School Logo',
                 ),
-                semanticsLabel: 'Loading Aurore School',
-              ),
-            ],
+                const SizedBox(height: 24),
+                const CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                  semanticsLabel: 'Loading Aurore School',
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  _errorMessage ?? 'Loading Aurore School...',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.darkGrey,
+                  ),
+                  semanticsLabel: _errorMessage ?? 'Loading Aurore School',
+                ),
+                if (_errorMessage != null) ...[
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _checkAuthState,
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
       ),
     );
-  }
-}
-
-// Placeholder implementations to fix errors
-class AiDetectorProvider with ChangeNotifier {
-  String _updateResults = '';
-
-  String get updateResults => _updateResults;
-
-  void setUpdateResults(String value) {
-    _updateResults = value;
-    notifyListeners();
-  }
-
-  final ApiService apiService;
-
-  AiDetectorProvider({required this.apiService});
-}
-
-class TimetableController with ChangeNotifier {
-  final Dio dio;
-  final SecureStorage secureStorage;
-
-  TimetableController(this.dio, this.secureStorage);
-
-  void _showConflictDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Schedule Conflict'),
-        content: const Text('A conflict was detected in the timetable.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Placeholder for timetable logic
-  void updateTimetable(Schedule schedule, int dayIndex, String timeKey) {
-    // Implement timetable update logic
-    notifyListeners();
   }
 }
