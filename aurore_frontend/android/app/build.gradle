@@ -1,13 +1,19 @@
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+
 android {
-    compileSdkVersion 34
+    compileSdk 34
     ndkVersion "25.2.9519653"
 
     defaultConfig {
-        minSdkVersion 21
-        targetSdkVersion 34
+        applicationId "com.yourpackage.app" // Replace with your app's package name
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
         multiDexEnabled true
         
-        // Add if using NDK
+        // Support for native code
         externalNativeBuild {
             cmake {
                 cppFlags "-std=c++17"
@@ -16,32 +22,56 @@ android {
         }
     }
 
-    buildTypes {
+    signingConfigs {
         release {
-            minifyEnabled false // Disable for debugging
-            shrinkResources false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.debug // Temporary for CI
+            keyAlias System.getenv("KEY_ALIAS") ?: 'your-key-alias'
+            keyPassword System.getenv("KEY_PASSWORD") ?: 'your-key-password'
+            storeFile file(System.getenv("KEYSTORE_PATH") ?: 'keystore.jks')
+            storePassword System.getenv("STORE_PASSWORD") ?: 'your-store-password'
         }
     }
 
-    // Critical for native libs
-    packagingOptions {
-        pickFirst '**/*.so'
-        exclude 'META-INF/*.version'
+    buildTypes {
+        release {
+            minifyEnabled false // Disabled for debugging
+            shrinkResources false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
     }
 
-    lintOptions {
+    // Handle native libraries
+    packaging {
+        resources {
+            pickFirsts += ['**/*.so']
+            excludes += ['META-INF/*.version']
+        }
+    }
+
+    lint {
         checkReleaseBuilds false
         abortOnError false
     }
 
-    // Fix for newer Gradle versions
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
-    kotlinOptions {
+
+    kotlin {
         jvmTarget = '17'
     }
+
+    // External native build
+    externalNativeBuild {
+        cmake {
+            path "src/main/cpp/CMakeLists.txt"
+        }
+    }
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+    implementation "androidx.core:core-ktx:1.12.0"
+    implementation "androidx.multidex:multidex:2.0.1"
 }
