@@ -6,13 +6,13 @@ on:
 
 env:
   GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Xmx6144m"
-  _JAVA_OPTIONS: "-Xmx4096m"
-  FLUTTER_BUILD_ARGS: "--release --verbose --no-shrink"
+  _JAVA_OPTIONS: "-Xmx6144m -XX:MaxMetaspaceSize=1024m"
+  ANDROID_BUILD_TOOLS: "34.0.0"
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
@@ -32,7 +32,7 @@ jobs:
         with:
           accept-android-licenses: true
           android-sdk-platform: 34
-          build-tools-version: '34.0.0'
+          build-tools-version: ${{ env.ANDROID_BUILD_TOOLS }}
           cmake-version: '3.22.1'
           ndk-version: '25.2.9519653'
 
@@ -44,49 +44,52 @@ jobs:
           cache: true
           cache-key: flutter-${{ hashFiles('**/pubspec.yaml') }}
 
-      - name: Debug Environment
+      - name: Configure Environment
         run: |
-          echo "### FLUTTER DOCTOR ###"
-          flutter doctor -v
-          echo "### JAVA VERSION ###"
-          java -version
-          echo "### ANDROID SDK ###"
-          ls -la $ANDROID_HOME
+          mkdir -p ~/.gradle
+          cat <<EOF > ~/.gradle/gradle.properties
+          org.gradle.java.home=$JAVA_HOME
+          android.jvmargs=-Xmx6144m -XX:MaxPermSize=1024m
+          org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError
+          org.gradle.daemon=false
+          org.gradle.parallel=true
+          org.gradle.caching=true
+          android.enableJetifier=true
+          android.useAndroidX=true
+          EOF
         shell: bash
 
-      - name: Full Clean
-        run: |
-          flutter clean
-          rm -rf android
-          flutter create --platforms android --project-name app .
-          chmod +x android/gradlew
-        shell: bash
-
-      - name: Build with Complete Logging
+      - name: Build with Debugging
         run: |
           set -ex
+          flutter clean
           flutter pub get
           
-          # Run Gradle directly for better logs
-          cd android && ./gradlew clean assembleRelease --stacktrace --info > ../gradle.log 2>&1 || (cat ../gradle.log && exit 1)
+          # Run Gradle with full diagnostics
+          cd android && ./gradlew clean assembleRelease \
+            --stacktrace \
+            --info \
+            --no-daemon \
+            --no-build-cache \
+            --no-parallel \
+            > ../gradle.log 2>&1 || (cat ../gradle.log && exit 1)
           
-          # Verify outputs
+          # Verify APK exists
           if [ ! -f "../build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "### APK NOT FOUND ###"
+            echo "APK generation failed!"
             find ../build -type f | xargs ls -la
             exit 1
           fi
         shell: bash
 
-      - name: Upload Diagnostics
+      - name: Upload Logs
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: build-diagnostics
+          name: build-logs
           path: |
             gradle.log
             android/build/**/*.log
-            $HOME/.gradle/caches/
           retention-days: 7
 
       - name: Upload APK
