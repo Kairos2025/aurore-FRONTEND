@@ -1,10 +1,19 @@
 android {
     compileSdkVersion 34
+    ndkVersion "25.2.9519653"
 
     defaultConfig {
         minSdkVersion 21
         targetSdkVersion 34
         multiDexEnabled true
+        
+        // Add these if using NDK
+        externalNativeBuild {
+            cmake {
+                cppFlags "-std=c++17"
+                arguments "-DANDROID_STL=c++_shared"
+            }
+        }
     }
 
     buildTypes {
@@ -15,11 +24,7 @@ android {
         }
     }
 
-    // Add these if using NDK
-    ndkVersion "25.2.9519653"
-    externalNativeBuild {
-        cmake {
-            version "3.22.1"
-        }
+    packagingOptions {
+        pickFirst '**/*.so'
     }
 }
