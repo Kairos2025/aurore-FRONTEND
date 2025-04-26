@@ -1,43 +1,22 @@
-android {
-    compileSdkVersion 34
-
-    defaultConfig {
-        applicationId "com.example.aurore_frontend" // Replace with your app's package name
-        minSdkVersion 21 // Flutter's minimum requirement
-        targetSdkVersion 34
-        versionCode 1
-        versionName "1.0"
-        multiDexEnabled true // Handle large apps with many dependencies
+buildscript {
+    ext.kotlin_version = '1.9.0'
+    repositories {
+        google()
+        mavenCentral()
     }
-
-    signingConfigs {
-        release {
-            def keystorePropertiesFile = rootProject.file("key.properties")
-            if (keystorePropertiesFile.exists()) {
-                def keystoreProperties = new Properties()
-                keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
-                storeFile file(keystoreProperties['storeFile'])
-                storePassword keystoreProperties['storePassword']
-                keyAlias keystoreProperties['keyAlias']
-                keyPassword keystoreProperties['keyPassword']
-            }
-        }
-    }
-
-    buildTypes {
-        release {
-            signingConfig signingConfigs.release
-            minifyEnabled false // Disable minification to avoid R8/ProGuard issues
-            shrinkResources false
-        }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.0.2'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
     }
 }
 
-dependencies {
-    implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.0"
-    implementation platform('com.google.firebase:firebase-bom:33.5.1') // Manage Firebase versions
-    implementation 'com.google.firebase:firebase-analytics' // Required Firebase dependency
-    implementation 'androidx.multidex:multidex:2.0.1' // Support MultiDex
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
 }
 
-apply plugin: 'com.google.gms.google-services' // For Firebase
+tasks.register('clean', Delete) {
+    delete rootProject.buildDir
+}
