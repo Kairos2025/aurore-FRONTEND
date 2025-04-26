@@ -43,46 +43,50 @@ jobs:
 
       - name: Nuclear Clean
         run: |
-          # Obliterate all caches and build artifacts
+          # Clean project-specific build artifacts
           flutter clean
           rm -rf android/.gradle android/build build
-          # Avoid removing ~/.gradle/caches to respect GitHub Actions caching
         shell: bash
 
-      - name: Regenerate Project
+      - name: Configure Project
         run: |
-          # Create fresh Android project
-          flutter create --platforms android --project-name app .
-          
-          # Critical configuration files
+          # Ensure local.properties is correctly configured
           mkdir -p ~/.gradle
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           echo "flutter.sdk=$FLUTTER_ROOT" >> android/local.properties
           
-          # Nuclear Gradle wrapper generation
+          # Set up Gradle wrapper
           cd android && gradle wrapper --gradle-version 8.0.2 --distribution-type=bin && cd ..
           chmod +x android/gradlew
           
-          # Ultimate Gradle configuration
+          # Gradle configuration with optimized settings
           cat <<EOF > ~/.gradle/gradle.properties
           org.gradle.java.home=$JAVA_HOME
           android.jvmargs=-Xmx6144m
           org.gradle.jvmargs=-Xmx6144m -XX:+HeapDumpOnOutOfMemoryError
           org.gradle.daemon=false
           org.gradle.parallel=false
-          org.gradle.caching=false
+          org.gradle.caching=true
           org.gradle.configureondemand=false
           android.enableJetifier=true
           android.useAndroidX=true
           EOF
         shell: bash
 
-      - name: Build with Nuclear Debugging
+      - name: Build with Enhanced Debugging
         run: |
           set -ex
+          
+          # Print environment diagnostics
+          echo "Java version:"
+          java -version
+          echo "Flutter environment:"
+          flutter doctor -v
+          
+          # Get dependencies
           flutter pub get
           
-          # Build with ultimate diagnostics
+          # Build with detailed diagnostics
           cd android && ./gradlew clean assembleRelease \
             --stacktrace \
             --info \
@@ -92,15 +96,19 @@ jobs:
             --no-parallel \
             > ../gradle.log 2>&1 || (cat ../gradle.log && exit 1)
           
-          # Final verification
+          # Verify APK existence
           if [ ! -f "../build/app/outputs/flutter-apk/app-release.apk" ]; then
             echo "### ULTIMATE BUILD FAILURE ANALYSIS ###"
+            echo "### FLUTTER DOCTOR ###"
+            flutter doctor -v
             echo "### GRADLE DEPENDENCIES ###"
-            ./gradlew dependencies
+            ./gradlew dependencies || true
             echo "### BUILD FILES ###"
-            find ../build -type f | xargs ls -la
+            find ../build -type f | xargs ls -la || true
             echo "### ANDROID MANIFEST ###"
-            cat app/src/main/AndroidManifest.xml
+            cat app/src/main/AndroidManifest.xml || true
+            echo "### GRADLE PROPERTIES ###"
+            cat ~/.gradle/gradle.properties
             exit 1
           fi
         shell: bash
@@ -115,6 +123,8 @@ jobs:
             android/build/**/*
             ~/.gradle/
             build/
+            android/app/build.gradle
+            pubspec.yaml
           retention-days: 7
 
       - name: Upload APK
