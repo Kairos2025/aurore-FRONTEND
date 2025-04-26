@@ -34,8 +34,6 @@ jobs:
           accept-android-licenses: true
           android-sdk-platform: 34
           build-tools-version: '34.0.0'
-          cmake-version: '3.22.1'
-          ndk-version: '25.2.9519653'
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -81,7 +79,8 @@ jobs:
           
           # Verify signing configuration
           if [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ] || [ -z "$KEYSTORE_PATH" ] || [ -z "$STORE_PASSWORD" ]; then
-            echo "Warning: Signing secrets are missing. Build may fail if release signing is required."
+            echo "Warning: Signing secrets are missing. Attempting debug build as fallback."
+            sed -i 's/signingConfig signingConfigs.release/signingConfig signingConfigs.debug/' android/app/build.gradle
           fi
         shell: bash
 
@@ -101,10 +100,7 @@ jobs:
           echo "pubspec.yaml contents:"
           cat pubspec.yaml
           
-          # Get dependencies
-          flutter pub get
-          
-          # Verify AndroidManifest.xml
+          # Check AndroidManifest.xml
           if [ -f "android/app/src/main/AndroidManifest.xml" ]; then
             echo "AndroidManifest.xml contents:"
             cat android/app/src/main/AndroidManifest.xml
@@ -113,7 +109,10 @@ jobs:
             exit 1
           fi
           
-          # Build with detailed diagnostics and deprecation warnings
+          # Get dependencies
+          flutter pub get
+          
+          # Build with detailed diagnostics
           cd android && ./gradlew clean assembleRelease \
             --stacktrace \
             --info \
@@ -143,6 +142,8 @@ jobs:
             cat app/proguard-rules.pro || true
             echo "### PUBSPEC.YAML ###"
             cat pubspec.yaml || true
+            echo "### RESOURCE FILES ###"
+            find android/app/src/main/res -type f || true
             exit 1
           fi
         shell: bash
@@ -162,6 +163,7 @@ jobs:
             pubspec.yaml
             android/app/src/main/AndroidManifest.xml
             android/app/proguard-rules.pro
+            android/app/src/main/res/**/*
           retention-days: 7
 
       - name: Upload APK
