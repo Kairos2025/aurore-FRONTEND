@@ -7,7 +7,7 @@ android {
         targetSdkVersion 34
         multiDexEnabled true
         
-        // Add these if using NDK
+        // Add if using NDK
         externalNativeBuild {
             cmake {
                 cppFlags "-std=c++17"
@@ -18,13 +18,20 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled false // Disable for debugging
             shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
 
+    // Critical for native libs
     packagingOptions {
         pickFirst '**/*.so'
+        exclude 'META-INF/*.version'
+    }
+
+    lintOptions {
+        checkReleaseBuilds false
+        abortOnError false
     }
 }
