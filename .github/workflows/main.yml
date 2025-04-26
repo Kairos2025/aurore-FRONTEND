@@ -7,6 +7,10 @@ on:
 env:
   GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1 -Xmx6144m"
   _JAVA_OPTIONS: "-Xmx6144m -XX:MaxMetaspaceSize=2048m -XX:+HeapDumpOnOutOfMemoryError"
+  KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+  KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+  KEYSTORE_PATH: ${{ secrets.KEYSTORE_PATH }}
+  STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
 
 jobs:
   build:
@@ -58,7 +62,7 @@ jobs:
           # Verify gradle-wrapper.properties
           cat android/gradle/wrapper/gradle-wrapper.properties
           
-          # Set up Gradle wrapper with updated version
+          # Set up Gradle wrapper
           cd android && gradle wrapper --gradle-version 8.9 --distribution-type=bin && cd ..
           chmod +x android/gradlew
           
@@ -88,10 +92,18 @@ jobs:
           echo "Flutter environment:"
           flutter doctor -v
           
+          # Check native build setup
+          if [ -f "android/app/src/main/cpp/CMakeLists.txt" ]; then
+            echo "CMakeLists.txt found, checking contents:"
+            cat android/app/src/main/cpp/CMakeLists.txt
+          else
+            echo "No CMakeLists.txt found, assuming no native code."
+          fi
+          
           # Get dependencies
           flutter pub get
           
-          # Build with detailed diagnostics
+          # Build with detailed diagnostics and deprecation warnings
           cd android && ./gradlew clean assembleRelease \
             --stacktrace \
             --info \
@@ -99,6 +111,7 @@ jobs:
             --no-build-cache \
             --no-configure-on-demand \
             --no-parallel \
+            --warning-mode all \
             > ../gradle.log 2>&1 || (cat ../gradle.log && exit 1)
           
           # Verify APK existence
@@ -116,6 +129,8 @@ jobs:
             cat ~/.gradle/gradle.properties
             echo "### GRADLE WRAPPER PROPERTIES ###"
             cat android/gradle/wrapper/gradle-wrapper.properties
+            echo "### PROGUARD RULES ###"
+            cat app/proguard-rules.pro || true
             exit 1
           fi
         shell: bash
@@ -133,6 +148,8 @@ jobs:
             android/app/build.gradle
             android/build.gradle
             pubspec.yaml
+            android/app/src/main/cpp/CMakeLists.txt
+            android/app/proguard-rules.pro
           retention-days: 7
 
       - name: Upload APK
