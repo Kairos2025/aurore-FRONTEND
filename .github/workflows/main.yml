@@ -11,7 +11,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout code
@@ -43,30 +43,38 @@ jobs:
           cache: true
           cache-key: flutter-${{ hashFiles('**/pubspec.yaml') }}
 
-      - name: Clean and Reconfigure
+      - name: Full Environment Reset
         run: |
-          # Clean existing files
+          # Clean everything
           flutter clean
           rm -rf android
           
-          # Regenerate Android project
+          # Regenerate project
           flutter create --platforms android --project-name app .
           
-          # Create proper local.properties
+          # Configure environment
+          mkdir -p ~/.gradle
+          cat <<EOF > ~/.gradle/gradle.properties
+          org.gradle.java.home=$JAVA_HOME
+          android.jvmargs=-Xmx6144m -XX:MaxPermSize=1024m
+          org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=2048m -XX:+HeapDumpOnOutOfMemoryError
+          org.gradle.daemon=false
+          org.gradle.parallel=false
+          android.enableJetifier=true
+          android.useAndroidX=true
+          EOF
+          
+          # Create local.properties
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           echo "flutter.sdk=$FLUTTER_ROOT" >> android/local.properties
-          
-          # Update gradle wrapper
-          cd android && ./gradlew wrapper --gradle-version 8.0.2 --distribution-type=bin && cd ..
-          chmod +x android/gradlew
         shell: bash
 
-      - name: Build APK
+      - name: Build with Debugging
         run: |
           set -ex
           flutter pub get
           
-          # Build with debugging
+          # Build with all debugging enabled
           cd android && ./gradlew clean assembleRelease \
             --stacktrace \
             --info \
@@ -75,22 +83,26 @@ jobs:
             --no-parallel \
             > ../gradle.log 2>&1 || (cat ../gradle.log && exit 1)
           
-          # Verify APK
+          # Verify APK exists
           if [ ! -f "../build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "Build failed - APK not found"
+            echo "### BUILD FAILED ###"
+            echo "### Listing build directory ###"
             find ../build -type f | xargs ls -la
+            echo "### Gradle build reports ###"
+            find android/build/reports -type f | xargs cat || echo "No reports found"
             exit 1
           fi
         shell: bash
 
-      - name: Upload Logs
+      - name: Upload Diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: build-logs
+          name: build-diagnostics
           path: |
             gradle.log
             android/build/**/*.log
+            android/build/reports/
           retention-days: 7
 
       - name: Upload APK
