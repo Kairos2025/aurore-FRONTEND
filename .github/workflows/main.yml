@@ -5,13 +5,14 @@ on:
     branches: [main]
 
 env:
-  GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Xmx6144m"
-  _JAVA_OPTIONS: "-Xmx6144m -XX:MaxMetaspaceSize=1024m"
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1 -Xmx6144m"
+  _JAVA_OPTIONS: "-Xmx6144m -XX:MaxMetaspaceSize=2048m"
+  ANDROID_BUILD_TOOLS: "34.0.0"
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
       - name: Checkout code
@@ -31,7 +32,7 @@ jobs:
         with:
           accept-android-licenses: true
           android-sdk-platform: 34
-          build-tools-version: '34.0.0'
+          build-tools-version: ${{ env.ANDROID_BUILD_TOOLS }}
           cmake-version: '3.22.1'
           ndk-version: '25.2.9519653'
 
@@ -43,57 +44,67 @@ jobs:
           cache: true
           cache-key: flutter-${{ hashFiles('**/pubspec.yaml') }}
 
-      - name: Recreate Android Project
+      - name: Full Environment Reset
         run: |
-          # Remove existing android directory if exists
-          if [ -d "android" ]; then
-            rm -rf android
-          fi
+          # Clean everything
+          flutter clean
+          rm -rf android
           
-          # Regenerate Android project
+          # Regenerate project
           flutter create --platforms android --project-name app .
           
-          # Verify gradlew exists
-          if [ ! -f "android/gradlew" ]; then
-            echo "Generating gradle wrapper..."
-            cd android && gradle wrapper --gradle-version 8.0.2 && cd ..
-          fi
-          
-          # Make gradlew executable
+          # Force gradle wrapper generation
+          cd android && gradle wrapper --gradle-version 8.0.2 && cd ..
           chmod +x android/gradlew
+          
+          # Configure environment
+          mkdir -p ~/.gradle
+          cat <<EOF > ~/.gradle/gradle.properties
+          org.gradle.java.home=$JAVA_HOME
+          android.jvmargs=-Xmx6144m -XX:MaxPermSize=1024m
+          org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=2048m -XX:+HeapDumpOnOutOfMemoryError
+          org.gradle.daemon=false
+          org.gradle.parallel=false
+          android.enableJetifier=true
+          android.useAndroidX=true
+          EOF
         shell: bash
 
-      - name: Build APK
+      - name: Build with Maximum Debugging
         run: |
           set -ex
-          
-          # Get dependencies
           flutter pub get
           
-          # Build with detailed logging
+          # Build with all debugging enabled
           cd android && ./gradlew clean assembleRelease \
             --stacktrace \
             --info \
             --no-daemon \
             --no-build-cache \
+            --no-parallel \
+            --scan \
             > ../gradle.log 2>&1 || (cat ../gradle.log && exit 1)
           
-          # Verify APK exists
+          # Verify outputs
           if [ ! -f "../build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "APK generation failed!"
+            echo "### BUILD FAILED - APK NOT GENERATED ###"
+            echo "### Listing build directory contents ###"
             find ../build -type f | xargs ls -la
+            echo "### Gradle build directory contents ###"
+            find . -name "build" -type d | xargs ls -la
             exit 1
           fi
         shell: bash
 
-      - name: Upload Logs
+      - name: Upload Diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: build-logs
+          name: build-diagnostics
           path: |
             gradle.log
             android/build/**/*.log
+            android/build/reports/
           retention-days: 7
 
       - name: Upload APK
