@@ -1,8 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:math';
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:dio/dio.dart';
@@ -25,6 +21,7 @@ import 'package:aurore_school/features/dashboard/admin/admin_dashboard.dart';
 import 'package:aurore_school/features/dashboard/support/support_screen.dart';
 import 'package:aurore_school/features/timetable_screen.dart';
 import 'package:aurore_school/utils/secure_storage.dart';
+import 'package:aurore_school/models/schedule.dart';
 
 class AuroreResponsiveLayout extends StatelessWidget {
   final Widget mobile;
@@ -87,8 +84,7 @@ class AuroreApp extends StatelessWidget {
           colorScheme: const ColorScheme.light(
             primary: AppColors.primary,
             secondary: AppColors.secondary,
-            background: AppColors.background,
-            surface: Colors.white,
+            surface: AppColors.background, // Replaced background with surface
             brightness: Brightness.light,
           ),
           textTheme: const TextTheme(
@@ -149,45 +145,45 @@ class AuroreApp extends StatelessWidget {
         routes: {
           '/loading': (context) => const LoadingScreen(),
           '/login': (context) => const AuroreResponsiveLayout(
-            mobile: LoginScreen(),
-            tablet: LoginScreen(),
-            desktop: LoginScreen(),
-          ),
+                mobile: LoginScreen(),
+                tablet: LoginScreen(),
+                desktop: LoginScreen(),
+              ),
           '/reset-password': (context) => const AuroreResponsiveLayout(
-            mobile: ResetPasswordScreen(),
-            tablet: ResetPasswordScreen(),
-            desktop: ResetPasswordScreen(),
-          ),
+                mobile: ResetPasswordScreen(),
+                tablet: ResetPasswordScreen(),
+                desktop: ResetPasswordScreen(),
+              ),
           '/signup': (context) => const AuroreResponsiveLayout(
-            mobile: SignUpScreen(),
-            tablet: SignUpScreen(),
-            desktop: SignUpScreen(),
-          ),
+                mobile: SignUpScreen(),
+                tablet: SignUpScreen(),
+                desktop: SignUpScreen(),
+              ),
           '/support': (context) => const AuroreResponsiveLayout(
-            mobile: SupportScreen(),
-            tablet: SupportScreen(),
-            desktop: SupportScreen(),
-          ),
+                mobile: SupportScreen(),
+                tablet: SupportScreen(),
+                desktop: SupportScreen(),
+              ),
           '/student': (context) => const AuroreResponsiveLayout(
-            mobile: StudentDashboard(),
-            tablet: StudentDashboard(),
-            desktop: StudentDashboard(),
-          ),
+                mobile: StudentDashboard(),
+                tablet: StudentDashboard(),
+                desktop: StudentDashboard(),
+              ),
           '/teacher': (context) => const AuroreResponsiveLayout(
-            mobile: TeacherDashboard(),
-            tablet: TeacherDashboard(),
-            desktop: TeacherDashboard(),
-          ),
+                mobile: TeacherDashboard(),
+                tablet: TeacherDashboard(),
+                desktop: TeacherDashboard(),
+              ),
           '/admin': (context) => const AuroreResponsiveLayout(
-            mobile: AdminDashboard(),
-            tablet: AdminDashboard(),
-            desktop: AdminDashboard(),
-          ),
+                mobile: AdminDashboard(),
+                tablet: AdminDashboard(),
+                desktop: AdminDashboard(),
+              ),
           '/timetable': (context) => const AuroreResponsiveLayout(
-            mobile: TimetableScreen(),
-            tablet: TimetableScreen(),
-            desktop: TimetableScreen(),
-          ),
+                mobile: TimetableScreen(),
+                tablet: TimetableScreen(),
+                desktop: TimetableScreen(),
+              ),
         },
         debugShowCheckedModeBanner: false,
       ),
@@ -284,5 +280,50 @@ class _LoadingScreenState extends State<LoadingScreen> with SingleTickerProvider
         ),
       ),
     );
+  }
+}
+
+// Placeholder implementations to fix errors
+class AiDetectorProvider with ChangeNotifier {
+  String _updateResults = '';
+
+  String get updateResults => _updateResults;
+
+  void setUpdateResults(String value) {
+    _updateResults = value;
+    notifyListeners();
+  }
+
+  final ApiService apiService;
+
+  AiDetectorProvider({required this.apiService});
+}
+
+class TimetableController with ChangeNotifier {
+  final Dio dio;
+  final SecureStorage secureStorage;
+
+  TimetableController(this.dio, this.secureStorage);
+
+  void _showConflictDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Schedule Conflict'),
+        content: const Text('A conflict was detected in the timetable.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Placeholder for timetable logic
+  void updateTimetable(Schedule schedule, int dayIndex, String timeKey) {
+    // Implement timetable update logic
+    notifyListeners();
   }
 }
