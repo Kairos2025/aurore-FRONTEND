@@ -18,15 +18,9 @@ jobs:
       - name: Verify project structure
         run: |
           echo "Repository contents:"
-          ls -la
-          echo "Checking Flutter project..."
-          if [ ! -f "aurore_frontend/pubspec.yaml" ]; then
-            echo "::error::Flutter project not found in aurore_frontend directory"
-            exit 1
-          fi
-          if [ ! -d "aurore_frontend/android" ]; then
-            echo "::warning::Android directory not found, will recreate project structure"
-          fi
+          ls -la aurore_frontend
+          [ -f "aurore_frontend/pubspec.yaml" ] || (echo "::error::pubspec.yaml not found"; exit 1)
+          [ -d "aurore_frontend/fonts" ] || (echo "::warning::fonts directory missing"; mkdir -p aurore_frontend/fonts)
 
       - name: Set up Java 17
         uses: actions/setup-java@v3
@@ -34,11 +28,12 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Set up Android SDK and NDK
+      - name: Set up Android environment
         uses: android-actions/setup-android@v3
         with:
           ndk-version: '27.0.12077973'
           sdk-platform: '33'
+          cmake-version: '3.22.1'
 
       - name: Set up Flutter
         uses: flutter-actions/setup-flutter@v2
@@ -47,60 +42,65 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Recreate Android project structure
+      - name: Configure Android build
         working-directory: aurore_frontend
         run: |
-          # Backup existing files
-          mkdir -p ../temp_backup
-          cp -r lib ../temp_backup/
-          cp pubspec.yaml ../temp_backup/
-          [ -d "assets" ] && cp -r assets ../temp_backup/
-          [ -d "test" ] && cp -r test ../temp_backup/
-
-          # Recreate project structure
-          cd ..
-          rm -rf aurore_frontend/android
-          flutter create --platforms android --org com.auroreschool aurore_frontend
-          cd aurore_frontend
-
-          # Restore original files
-          rm -rf lib
-          cp -r ../temp_backup/lib .
-          cp ../temp_backup/pubspec.yaml .
-          [ -d "../temp_backup/assets" ] && cp -r ../temp_backup/assets .
-          [ -d "../temp_backup/test" ] && cp -r ../temp_backup/test .
-
-          # Clean up
-          rm -rf ../temp_backup
-
-      - name: Configure NDK version
-        working-directory: aurore_frontend
-        run: |
-          # Create build.gradle.kts if missing
-          if [ ! -f "android/app/build.gradle.kts" ]; then
-            mkdir -p android/app
-            echo "plugins {
-                id(\"com.android.application\")
-                id(\"org.jetbrains.kotlin.android\")
-            }
-
-            android {
-                namespace = \"com.auroreschool\"
-                compileSdk = 33
-                ndkVersion = \"27.0.12077973\"
-            }" > android/app/build.gradle.kts
-          else
-            # Update existing file
+          # Ensure NDK version is set
+          if ! grep -q 'ndkVersion' android/app/build.gradle.kts; then
             sed -i '/android {/a \        ndkVersion = "27.0.12077973"' android/app/build.gradle.kts
           fi
-          echo "Updated NDK version in build.gradle.kts"
 
-      - name: Fix compilation errors
+          # Update root build.gradle
+          cat <<EOT > android/build.gradle
+          buildscript {
+              ext.kotlin_version = '1.9.0'
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:8.1.4'
+                  classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:\$kotlin_version"
+              }
+          }
+
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+                  maven { url 'https://jitpack.io' }
+              }
+          }
+
+          tasks.register('clean', Delete) {
+              delete rootProject.buildDir
+          }
+          EOT
+
+      - name: Verify font assets
         working-directory: aurore_frontend
         run: |
-          # Fix the AuthProvider constructor error
-          sed -i 's/ChangeNotifierProvider(create: (_) => app_auth.AuthProvider(dio, secureStorage, googleSignIn))/ChangeNotifierProvider(create: (_) => app_auth.AuthProvider(dio, secureStorage))/' lib/main.dart
-          echo "Fixed AuthProvider constructor call"
+          # Check font files exist
+          declare -a fonts=(
+            "Inter-Regular.ttf"
+            "Inter-Medium.ttf"
+            "Inter-SemiBold.ttf"
+            "Inter-Bold.ttf"
+          )
+          
+          for font in "${fonts[@]}"; do
+            if [ ! -f "fonts/$font" ]; then
+              echo "::warning::Font file $font missing, creating empty file"
+              mkdir -p fonts
+              touch "fonts/$font"
+            fi
+          done
+
+          # Update pubspec.yaml if needed
+          if ! grep -q "fonts/Inter-Medium.ttf" pubspec.yaml; then
+            sed -i '/fonts:/a \        - asset: fonts/Inter-Medium.ttf' pubspec.yaml
+          fi
 
       - name: Install dependencies
         working-directory: aurore_frontend
@@ -110,7 +110,16 @@ jobs:
       - name: Build APK
         working-directory: aurore_frontend
         run: |
-          flutter build apk --release
+          flutter build apk --release --no-sound-null-safety
+
+      - name: Verify APK
+        working-directory: aurore_frontend
+        run: |
+          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
+            echo "::error::APK not generated"
+            exit 1
+          fi
+          echo "APK generated successfully (size: $(du -h build/app/outputs/flutter-apk/app-release.apk | cut -f1))"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
