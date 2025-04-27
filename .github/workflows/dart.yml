@@ -20,8 +20,6 @@ jobs:
         run: |
           echo "Project contents:"
           ls -la
-          
-          # Create essential directories if missing
           mkdir -p android/app
           mkdir -p fonts
 
@@ -36,7 +34,6 @@ jobs:
         with:
           ndk-version: '27.0.12077973'
           sdk-platform: '33'
-          cmake-version: '3.22.1'
 
       - name: Set up Flutter
         uses: flutter-actions/setup-flutter@v2
@@ -45,79 +42,62 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Create complete Android project files
+      - name: Create Android configuration files
         working-directory: aurore_frontend
         run: |
-          # Create build.gradle.kts if missing
-          if [ ! -f "android/app/build.gradle.kts" ]; then
-            cat <<EOT > android/app/build.gradle.kts
-            plugins {
-                id("com.android.application")
-                id("org.jetbrains.kotlin.android")
-                id("com.google.gms.google-services")
-            }
+          # Create app-level build.gradle.kts
+          cat > android/app/build.gradle.kts << 'EOT'
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+          }
 
-            android {
-                namespace = "com.auroreschool"
-                compileSdk = 33
-                ndkVersion = "27.0.12077973"
+          android {
+              namespace = "com.auroreschool"
+              compileSdk = 33
+              ndkVersion = "27.0.12077973"
 
-                defaultConfig {
-                    applicationId = "com.auroreschool"
-                    minSdk = 21
-                    targetSdk = 33
-                    versionCode = 1
-                    versionName = "1.0.0"
-                }
+              defaultConfig {
+                  applicationId = "com.auroreschool"
+                  minSdk = 21
+                  targetSdk = 33
+              }
 
-                buildTypes {
-                    release {
-                        isMinifyEnabled = true
-                        proguardFiles(
-                            getDefaultProguardFile("proguard-android-optimize.txt"),
-                            "proguard-rules.pro"
-                        )
-                    }
-                }
-            }
+              buildTypes {
+                  release {
+                      isMinifyEnabled = true
+                  }
+              }
+          }
+          EOT
 
-            dependencies {
-                implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
-            }
-            EOT
-          fi
+          # Create project-level build.gradle
+          cat > android/build.gradle << 'EOT'
+          buildscript {
+              ext.kotlin_version = '1.9.0'
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:8.1.4'
+                  classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+              }
+          }
 
-          # Create root build.gradle if missing
-          if [ ! -f "android/build.gradle" ]; then
-            cat <<EOT > android/build.gradle
-            buildscript {
-                ext.kotlin_version = '1.9.0'
-                repositories {
-                    google()
-                    mavenCentral()
-                }
-                dependencies {
-                    classpath 'com.android.tools.build:gradle:8.1.4'
-                    classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:\$kotlin_version"
-                    classpath 'com.google.gms:google-services:4.4.0'
-                }
-            }
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
 
-            allprojects {
-                repositories {
-                    google()
-                    mavenCentral()
-                    maven { url 'https://jitpack.io' }
-                }
-            }
+          task clean(type: Delete) {
+              delete rootProject.buildDir
+          }
+          EOT
 
-            task clean(type: Delete) {
-                delete rootProject.buildDir
-            }
-            EOT
-          fi
-
-      - name: Verify and fix font assets
+      - name: Verify font assets
         working-directory: aurore_frontend
         run: |
           # Create default font files if missing
@@ -135,16 +115,16 @@ jobs:
             fi
           done
 
-          # Update pubspec.yaml fonts section
+          # Update pubspec.yaml if needed
           if ! grep -q "fonts:" pubspec.yaml; then
-            echo "Adding fonts section to pubspec.yaml"
+            echo "Adding fonts configuration to pubspec.yaml"
             echo "flutter:" >> pubspec.yaml
             echo "  fonts:" >> pubspec.yaml
             echo "    - family: Inter" >> pubspec.yaml
             echo "      fonts:" >> pubspec.yaml
             for font in "${!fonts[@]}"; do
               echo "        - asset: fonts/$font" >> pubspec.yaml
-              echo "          weight: ${fonts[$font]}" >> pubspec.yaml
+              [ "${fonts[$font]}" != "regular" ] && echo "          weight: ${fonts[$font]}" >> pubspec.yaml
             done
           fi
 
