@@ -15,11 +15,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Java
+      - name: Set up Java 17 (required for Android Gradle plugin)
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
-          java-version: '11'
+          java-version: '17'
+
+      - name: Verify Java version
+        run: |
+          echo "Java version:"
+          java -version
+          if ! java -version 2>&1 | grep -q "17"; then
+            echo "::error::Java 17 is required"
+            exit 1
+          fi
 
       - name: Set up Flutter
         uses: flutter-actions/setup-flutter@v2
@@ -71,7 +80,7 @@ jobs:
             echo "::error::APK not generated"
             exit 1
           fi
-          echo "APK generated successfully"
+          echo "APK size: $(du -h build/app/outputs/flutter-apk/app-release.apk | cut -f1)"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
