@@ -15,16 +15,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify project structure
-        run: |
-          echo "Repository contents:"
-          ls -la
-          echo "Checking Flutter project..."
-          if [ ! -f "aurore_frontend/pubspec.yaml" ]; then
-            echo "::error::Flutter project not found in aurore_frontend directory"
-            exit 1
-          fi
-
       - name: Set up Java
         uses: actions/setup-java@v3
         with:
@@ -38,15 +28,31 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Fix Gradle project structure
+      - name: Recreate Flutter project structure
         working-directory: aurore_frontend
         run: |
-          # Create new Flutter project structure
-          flutter create --platforms android --org com.auroreschool .
-          
-          # Ensure Android files are properly generated
-          [ -d "android" ] || (echo "::error::Android directory not created"; exit 1)
-          [ -f "android/app/build.gradle" ] || (echo "::error::build.gradle not found"; exit 1)
+          # Create temporary backup
+          mkdir -p ../temp_backup
+          cp -r lib ../temp_backup/
+          cp pubspec.yaml ../temp_backup/
+          [ -d "assets" ] && cp -r assets ../temp_backup/
+          [ -d "test" ] && cp -r test ../temp_backup/
+
+          # Completely recreate project structure
+          cd ..
+          rm -rf aurore_frontend
+          flutter create -t app --org com.auroreschool aurore_frontend
+          cd aurore_frontend
+
+          # Restore original code
+          rm -rf lib
+          cp -r ../temp_backup/lib .
+          cp ../temp_backup/pubspec.yaml .
+          [ -d "../temp_backup/assets" ] && cp -r ../temp_backup/assets .
+          [ -d "../temp_backup/test" ] && cp -r ../temp_backup/test .
+
+          # Clean up
+          rm -rf ../temp_backup
 
       - name: Install dependencies
         working-directory: aurore_frontend
@@ -65,7 +71,7 @@ jobs:
             echo "::error::APK not generated"
             exit 1
           fi
-          echo "APK size: $(du -h build/app/outputs/flutter-apk/app-release.apk | cut -f1)"
+          echo "APK generated successfully"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
