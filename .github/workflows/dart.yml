@@ -12,65 +12,42 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Get full commit history for version detection
 
-      - name: Set up Java (required for Android builds)
+      - name: Set up Java
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Set up Flutter
+      - name: Set up Flutter (with newer version)
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.1'
+          flutter-version: '3.25.0'  # Updated to get Dart 3.6+
           channel: 'stable'
           cache: true
-          cache-key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.lock') }}
 
-      - name: Verify environment
+      - name: Verify versions
         run: |
           echo "Flutter version:"
           flutter --version
           echo "Dart version:"
           dart --version
-          if ! dart --version 2>&1 | grep -q "3.6"; then
+          # Verify Dart 3.6+
+          if ! dart --version 2>&1 | grep -q "3.[6-9]"; then
             echo "::error::Dart 3.6+ required"
             exit 1
           fi
 
       - name: Install dependencies
         run: |
-          flutter pub cache repair
           flutter pub get
 
-      - name: Run Flutter doctor
-        run: flutter doctor -v
-
-      - name: Build APK (with retry)
+      - name: Build APK
         run: |
-          n=0
-          until [ "$n" -ge 3 ]
-          do
-            flutter build apk --release && break
-            n=$((n+1))
-            echo "Build failed, retrying ($n/3)..."
-            sleep 5
-          done
-          [ "$n" -lt 3 ] || exit 1
-
-      - name: Verify APK exists
-        run: |
-          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "::error::APK file not found!"
-            exit 1
-          fi
-          echo "APK built successfully"
+          flutter build apk --release
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: aurore-school-apk
           path: build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 7
