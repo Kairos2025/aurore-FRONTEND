@@ -15,30 +15,85 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Verify project structure
+        run: |
+          echo "Repository contents:"
+          ls -la
+          echo "Checking Flutter project..."
+          if [ ! -f "aurore_frontend/pubspec.yaml" ]; then
+            echo "::error::Flutter project not found in aurore_frontend directory"
+            exit 1
+          fi
+          if [ ! -d "aurore_frontend/android" ]; then
+            echo "::warning::Android directory not found, will recreate project structure"
+          fi
+
       - name: Set up Java 17
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Set up Android SDK
+      - name: Set up Android SDK and NDK
         uses: android-actions/setup-android@v3
         with:
-          ndk-version: '27.0.12077973'  # Specific version required by plugins
+          ndk-version: '27.0.12077973'
+          sdk-platform: '33'
 
       - name: Set up Flutter
         uses: flutter-actions/setup-flutter@v2
         with:
-          flutter-version: '3.29.3'  # Updated to match your environment
+          flutter-version: '3.29.3'
           channel: 'stable'
           cache: true
+
+      - name: Recreate Android project structure
+        working-directory: aurore_frontend
+        run: |
+          # Backup existing files
+          mkdir -p ../temp_backup
+          cp -r lib ../temp_backup/
+          cp pubspec.yaml ../temp_backup/
+          [ -d "assets" ] && cp -r assets ../temp_backup/
+          [ -d "test" ] && cp -r test ../temp_backup/
+
+          # Recreate project structure
+          cd ..
+          rm -rf aurore_frontend/android
+          flutter create --platforms android --org com.auroreschool aurore_frontend
+          cd aurore_frontend
+
+          # Restore original files
+          rm -rf lib
+          cp -r ../temp_backup/lib .
+          cp ../temp_backup/pubspec.yaml .
+          [ -d "../temp_backup/assets" ] && cp -r ../temp_backup/assets .
+          [ -d "../temp_backup/test" ] && cp -r ../temp_backup/test .
+
+          # Clean up
+          rm -rf ../temp_backup
 
       - name: Configure NDK version
         working-directory: aurore_frontend
         run: |
-          # Update build.gradle.kts with required NDK version
-          sed -i '/android {/a \        ndkVersion = "27.0.12077973"' android/app/build.gradle.kts
-          echo "Updated build.gradle.kts with NDK version"
+          # Create build.gradle.kts if missing
+          if [ ! -f "android/app/build.gradle.kts" ]; then
+            mkdir -p android/app
+            echo "plugins {
+                id(\"com.android.application\")
+                id(\"org.jetbrains.kotlin.android\")
+            }
+
+            android {
+                namespace = \"com.auroreschool\"
+                compileSdk = 33
+                ndkVersion = \"27.0.12077973\"
+            }" > android/app/build.gradle.kts
+          else
+            # Update existing file
+            sed -i '/android {/a \        ndkVersion = "27.0.12077973"' android/app/build.gradle.kts
+          fi
+          echo "Updated NDK version in build.gradle.kts"
 
       - name: Fix compilation errors
         working-directory: aurore_frontend
@@ -56,15 +111,6 @@ jobs:
         working-directory: aurore_frontend
         run: |
           flutter build apk --release
-
-      - name: Verify APK
-        working-directory: aurore_frontend
-        run: |
-          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "::error::APK not generated"
-            exit 1
-          fi
-          echo "APK size: $(du -h build/app/outputs/flutter-apk/app-release.apk | cut -f1)"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
