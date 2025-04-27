@@ -13,18 +13,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout the repository code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Set up Flutter environment
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.24.x'
           channel: 'stable'
 
-      # Cache Flutter dependencies
       - name: Cache Flutter dependencies
         uses: actions/cache@v4
         with:
@@ -35,30 +32,24 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-flutter-
 
-      # Install dependencies
       - name: Install dependencies
         run: flutter pub get
 
-      # Run code analysis
       - name: Run flutter analyze
         run: flutter analyze > flutter_analyze.log
 
-      # Run tests
       - name: Run tests
         run: flutter test
 
-      # Build APK
       - name: Build APK
         run: flutter build apk --release --verbose > flutter_build.log
 
-      # Upload APK as artifact
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: aurore-school-apk
           path: build/app/outputs/flutter-apk/app-release.apk
 
-      # Upload logs as artifacts
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
