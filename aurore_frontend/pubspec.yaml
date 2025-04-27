@@ -1,7 +1,5 @@
 name: aurore_school
 description: A Flutter application for Aurore School management, providing scheduling, QR scanning, and analytics features.
-
-# Version format: major.minor.patch+build
 version: 1.0.1+2
 
 environment:
@@ -10,47 +8,30 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
-  # Firebase dependencies
-  firebase_core: ^3.6.0  # Reverted to original
-  firebase_auth: ^5.3.1  # Reverted to original
-  firebase_analytics: ^11.3.0  # Reverted to original
-
-  # Authentication
-  google_sign_in: ^6.2.1  # Reverted to original
-
-  # Storage and security
-  flutter_secure_storage: ^9.2.4  # Reverted to original
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
+  firebase_analytics: ^11.3.0
+  google_sign_in: ^6.3.0
+  flutter_secure_storage: ^10.0.0
   crypto: ^3.0.5
-  path_provider: ^2.1.5  # Reverted to original
-
-  # QR and scanning
-  mobile_scanner: ^6.0.10  # Reverted to original
+  path_provider: ^2.1.5
+  mobile_scanner: ^6.0.10
   qr_flutter: ^4.1.0
-
-  # Networking
   dio: ^5.7.0
   http: ^1.2.2
-
-  # State management and dependency injection
   provider: ^6.1.2
   get_it: ^8.0.3
-
-  # ML and imaging
-  google_mlkit_text_recognition: ^0.15.0  # Reverted to original
-  google_mlkit_commons: ^0.11.0  # Reverted to original
-  image_picker: ^1.1.2  # Reverted to original
+  google_mlkit_text_recognition: ^0.15.0
+  google_mlkit_commons: ^0.11.0
+  image_picker: ^1.1.2
   email_validator: ^3.0.0
-
-  # UI and visualizations
   animations: ^2.0.8
-  vibration: ^1.7.5  # Kept downgraded due to compilation error
-  vibration_platform_interface: ^0.0.1  # Kept downgraded to match vibration
+  vibration: ^2.0.0
+  vibration_platform_interface: ^0.0.1
   fl_chart: ^0.71.0
-  vector_math: 2.1.4
-
-  # Utilities
+  vector_math: ^2.1.4
   intl: ^0.20.2
+  flutter_svg: ^2.0.10
 
 dev_dependencies:
   flutter_test:
@@ -59,26 +40,40 @@ dev_dependencies:
   lints: ^4.0.0
   test: ^1.25.8
 
-# Analyzer configuration
 analyzer:
   exclude:
     - '**/*.g.dart'
     - '**/*.freezed.dart'
 
-# Linter configuration
 linter:
   rules:
     prefer_final_fields: false
     always_use_package_imports: true
     avoid_print: true
 
-# Flutter-specific settings
 flutter:
   uses-material-design: true
   assets:
-    - assets/images/
-    - assets/icons/
+    - assets/images/aurore_logo.png
+    - assets/images/login_logo.png
+    - assets/icons/dashboard.png
+    - assets/icons/timetable.png
+    - assets/icons/attendance_present.png
+    - assets/icons/attendance_absent.png
+    - assets/icons/grades.png
+    - assets/icons/profile.png
+    - assets/icons/settings.png
+    - assets/icons/logout.png
+    - assets/icons/communication.png
+    - assets/icons/analytics.png
+    - assets/icons/qr_scan.png
   fonts:
     - family: Inter
       fonts:
         - asset: fonts/Inter-Regular.ttf
+        - asset: fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: fonts/Inter-Bold.ttf
+          weight: 700
