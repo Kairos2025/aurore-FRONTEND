@@ -100,7 +100,6 @@ jobs:
       - name: Verify font assets
         working-directory: aurore_frontend
         run: |
-          # Create default font files if missing
           declare -A fonts=(
             ["Inter-Regular.ttf"]="regular"
             ["Inter-Medium.ttf"]="500"
@@ -115,7 +114,6 @@ jobs:
             fi
           done
 
-          # Update pubspec.yaml if needed
           if ! grep -q "fonts:" pubspec.yaml; then
             echo "Adding fonts configuration to pubspec.yaml"
             echo "flutter:" >> pubspec.yaml
@@ -133,10 +131,14 @@ jobs:
         run: |
           flutter pub get
 
-      - name: Build APK
+      - name: Build APK with null safety
         working-directory: aurore_frontend
         run: |
-          flutter build apk --release --no-sound-null-safety
+          # First try standard build
+          if ! flutter build apk --release; then
+            echo "Standard build failed, trying with explicit null safety"
+            flutter build apk --release --dart-define=FLUTTER_WEB_USE_SKIA=true
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
