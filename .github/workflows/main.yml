@@ -1,79 +1,68 @@
-name: aurore_school
-description: A Flutter application for Aurore School management, providing scheduling, QR scanning, and analytics features.
-version: 1.0.1+2
+name: Aurore School Frontend CI
 
-environment:
-  sdk: '>=3.4.0 <4.0.0'
+on:
+  push:
+    branches:
+      - update-gradle
+  pull_request:
+    branches:
+      - update-gradle
 
-dependencies:
-  flutter:
-    sdk: flutter
-  firebase_core: ^3.6.0
-  firebase_auth: ^5.3.1
-  firebase_analytics: ^11.3.0
-  google_sign_in: ^6.2.1
-  flutter_secure_storage: ^9.2.4
-  crypto: ^3.0.5
-  path_provider: ^2.1.5
-  mobile_scanner: ^6.0.10
-  qr_flutter: ^4.1.0
-  dio: ^5.7.0
-  http: ^1.2.2
-  provider: ^6.1.2
-  get_it: ^8.0.3
-  google_mlkit_text_recognition: ^0.15.0
-  google_mlkit_commons: ^0.11.0
-  image_picker: ^1.1.2
-  email_validator: ^3.0.0
-  animations: ^2.0.8
-  vibration: ^1.7.5
-  vibration_platform_interface: ^0.0.1
-  fl_chart: ^0.71.0
-  vector_math: ^2.1.4
-  intl: ^0.20.2
-  flutter_svg: ^2.0.10
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
-  flutter_lints: ^4.0.0
-  lints: ^4.0.0
-  test: ^1.25.8
+    steps:
+      # Checkout the repository code
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-analyzer:
-  exclude:
-    - '**/*.g.dart'
-    - '**/*.freezed.dart'
+      # Set up Flutter environment
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.x' # Use a recent stable version
+          channel: 'stable'
 
-linter:
-  rules:
-    prefer_final_fields: false
-    always_use_package_imports: true
-    avoid_print: true
+      # Cache Flutter dependencies
+      - name: Cache Flutter dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            **/pubspec.lock
+          key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-
 
-flutter:
-  uses-material-design: true
-  assets:
-    - assets/images/aurore_logo.png
-    - assets/images/login_logo.png
-    - assets/icons/dashboard.png
-    - assets/icons/timetable.png
-    - assets/icons/attendance_present.png
-    - assets/icons/attendance_absent.png
-    - assets/icons/grades.png
-    - assets/icons/profile.png
-    - assets/icons/settings.png
-    - assets/icons/logout.png
-    - assets/icons/communication.png
-    - assets/icons/analytics.png
-    - assets/icons/qr_scan.png
-  fonts:
-    - family: Inter
-      fonts:
-        - asset: fonts/Inter-Regular.ttf
-        - asset: fonts/Inter-Medium.ttf
-          weight: 500
-        - asset: fonts/Inter-SemiBold.ttf
-          weight: 600
-        - asset: fonts/Inter-Bold.ttf
-          weight: 700
+      # Install dependencies
+      - name: Install dependencies
+        run: flutter pub get
+
+      # Run code analysis to catch asset errors
+      - name: Run flutter analyze
+        run: flutter analyze > flutter_analyze.log
+
+      # Run tests
+      - name: Run tests
+        run: flutter test
+
+      # Upload analysis log as artifact for debugging
+      - name: Upload analysis log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-analyze-log
+          path: flutter_analyze.log
+
+      # Build APK for verification
+      - name: Build APK
+        run: flutter build apk --release --verbose > flutter_build.log
+
+      # Upload build log as artifact
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-build-log
+          path: flutter_build.log
