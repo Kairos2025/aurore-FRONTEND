@@ -12,73 +12,39 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Ensure full repository history is fetched
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.24.x'
           channel: 'stable'
-          cache: true
-          cache-key: flutter-pub-cache
 
-      - name: Debug repository structure
+      - name: Verify pubspec.yaml
         run: |
-          echo "Repository structure:"
-          ls -la
-          find . -name pubspec.yaml -type f
-
-      - name: Find and set project directory
-        id: project-dir
-        run: |
-          # More robust way to find pubspec.yaml
-          PROJECT_DIR=$(find . -name pubspec.yaml -exec dirname {} \; | head -n1)
-          if [ -z "$PROJECT_DIR" ]; then
-            echo "::error::pubspec.yaml not found in repository"
-            exit 1
-          fi
-          echo "Project directory: $PROJECT_DIR"
-          echo "PROJECT_DIR=${PROJECT_DIR}" >> $GITHUB_OUTPUT
-          echo "PROJECT_DIR=${PROJECT_DIR}" >> $GITHUB_ENV
-
-      - name: Verify project directory
-        run: |
-          echo "Changing to: ${{ steps.project-dir.outputs.PROJECT_DIR }}"
-          cd "${{ steps.project-dir.outputs.PROJECT_DIR }}"
-          echo "Current directory: $(pwd)"
-          echo "Contents:"
-          ls -la
-          if [ ! -f "pubspec.yaml" ]; then
-            echo "::error::pubspec.yaml not found in project directory"
+          cat pubspec.yaml
+          if ! grep -q "flutter_secure_storage: ^8.0.0" pubspec.yaml; then
+            echo "::error::flutter_secure_storage version not updated"
             exit 1
           fi
 
       - name: Install dependencies
-        working-directory: ${{ steps.project-dir.outputs.PROJECT_DIR }}
         run: |
           flutter pub get
 
       - name: Run flutter analyze
-        working-directory: ${{ steps.project-dir.outputs.PROJECT_DIR }}
-        run: |
-          flutter analyze > flutter_analyze.log
+        run: flutter analyze > flutter_analyze.log
 
       - name: Run tests
-        working-directory: ${{ steps.project-dir.outputs.PROJECT_DIR }}
-        run: |
-          flutter test
+        run: flutter test
 
       - name: Build APK
-        working-directory: ${{ steps.project-dir.outputs.PROJECT_DIR }}
-        run: |
-          flutter build apk --release --verbose > flutter_build.log
+        run: flutter build apk --release --verbose > flutter_build.log
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: aurore-school-apk
-          path: ${{ steps.project-dir.outputs.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
 
       - name: Upload logs
         if: always()
@@ -86,5 +52,5 @@ jobs:
         with:
           name: build-logs
           path: |
-            ${{ steps.project-dir.outputs.PROJECT_DIR }}/flutter_analyze.log
-            ${{ steps.project-dir.outputs.PROJECT_DIR }}/flutter_build.log
+            flutter_analyze.log
+            flutter_build.log
