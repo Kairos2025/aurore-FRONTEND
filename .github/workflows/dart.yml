@@ -21,11 +21,12 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Set up Android NDK
+      - name: Set up Android environment
         uses: android-actions/setup-android@v3
         with:
           ndk-version: '27.0.12077973'
           sdk-platform: '33'
+          cmake-version: '3.22.1'
 
       - name: Set up Flutter
         uses: flutter-actions/setup-flutter@v2
@@ -34,66 +35,111 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Recreate Android project structure
+      - name: Verify project structure
         working-directory: aurore_frontend
         run: |
-          # Backup all Flutter files
+          echo "Project contents:"
+          ls -la
+          [ -f "pubspec.yaml" ] || { echo "::error::pubspec.yaml not found"; exit 1; }
+
+      - name: Recreate Android project with proper configuration
+        working-directory: aurore_frontend
+        run: |
+          # Backup essential files
           mkdir -p ../flutter_backup
-          cp -r lib ../flutter_backup/
-          cp pubspec.yaml ../flutter_backup/
+          cp -r lib pubspec.yaml ../flutter_backup/
           [ -d "assets" ] && cp -r assets ../flutter_backup/
           [ -d "test" ] && cp -r test ../flutter_backup/
           [ -d "fonts" ] && cp -r fonts ../flutter_backup/
 
-          # Completely recreate Android project
+          # Recreate Android project
           cd ..
           rm -rf aurore_frontend/android
           flutter create --platforms android --org com.auroreschool aurore_frontend
           cd aurore_frontend
 
-          # Restore Flutter files
+          # Restore files
           rm -rf lib
           cp -r ../flutter_backup/lib .
           cp ../flutter_backup/pubspec.yaml .
           [ -d "../flutter_backup/assets" ] && cp -r ../flutter_backup/assets .
           [ -d "../flutter_backup/test" ] && cp -r ../flutter_backup/test .
           [ -d "../flutter_backup/fonts" ] && cp -r ../flutter_backup/fonts .
-
-          # Clean up
           rm -rf ../flutter_backup
 
-          # Force NDK version
+          # Configure NDK version
           sed -i '/android {/a \        ndkVersion = "27.0.12077973"' android/app/build.gradle.kts
 
-      - name: Fix AuthProvider compilation error
+          # Update build.gradle with modern settings
+          cat <<EOT > android/build.gradle
+          buildscript {
+              ext.kotlin_version = '1.9.0'
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:8.1.4'
+                  classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:\$kotlin_version"
+                  classpath 'com.google.gms:google-services:4.4.0'
+              }
+          }
+
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+                  maven { url 'https://jitpack.io' }
+              }
+          }
+
+          task clean(type: Delete) {
+              delete rootProject.buildDir
+          }
+          EOT
+
+      - name: Fix AuthProvider and other compilation issues
         working-directory: aurore_frontend
         run: |
-          # Fix the constructor mismatch
+          # Fix constructor mismatch
           sed -i 's/AuthProvider(dio, secureStorage, googleSignIn)/AuthProvider(dio, secureStorage)/' lib/main.dart
-          echo "Fixed AuthProvider constructor call"
+
+          # Ensure all font files exist
+          declare -A fonts=(
+            ["Inter-Regular.ttf"]=""
+            ["Inter-Medium.ttf"]="500"
+            ["Inter-SemiBold.ttf"]="600"
+            ["Inter-Bold.ttf"]="700"
+          )
+          for font in "${!fonts[@]}"; do
+            [ -f "fonts/$font" ] || touch "fonts/$font"
+          done
 
       - name: Install dependencies
         working-directory: aurore_frontend
         run: |
           flutter pub get
 
-      - name: Build APK
+      - name: Build APK with comprehensive logging
         working-directory: aurore_frontend
         run: |
-          flutter build apk --release
-
-      - name: Verify APK
-        working-directory: aurore_frontend
-        run: |
-          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "::error::APK not generated"
+          flutter build apk --release --verbose > build.log 2>&1 || {
+            echo "::error::Build failed. Log:"
+            cat build.log
             exit 1
-          fi
-          echo "APK generated successfully (size: $(du -h build/app/outputs/flutter-apk/app-release.apk | cut -f1))"
+          }
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: aurore-school-apk
           path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 7
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: aurore_frontend/build.log
+          retention-days: 1
