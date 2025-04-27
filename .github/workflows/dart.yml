@@ -22,12 +22,15 @@ jobs:
       - name: Find Flutter project directory
         id: find-project
         run: |
-          PROJECT_DIR=$(find . -name pubspec.yaml -printf '%h\n' | head -1)
+          PROJECT_DIR=$(dirname $(find . -name pubspec.yaml | head -1))
           echo "Found project in: $PROJECT_DIR"
           echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_OUTPUT
 
       - name: Change to project directory
-        run: cd "${{ steps.find-project.outputs.PROJECT_DIR }}"
+        run: |
+          cd "${{ steps.find-project.outputs.PROJECT_DIR }}"
+          echo "Current directory: $(pwd)"
+          ls
 
       - name: Install dependencies
         run: flutter pub get
