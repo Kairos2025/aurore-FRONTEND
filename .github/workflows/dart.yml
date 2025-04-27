@@ -15,12 +15,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify repository structure
+      - name: Verify project structure
         run: |
           echo "Repository contents:"
           ls -la
-          echo "Checking for Flutter project files..."
-          [ -f "pubspec.yaml" ] || (echo "::error::pubspec.yaml not found"; exit 1)
+          echo "Checking Flutter project..."
+          if [ ! -f "aurore_frontend/pubspec.yaml" ]; then
+            echo "::error::Flutter project not found in aurore_frontend directory"
+            exit 1
+          fi
 
       - name: Set up Java
         uses: actions/setup-java@v3
@@ -36,43 +39,37 @@ jobs:
           cache: true
 
       - name: Fix Gradle project structure
+        working-directory: aurore_frontend
         run: |
-          # Create backup directory
-          mkdir -p backup
-          
-          # Backup existing files if they exist
-          [ -d "lib" ] && cp -r lib backup/
-          [ -f "pubspec.yaml" ] && cp pubspec.yaml backup/
-          [ -d "assets" ] && cp -r assets backup/
-          [ -d "test" ] && cp -r test backup/
-          
-          # Create new Flutter project
+          # Create new Flutter project structure
           flutter create --platforms android --org com.auroreschool .
           
-          # Restore original files
-          [ -d "backup/lib" ] && rm -rf lib && cp -r backup/lib .
-          [ -f "backup/pubspec.yaml" ] && cp backup/pubspec.yaml .
-          [ -d "backup/assets" ] && cp -r backup/assets .
-          [ -d "backup/test" ] && cp -r backup/test .
-          
-          # Restore dependencies
+          # Ensure Android files are properly generated
+          [ -d "android" ] || (echo "::error::Android directory not created"; exit 1)
+          [ -f "android/app/build.gradle" ] || (echo "::error::build.gradle not found"; exit 1)
+
+      - name: Install dependencies
+        working-directory: aurore_frontend
+        run: |
           flutter pub get
 
       - name: Build APK
+        working-directory: aurore_frontend
         run: |
           flutter build apk --release
 
       - name: Verify APK
+        working-directory: aurore_frontend
         run: |
           if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
             echo "::error::APK not generated"
             exit 1
           fi
-          echo "APK generated successfully"
+          echo "APK size: $(du -h build/app/outputs/flutter-apk/app-release.apk | cut -f1)"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: aurore-school-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 7
