@@ -12,43 +12,73 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Ensure full repository history is fetched
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.24.x'
           channel: 'stable'
+          cache: true
+          cache-key: flutter-pub-cache
 
-      - name: Find Flutter project directory
-        id: find-project
+      - name: Debug repository structure
         run: |
-          PROJECT_DIR=$(dirname $(find . -name pubspec.yaml | head -1))
-          echo "Found project in: $PROJECT_DIR"
-          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_OUTPUT
+          echo "Repository structure:"
+          ls -la
+          find . -name pubspec.yaml -type f
 
-      - name: Change to project directory
+      - name: Find and set project directory
+        id: project-dir
         run: |
-          cd "${{ steps.find-project.outputs.PROJECT_DIR }}"
+          # More robust way to find pubspec.yaml
+          PROJECT_DIR=$(find . -name pubspec.yaml -exec dirname {} \; | head -n1)
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "::error::pubspec.yaml not found in repository"
+            exit 1
+          fi
+          echo "Project directory: $PROJECT_DIR"
+          echo "PROJECT_DIR=${PROJECT_DIR}" >> $GITHUB_OUTPUT
+          echo "PROJECT_DIR=${PROJECT_DIR}" >> $GITHUB_ENV
+
+      - name: Verify project directory
+        run: |
+          echo "Changing to: ${{ steps.project-dir.outputs.PROJECT_DIR }}"
+          cd "${{ steps.project-dir.outputs.PROJECT_DIR }}"
           echo "Current directory: $(pwd)"
-          ls
+          echo "Contents:"
+          ls -la
+          if [ ! -f "pubspec.yaml" ]; then
+            echo "::error::pubspec.yaml not found in project directory"
+            exit 1
+          fi
 
       - name: Install dependencies
-        run: flutter pub get
+        working-directory: ${{ steps.project-dir.outputs.PROJECT_DIR }}
+        run: |
+          flutter pub get
 
       - name: Run flutter analyze
-        run: flutter analyze > flutter_analyze.log
+        working-directory: ${{ steps.project-dir.outputs.PROJECT_DIR }}
+        run: |
+          flutter analyze > flutter_analyze.log
 
       - name: Run tests
-        run: flutter test
+        working-directory: ${{ steps.project-dir.outputs.PROJECT_DIR }}
+        run: |
+          flutter test
 
       - name: Build APK
-        run: flutter build apk --release --verbose > flutter_build.log
+        working-directory: ${{ steps.project-dir.outputs.PROJECT_DIR }}
+        run: |
+          flutter build apk --release --verbose > flutter_build.log
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: aurore-school-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: ${{ steps.project-dir.outputs.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
 
       - name: Upload logs
         if: always()
@@ -56,5 +86,5 @@ jobs:
         with:
           name: build-logs
           path: |
-            flutter_analyze.log
-            flutter_build.log
+            ${{ steps.project-dir.outputs.PROJECT_DIR }}/flutter_analyze.log
+            ${{ steps.project-dir.outputs.PROJECT_DIR }}/flutter_build.log
