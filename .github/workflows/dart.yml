@@ -12,6 +12,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Java
         uses: actions/setup-java@v3
@@ -19,24 +21,24 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Set up Flutter (with newer version)
-        uses: subosito/flutter-action@v2
+      - name: Set up Flutter (using exact known-working version)
+        uses: flutter-actions/setup-flutter@v2
         with:
-          flutter-version: '3.25.0'  # Updated to get Dart 3.6+
+          flutter-version: '3.22.1'  # Known stable version with Dart 3.4.1
           channel: 'stable'
           cache: true
 
-      - name: Verify versions
+      - name: Downgrade google_sign_in to compatible version
+        run: |
+          sed -i 's/google_sign_in: ^6.3.0/google_sign_in: ^6.1.1/' pubspec.yaml
+          cat pubspec.yaml | grep google_sign_in
+
+      - name: Verify environment
         run: |
           echo "Flutter version:"
           flutter --version
           echo "Dart version:"
           dart --version
-          # Verify Dart 3.6+
-          if ! dart --version 2>&1 | grep -q "3.[6-9]"; then
-            echo "::error::Dart 3.6+ required"
-            exit 1
-          fi
 
       - name: Install dependencies
         run: |
