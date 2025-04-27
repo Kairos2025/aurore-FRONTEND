@@ -10,104 +10,33 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code (full history)
+      - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Required for proper version detection
-          submodules: recursive  # Important if using submodules
 
-      - name: Setup Java (required for Android builds)
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'zulu'
-          java-version: '11'
-
-      - name: Set up Flutter (pinned stable version)
-        id: flutter-setup
+      - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.1'  # Verified stable version
+          flutter-version: '3.22.1'
           channel: 'stable'
-          cache: true
-          cache-key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.lock') }}
 
-      - name: Find Flutter project root
-        id: project-dir
+      - name: Verify Dart version
         run: |
-          # First check root directory
-          if [ -f "./pubspec.yaml" ]; then
-            echo "PROJECT_DIR=." >> $GITHUB_OUTPUT
-            exit 0
-          fi
-          
-          # Search recursively (maxdepth 3 for performance)
-          PROJECT_DIR=$(find . -maxdepth 3 -name pubspec.yaml -printf '%h\n' | head -1)
-          
-          if [ -z "$PROJECT_DIR" ]; then
-            echo "::error::No pubspec.yaml found in repository"
+          dart --version
+          if ! dart --version 2>&1 | grep -q "3.6"; then
+            echo "::error::Dart 3.6+ required"
             exit 1
           fi
-          
-          echo "PROJECT_DIR=${PROJECT_DIR}" >> $GITHUB_OUTPUT
-          echo "PROJECT_PATH=${PROJECT_DIR}" >> $GITHUB_ENV
-
-      - name: Debug project structure
-        working-directory: ${{ steps.project-dir.outputs.PROJECT_DIR }}
-        run: |
-          echo "Current directory: $(pwd)"
-          echo "Directory contents:"
-          ls -la
-          echo "Flutter version:"
-          flutter --version
-          echo "Dart version:"
-          dart --version
 
       - name: Install dependencies
-        working-directory: ${{ steps.project-dir.outputs.PROJECT_DIR }}
         run: |
-          flutter pub cache repair
           flutter pub get
 
-      - name: Run Flutter doctor
-        working-directory: ${{ steps.project-dir.outputs.PROJECT_DIR }}
-        run: flutter doctor -v
-
-      - name: Build APK (with retry logic)
-        working-directory: ${{ steps.project-dir.outputs.PROJECT_DIR }}
+      - name: Build APK
         run: |
-          n=0
-          until [ "$n" -ge 3 ]
-          do
-             flutter build apk --release --verbose && break
-             n=$((n+1))
-             echo "Build failed, retrying... ($n/3)"
-             sleep 5
-          done
-          [ "$n" -lt 3 ] || exit 1
+          flutter build apk --release
 
-      - name: Verify APK exists
-        working-directory: ${{ steps.project-dir.outputs.PROJECT_DIR }}
-        run: |
-          APK_PATH="./build/app/outputs/flutter-apk/app-release.apk"
-          if [ ! -f "$APK_PATH" ]; then
-            echo "::error::APK not found at $APK_PATH"
-            exit 1
-          fi
-          echo "APK size: $(du -h $APK_PATH | cut -f1)"
-
-      - name: Upload APK artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: aurore-school-apk
-          path: ${{ steps.project-dir.outputs.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 7
-
-      - name: Upload build logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-logs
-          path: |
-            ${{ steps.project-dir.outputs.PROJECT_DIR }}/flutter_analyze.log
-            ${{ steps.project-dir.outputs.PROJECT_DIR }}/flutter_build.log
-          retention-days: 3
+          path: build/app/outputs/flutter-apk/app-release.apk
