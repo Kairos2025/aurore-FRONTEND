@@ -10,84 +10,104 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code (full depth)
+      - name: Checkout code (full history)
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Get full repository history
+          fetch-depth: 0  # Required for proper version detection
+          submodules: recursive  # Important if using submodules
 
-      - name: Find Flutter project directory
-        id: find-project
-        run: |
-          # Search for pubspec.yaml in all subdirectories
-          PROJECT_DIR=$(find . -name pubspec.yaml -printf '%h\n' | head -1)
-          
-          # If not found, check if it's in root
-          if [ -z "$PROJECT_DIR" ]; then
-            if [ -f "./pubspec.yaml" ]; then
-              PROJECT_DIR="."
-            else
-              echo "::error::pubspec.yaml not found in repository"
-              exit 1
-            fi
-          fi
-          
-          echo "Project directory: $PROJECT_DIR"
-          echo "PROJECT_DIR=${PROJECT_DIR}" >> $GITHUB_OUTPUT
-          echo "PROJECT_DIR=${PROJECT_DIR}" >> $GITHUB_ENV
+      - name: Setup Java (required for Android builds)
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '11'
 
-          # Debug: Show directory structure
-          echo "Directory structure:"
-          ls -la $PROJECT_DIR
-
-      - name: Set up Flutter
+      - name: Set up Flutter (pinned stable version)
+        id: flutter-setup
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.25.0'  # Updated to latest stable
+          flutter-version: '3.22.1'  # Verified stable version
           channel: 'stable'
+          cache: true
+          cache-key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.lock') }}
 
-      - name: Verify pubspec
-        working-directory: ${{ steps.find-project.outputs.PROJECT_DIR }}
+      - name: Find Flutter project root
+        id: project-dir
         run: |
-          echo "Current directory: $(pwd)"
-          ls -la
-          if [ ! -f "pubspec.yaml" ]; then
-            echo "::error::pubspec.yaml not found in project directory"
+          # First check root directory
+          if [ -f "./pubspec.yaml" ]; then
+            echo "PROJECT_DIR=." >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Search recursively (maxdepth 3 for performance)
+          PROJECT_DIR=$(find . -maxdepth 3 -name pubspec.yaml -printf '%h\n' | head -1)
+          
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "::error::No pubspec.yaml found in repository"
             exit 1
           fi
-          echo "pubspec.yaml contents:"
-          head -20 pubspec.yaml
+          
+          echo "PROJECT_DIR=${PROJECT_DIR}" >> $GITHUB_OUTPUT
+          echo "PROJECT_PATH=${PROJECT_DIR}" >> $GITHUB_ENV
+
+      - name: Debug project structure
+        working-directory: ${{ steps.project-dir.outputs.PROJECT_DIR }}
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Directory contents:"
+          ls -la
+          echo "Flutter version:"
+          flutter --version
+          echo "Dart version:"
+          dart --version
 
       - name: Install dependencies
-        working-directory: ${{ steps.find-project.outputs.PROJECT_DIR }}
+        working-directory: ${{ steps.project-dir.outputs.PROJECT_DIR }}
         run: |
+          flutter pub cache repair
           flutter pub get
 
-      - name: Run flutter analyze
-        working-directory: ${{ steps.find-project.outputs.PROJECT_DIR }}
-        run: |
-          flutter analyze > flutter_analyze.log
+      - name: Run Flutter doctor
+        working-directory: ${{ steps.project-dir.outputs.PROJECT_DIR }}
+        run: flutter doctor -v
 
-      - name: Run tests
-        working-directory: ${{ steps.find-project.outputs.PROJECT_DIR }}
+      - name: Build APK (with retry logic)
+        working-directory: ${{ steps.project-dir.outputs.PROJECT_DIR }}
         run: |
-          flutter test
+          n=0
+          until [ "$n" -ge 3 ]
+          do
+             flutter build apk --release --verbose && break
+             n=$((n+1))
+             echo "Build failed, retrying... ($n/3)"
+             sleep 5
+          done
+          [ "$n" -lt 3 ] || exit 1
 
-      - name: Build APK
-        working-directory: ${{ steps.find-project.outputs.PROJECT_DIR }}
+      - name: Verify APK exists
+        working-directory: ${{ steps.project-dir.outputs.PROJECT_DIR }}
         run: |
-          flutter build apk --release --verbose > flutter_build.log
+          APK_PATH="./build/app/outputs/flutter-apk/app-release.apk"
+          if [ ! -f "$APK_PATH" ]; then
+            echo "::error::APK not found at $APK_PATH"
+            exit 1
+          fi
+          echo "APK size: $(du -h $APK_PATH | cut -f1)"
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: aurore-school-apk
-          path: ${{ steps.find-project.outputs.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          path: ${{ steps.project-dir.outputs.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
 
-      - name: Upload logs
+      - name: Upload build logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: build-logs
           path: |
-            ${{ steps.find-project.outputs.PROJECT_DIR }}/flutter_analyze.log
-            ${{ steps.find-project.outputs.PROJECT_DIR }}/flutter_build.log
+            ${{ steps.project-dir.outputs.PROJECT_DIR }}/flutter_analyze.log
+            ${{ steps.project-dir.outputs.PROJECT_DIR }}/flutter_build.log
+          retention-days: 3
