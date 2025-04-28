@@ -16,6 +16,13 @@ jobs:
           path: 'aurore-FRONTEND'
           fetch-depth: 0
 
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.3'
+          channel: 'stable'
+          cache: true
+
       - name: Validate Assets
         run: |
           echo "=== VERIFY ASSET PATHS ==="
@@ -25,7 +32,7 @@ jobs:
       - name: Update Pubspec
         working-directory: aurore-FRONTEND/aurore_frontend
         run: |
-          # Use EXACT paths from your directory structure
+          # Create pubspec.yaml with exact paths
           cat <<EOF > pubspec.yaml
           name: aurore_frontend
           description: Aurore School App
