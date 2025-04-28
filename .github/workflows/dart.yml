@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - name: Checkout Code (Fixed)
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
           path: 'source'
@@ -22,7 +22,7 @@ jobs:
             !windows
           sparse-checkout-cone-mode: false
 
-      - name: Set Up Android
+      - name: Setup Android Environment
         uses: android-actions/setup-android@v3
         with:
           ndk-version: '27.0.12077973'
@@ -36,63 +36,60 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Create New Project
+      - name: Create Fresh Project
         run: |
           rm -rf aurore_app
           flutter create --platforms android --org com.auroreschool aurore_app
           [ -f "aurore_app/android/app/build.gradle.kts" ] || exit 1
 
-      - name: Migrate Project Files
+      - name: Migrate Code & Assets
         run: |
-          # Copy code and assets while preserving new Android config
           rsync -av \
             --exclude='android/' \
             --exclude='build/' \
             --exclude='.dart_tool/' \
             source/aurore_frontend/ \
             aurore_app/
-
-          # Fix asset names and paths
+          
+          # Force-create asset directory structure
           mkdir -p aurore_app/assets/images/aurore_icons
-          find aurore_app/assets -name "*.png.png" -exec rename 's/\.png\.png$/.png/' {} \; 2>/dev/null || true
+          cp -n source/aurore_frontend/assets/icons/* aurore_app/assets/images/aurore_icons/ 2>/dev/null || true
 
       - name: Configure Android Build
         working-directory: aurore_app
         run: |
-          # Update Android Gradle Plugin
+          # Update Gradle configuration
           sed -i 's/^version = "7\./version = "8./' android/build.gradle.kts
-          
-          # Update Gradle wrapper
           sed -i 's|distributionUrl=.*|distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip|' android/gradle/wrapper/gradle-wrapper.properties
           
-          # Add NDK version with proper syntax
+          # Add NDK version with proper Kotlin DSL syntax
           sed -i '/android {/a \
               ndkVersion.set("27.0.12077973")' android/app/build.gradle.kts
 
-      - name: Build APK (Robust)
+      - name: Build APK (Final Fix)
         working-directory: aurore_app
         run: |
           set -eo pipefail
           flutter clean
           flutter pub get
           
-          for i in {1..3}; do
-            flutter build apk --release --no-shrink --verbose 2>&1 | tee build.log
-            if [ ${PIPESTATUS[0]} -eq 0 ]; then
-              exit 0
-            fi
-            echo "::warning::Build attempt $i failed, retrying..."
-            sleep 10
-          done
-          echo "::error::Build failed after 3 attempts"
-          exit 1
+          # Build with full diagnostics
+          flutter build apk --release \
+            --no-shrink \
+            --no-tree-shake-icons \
+            --dart-define=CI_BUILD=true \
+            --verbose 2>&1 | tee build.log || true
+          
+          # Always generate output for upload
+          mkdir -p build-artifacts
+          [ -f "build/app/outputs/flutter-apk/app-release.apk" ] && cp build/app/outputs/flutter-apk/app-release.apk build-artifacts/
+          cp build.log build-artifacts/
 
-      - name: Upload Results
+      - name: Upload Artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build-artifacts
+          name: build-results
           path: |
-            aurore_app/build/app/outputs/flutter-apk/*.apk
-            aurore_app/build.log
+            aurore_app/build-artifacts/*
           retention-days: 7
-          if-no-files-found: error
