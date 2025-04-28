@@ -13,25 +13,26 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          path: 'aurore-FRONTEND'  # Match exact repository name
+          path: 'aurore-FRONTEND'
           fetch-depth: 0
 
-      - name: Verify asset location
+      - name: Fix asset paths
         run: |
-          echo "Repository structure:"
-          ls -laR
-          
-          echo "Checking assets at:"
-          echo "https://github.com/Kairos2025/aurore-FRONTEND/tree/main/aurore-FRONTEND/assets/images/aurore_icons"
-          
-          if [ -d "aurore-FRONTEND/assets/images/aurore_icons" ]; then
-            echo "Assets found!"
-            ls -la aurore-FRONTEND/assets/images/aurore_icons
-          else
-            echo "::error::CRITICAL: Assets missing! Add files to:"
-            echo "https://github.com/Kairos2025/aurore-FRONTEND/tree/main/aurore-FRONTEND/assets/images/aurore_icons"
-            exit 1
-          fi
+          # Rename .png.png files
+          cd aurore-FRONTEND/assets/icons
+          for file in *.png.png; do
+            mv "$file" "${file%.png.png}.png"
+          done
+
+          # Create required directory structure
+          mkdir -p ../images/aurore_icons
+          mv *.png ../images/aurore_icons/
+
+      - name: Verify assets
+        run: |
+          echo "Final asset structure:"
+          ls -laR aurore-FRONTEND/assets/images/aurore_icons
+          [ -f "aurore-FRONTEND/assets/images/aurore_icons/dashboard.png" ] || exit 1
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -40,11 +41,15 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Build APK
+      - name: Update pubspec
+        working-directory: aurore-FRONTEND
         run: |
-          cd aurore-FRONTEND
-          flutter clean
+          sed -i 's/assets\/icons\//assets\/images\/aurore_icons\//g' pubspec.yaml
           flutter pub get
+
+      - name: Build APK
+        working-directory: aurore-FRONTEND
+        run: |
           flutter build apk --release --verbose
 
       - name: Upload APK
