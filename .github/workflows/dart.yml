@@ -10,74 +10,107 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      FLUTTER_CHANNEL: stable
+      FLUTTER_VERSION: 3.29.3
+      GRADLE_VERSION: 8.9
+      AGP_VERSION: 8.4.0
+      NDK_VERSION: 27.0.12077973
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          path: 'source'
+          fetch-depth: 0
           sparse-checkout: |
             /*
-            !android
-            !ios
-            !windows
-          sparse-checkout-cone-mode: false
+            !**/ios
+            !**/windows
 
-      - name: Setup Android Environment
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '11'
+
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          ndk-version: '27.0.12077973'
+          ndk-version: ${{ env.NDK_VERSION }}
           sdk-platform: '34'
           cmake-version: '3.22.1'
+          addon-licenses: 'android-sdk-license'
 
-      - name: Install Flutter
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.29.3'
-          channel: 'stable'
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: ${{ env.FLUTTER_CHANNEL }}
           cache: true
+          cache-key: flutter-${{ runner.os }}-${{ env.FLUTTER_VERSION }}
+          cache-path: ${{ github.workspace }}/.pub-cache
 
-      - name: Create Fresh Project
-        run: |
-          rm -rf aurore_app
-          flutter create --platforms android --org com.auroreschool aurore_app
-          [ -f "aurore_app/android/app/build.gradle.kts" ] || exit 1
+      - name: Restore Gradle Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/gradle-wrapper.properties') }}
 
-      - name: Migrate Code & Assets
+      - name: Prepare Project Structure
         run: |
-          rsync -av \
-            --exclude='android/' \
-            --exclude='build/' \
-            --exclude='.dart_tool/' \
-            source/aurore_frontend/ \
-            aurore_app/
+          # Preserve existing android configuration
+          [ -d "android" ] || flutter create --platforms android --org com.auroreschool .
           
-          mkdir -p aurore_app/assets/images/aurore_icons
-          cp -n source/aurore_frontend/assets/icons/* aurore_app/assets/images/aurore_icons/ 2>/dev/null || true
+          # Sync files while preserving platform directories
+          rsync -av --delete \
+            --exclude='.dart_tool/' \
+            --exclude='build/' \
+            --exclude='android/' \
+            --exclude='ios/' \
+            --exclude='windows/' \
+            . aurore_app/
 
-      - name: Configure Android Build
+      - name: Configure Build Environment
         working-directory: aurore_app
         run: |
-          # Force-update AGP to 8.4.0
-          sed -i 's/^version = ".*"/version = "8.4.0"/' android/build.gradle.kts
+          # Update Gradle wrapper
+          ./gradlew wrapper --gradle-version $GRADLE_VERSION --distribution-type all
           
-          # Update to Gradle 8.9 (use -all.zip as required)
-          sed -i 's|distributionUrl=.*|distributionUrl=https\://services.gradle.org/distributions/gradle-8.9-all.zip|' android/gradle/wrapper/gradle-wrapper.properties
+          # Validate AGP version
+          sed -i "s/id 'com.android.application' version '.*'/id 'com.android.application' version '$AGP_VERSION'/" android/app/build.gradle
           
-          # Add NDK version
-          sed -i '/android {/a \
-              ndkVersion.set("27.0.12077973")' android/app/build.gradle.kts
+          # Configure NDK version
+          echo "android.ndkVersion=$NDK_VERSION" >> android/gradle.properties
 
-      - name: Build APK
+      - name: Build Release APK
         working-directory: aurore_app
         run: |
           set -eo pipefail
-          flutter clean
-          flutter pub get
-          flutter build apk --release --verbose --no-shrink
+          flutter pub upgrade --major-versions
+          flutter build apk --release --verbose \
+            --dart-define=CI_BUILD=true \
+            --split-debug-info=/debug-info \
+            --obfuscate
 
-      - name: Upload APK
+      - name: Archive Debug Symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-symbols
+          path: aurore_app/debug-info/
+          retention-days: 30
+
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: school-apk
           path: aurore_app/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 7
+
+      - name: Diagnostic Info (on failure)
+        if: ${{ failure() }}
+        run: |
+          flutter doctor -v
+          ./gradlew --version
+          java -version
