@@ -12,19 +12,34 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Set up Java 17
-        uses: actions/setup-java@v3
         with:
-          distribution: 'zulu'
-          java-version: '17'
+          fetch-depth: 0
 
-      - name: Set up Android environment
-        uses: android-actions/setup-android@v3
-        with:
-          ndk-version: '27.0.12077973'
-          sdk-platform: '33'
-          cmake-version: '3.22.1'
+      - name: Validate assets existence
+        run: |
+          # Check for required assets
+          declare -a required_assets=(
+            "assets/icons/dashboard.png"
+            "assets/icons/timetable.png"
+            "assets/icons/attendance_present.png"
+            "assets/icons/attendance_absent.png"
+            "assets/icons/grades.png"
+            "assets/icons/profile.png"
+            "assets/icons/settings.png"
+            "assets/icons/logout.png"
+            "assets/icons/communication.png"
+            "assets/icons/analytics.png"
+            "assets/icons/qr_scan.png"
+          )
+
+          for asset in "${required_assets[@]}"; do
+            if [ ! -f "$asset" ]; then
+              echo "::error::Missing required asset: $asset"
+              exit 1
+            fi
+          done
+
+          echo "All required assets present"
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -33,86 +48,50 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Create fresh Flutter project
+      - name: Create fresh project
         run: |
           rm -rf aurore_frontend_new
           flutter create --platforms android --org com.auroreschool aurore_frontend_new
 
-      - name: Copy application files
+      - name: Copy project files
         run: |
-          rsync -a --exclude='android/' --exclude='ios/' --exclude='build/' \
-            aurore_frontend/ aurore_frontend_new/
-          [ -d "aurore_frontend/android/app/src" ] && cp -r aurore_frontend/android/app/src aurore_frontend_new/android/app/
-
-      - name: Validate project structure
-        run: |
-          ls -la aurore_frontend_new
-          ls -la aurore_frontend_new/android/app
-
-      - name: Configure Android project
-        working-directory: aurore_frontend_new/android
-        run: |
-          # Update Gradle configuration
-          ./gradlew wrapper --gradle-version=8.4 --distribution-type=bin
+          # Copy main code
+          cp -r lib aurore_frontend_new/
+          cp pubspec.yaml aurore_frontend_new/
           
-          # Update build.gradle.kts with safe sed commands
-          sed -i "s/id(\"com.android.application\") version \".*\"/id(\"com.android.application\") version \"8.1.4\"/" build.gradle.kts
-          sed -i "s/kotlin(\"android\") version \".*\"/kotlin(\"android\") version \"1.9.0\"/" build.gradle.kts
+          # Copy assets with structure preservation
+          mkdir -p aurore_frontend_new/assets/icons
+          cp -r assets/icons/* aurore_frontend_new/assets/icons/
           
-          # Update gradle-wrapper.properties
-          sed -i "s|distributionUrl=.*|distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip|" gradle/wrapper/gradle-wrapper.properties
+          # Copy other potential assets
+          [ -d "fonts" ] && cp -r fonts aurore_frontend_new/
+          [ -d "test" ] && cp -r test aurore_frontend_new/
 
-          # Add essential properties
-          echo -e "\nandroid.useAndroidX=true" >> gradle.properties
-          echo "android.enableJetifier=true" >> gradle.properties
-          echo "org.gradle.jvmargs=-Xmx4096M -Dfile.encoding=UTF-8" >> gradle.properties
-          echo "kotlin.code.style=official" >> gradle.properties
+          # Verify copied assets
+          ls -laR aurore_frontend_new/assets
 
-      - name: Update app configuration
+      - name: Update pubspec.yaml
         working-directory: aurore_frontend_new
         run: |
-          # Update app/build.gradle.kts with safe parameters
-          sed -i '/minSdk =/c\        minSdk = 21' android/app/build.gradle.kts
-          sed -i '/compileSdk =/c\        compileSdk = 33' android/app/build.gradle.kts
-          sed -i '/targetSdk =/c\        targetSdk = 33' android/app/build.gradle.kts
-          sed -i '/namespace =/c\        namespace = "com.auroreschool"' android/app/build.gradle.kts
+          # Ensure correct asset paths
+          sed -i 's/assets\/icons\/\*/assets\/\*\//g' pubspec.yaml
+          flutter pub get
 
-          # Add buildConfigField for debugging
-          echo 'buildConfigField("String", "BUILD_TIME", "\"$(date)\"")' >> android/app/build.gradle.kts
-
-      - name: Dependency resolution
+      - name: Build APK
         working-directory: aurore_frontend_new
         run: |
-          flutter clean
-          flutter pub cache repair
-          flutter pub get --verbose
-          flutter pub outdated
-          flutter analyze
-
-      - name: Build APK with diagnostics
-        working-directory: aurore_frontend_new
-        run: |
-          set -eo pipefail
-          flutter build apk --release --verbose \
-            --dart-define=CI_BUILD=true \
-            --no-tree-shake-icons \
-            --no-shrink \
-            2>&1 | tee build.log || true
+          flutter build apk --release --no-shrink --verbose
           
-          # Fallback build with full stack trace
+          # Fallback for CI path issues
           if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "::warning::First build attempt failed, retrying with full stack trace..."
-            flutter build apk --release --verbose --stacktrace \
-              --dart-define=CI_BUILD=true \
-              2>&1 | tee -a build.log
+            echo "::warning::APK not found in default location, searching..."
+            find . -name '*.apk' -exec echo "Found APK: {}" \;
+            exit 1
           fi
 
-      - name: Upload artifacts
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: build-artifacts
-          path: |
-            aurore_frontend_new/build.log
-            aurore_frontend_new/build/app/outputs/flutter-apk/*.apk
-            aurore_frontend_new/android/build/reports/
+          name: school-apk
+          path: aurore_frontend_new/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 7
