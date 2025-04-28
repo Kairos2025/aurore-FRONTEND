@@ -13,27 +13,27 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          path: 'aurore-FRONTEND'
+          path: 'aurore-FRONTEND'  # Exact repo name
           fetch-depth: 0
 
-      - name: Fix asset structure
+      - name: Fix Asset Structure
         run: |
-          # Navigate to ACTUAL asset location
-          cd aurore-FRONTEND/assets/images/aurore_icons
+          # Navigate to ACTUAL location from screenshot
+          cd aurore-FRONTEND/assets/icons
           
           # Fix double extensions (analytics.png.png → analytics.png)
           for file in *.png.png; do
-            mv "$file" "${file%.png.png}.png"
+            mv -v "$file" "${file%.png.png}.png"
           done
 
-          # Verify fixes
+          # Verify
           ls -la
 
-      - name: Update pubspec paths
+      - name: Update Pubspec Paths
         working-directory: aurore-FRONTEND
         run: |
-          # Update pubspec.yaml to match ACTUAL paths
-          sed -i 's/assets\/icons\//assets\/images\/aurore_icons\//g' pubspec.yaml
+          # Match EXACT paths from your screenshot
+          sed -i 's/assets\/images\/aurore_icons/assets\/icons/g' pubspec.yaml
           flutter pub get
 
       - name: Build APK
