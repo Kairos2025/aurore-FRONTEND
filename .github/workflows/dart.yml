@@ -40,25 +40,29 @@ jobs:
 
       - name: Copy application files
         run: |
-          cp -r aurore_frontend/lib aurore_frontend_new/
-          cp aurore_frontend/pubspec.yaml aurore_frontend_new/
-          [ -d "aurore_frontend/assets" ] && cp -r aurore_frontend/assets aurore_frontend_new/
-          [ -d "aurore_frontend/fonts" ] && cp -r aurore_frontend/fonts aurore_frontend_new/
-          [ -d "aurore_frontend/test" ] && cp -r aurore_frontend/test aurore_frontend_new/
+          rsync -a --exclude='android/' --exclude='ios/' --exclude='build/' \
+            aurore_frontend/ aurore_frontend_new/
+          [ -d "aurore_frontend/android/app/src" ] && cp -r aurore_frontend/android/app/src aurore_frontend_new/android/app/
+
+      - name: Validate project structure
+        run: |
+          ls -la aurore_frontend_new
+          ls -la aurore_frontend_new/android/app
 
       - name: Configure Android project
         working-directory: aurore_frontend_new/android
         run: |
-          # Update for Kotlin DSL (build.gradle.kts)
+          # Update Gradle configuration
           ./gradlew wrapper --gradle-version=8.4 --distribution-type=bin
           
-          # Update build.gradle.kts
+          # Update build.gradle.kts with safe sed commands
           sed -i "s/id(\"com.android.application\") version \".*\"/id(\"com.android.application\") version \"8.1.4\"/" build.gradle.kts
+          sed -i "s/kotlin(\"android\") version \".*\"/kotlin(\"android\") version \"1.9.0\"/" build.gradle.kts
           
           # Update gradle-wrapper.properties
           sed -i "s|distributionUrl=.*|distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip|" gradle/wrapper/gradle-wrapper.properties
 
-          # Update gradle.properties
+          # Add essential properties
           echo -e "\nandroid.useAndroidX=true" >> gradle.properties
           echo "android.enableJetifier=true" >> gradle.properties
           echo "org.gradle.jvmargs=-Xmx4096M -Dfile.encoding=UTF-8" >> gradle.properties
@@ -67,24 +71,48 @@ jobs:
       - name: Update app configuration
         working-directory: aurore_frontend_new
         run: |
-          # Update app/build.gradle.kts
+          # Update app/build.gradle.kts with safe parameters
           sed -i '/minSdk =/c\        minSdk = 21' android/app/build.gradle.kts
           sed -i '/compileSdk =/c\        compileSdk = 33' android/app/build.gradle.kts
           sed -i '/targetSdk =/c\        targetSdk = 33' android/app/build.gradle.kts
+          sed -i '/namespace =/c\        namespace = "com.auroreschool"' android/app/build.gradle.kts
 
-          # Update settings.gradle.kts
-          sed -i 's/pluginManagement {/pluginManagement {\n    repositories {\n        google()\n        mavenCentral()\n        gradlePluginPortal()\n    }/' android/settings.gradle.kts
+          # Add buildConfigField for debugging
+          echo 'buildConfigField("String", "BUILD_TIME", "\"$(date)\"")' >> android/app/build.gradle.kts
 
-      - name: Build APK
+      - name: Dependency resolution
         working-directory: aurore_frontend_new
         run: |
           flutter clean
-          flutter pub get
-          flutter build apk --release --no-shrink --verbose
+          flutter pub cache repair
+          flutter pub get --verbose
+          flutter pub outdated
+          flutter analyze
 
-      - name: Upload APK
+      - name: Build APK with diagnostics
+        working-directory: aurore_frontend_new
+        run: |
+          set -eo pipefail
+          flutter build apk --release --verbose \
+            --dart-define=CI_BUILD=true \
+            --no-tree-shake-icons \
+            --no-shrink \
+            2>&1 | tee build.log || true
+          
+          # Fallback build with full stack trace
+          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
+            echo "::warning::First build attempt failed, retrying with full stack trace..."
+            flutter build apk --release --verbose --stacktrace \
+              --dart-define=CI_BUILD=true \
+              2>&1 | tee -a build.log
+          fi
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: aurore-school-apk
-          path: aurore_frontend_new/build/app/outputs/flutter-apk/app-release.apk
+          name: build-artifacts
+          path: |
+            aurore_frontend_new/build.log
+            aurore_frontend_new/build/app/outputs/flutter-apk/*.apk
+            aurore_frontend_new/android/build/reports/
           retention-days: 7
