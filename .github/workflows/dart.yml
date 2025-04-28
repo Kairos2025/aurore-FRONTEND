@@ -60,25 +60,18 @@ jobs:
           # Force-update AGP to 8.4.0
           sed -i 's/^version = ".*"/version = "8.4.0"/' android/build.gradle.kts
           
-          # Update to Gradle 8.9 (using -all.zip as error suggests)
+          # Update to Gradle 8.9 (use -all.zip as required)
           sed -i 's|distributionUrl=.*|distributionUrl=https\://services.gradle.org/distributions/gradle-8.9-all.zip|' android/gradle/wrapper/gradle-wrapper.properties
           
-          # Add NDK version (validate syntax)
+          # Add NDK version
           sed -i '/android {/a \
               ndkVersion.set("27.0.12077973")' android/app/build.gradle.kts
-          
-          # Verify changes
-          echo "=== Modified gradle-wrapper.properties ==="
-          cat android/gradle/wrapper/gradle-wrapper.properties
-          echo "=== Modified build.gradle.kts ==="
-          cat android/build.gradle.kts
 
-      - name: Build APK (With Clean Cache)
+      - name: Build APK
         working-directory: aurore_app
         run: |
           set -eo pipefail
           flutter clean
-          ./gradlew clean # Clean Gradle cache
           flutter pub get
           flutter build apk --release --verbose --no-shrink
 
