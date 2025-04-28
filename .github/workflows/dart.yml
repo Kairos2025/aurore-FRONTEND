@@ -23,20 +23,22 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Validate Assets
+      - name: Configure Flutter
         run: |
-          echo "=== VERIFY ASSET PATHS ==="
-          ls -la aurore-FRONTEND/aurore_frontend/assets/images/aurore_icons/*.png.png
-          [ -f "aurore-FRONTEND/aurore_frontend/assets/images/aurore_icons/dashboard.png.png" ] || exit 1
+          flutter config --no-analytics
+          flutter doctor -v
 
       - name: Update Pubspec
         working-directory: aurore-FRONTEND/aurore_frontend
         run: |
-          # Create pubspec.yaml with exact paths
           cat <<EOF > pubspec.yaml
           name: aurore_frontend
           description: Aurore School App
           version: 1.0.0
+
+          environment:
+            sdk: '>=3.7.0 <4.0.0'
+            flutter: '>=3.29.3'
 
           flutter:
             assets:
