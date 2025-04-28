@@ -1,4 +1,4 @@
-name: Essential APK Builder
+name: Build Aurore School APK
 
 on:
   push:
@@ -9,43 +9,49 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     env:
+      FLUTTER_CHANNEL: stable
       FLUTTER_VERSION: '3.29.3'
+      PROJECT_NAME: 'aurore_frontend'  # Valid Dart package name
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          path: src
+          path: ${{ env.PROJECT_NAME }}
 
-      - name: Direct Android Setup
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
           sdk-platform: '34'
-          disable-checks: true
 
-      - name: Bare Flutter Install
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          cache: false
+          channel: ${{ env.FLUTTER_CHANNEL }}
 
-      - name: Force APK Build
+      - name: Initialize Project
         run: |
-          mkdir -p build
-          flutter create --platforms android --no-pub --org com.auroreschool .
-          flutter build apk --release --no-version-check --no-pub --no-tree-shake-icons
-        env:
-          JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
+          # Create valid project structure
+          flutter create \
+            --project-name $PROJECT_NAME \
+            --org com.auroreschool \
+            --platforms android \
+            ./$PROJECT_NAME
 
-      - name: Extract APK
+          # Copy existing code
+          rsync -av --exclude='android/' --exclude='.git/' $PROJECT_NAME/ $PROJECT_NAME/
+
+      - name: Build APK
+        working-directory: ${{ env.PROJECT_NAME }}
         run: |
-          cp build/app/outputs/flutter-apk/app-release.apk final.apk
+          flutter pub get
+          flutter build apk --release
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: raw-apk
-          path: final.apk
-          retention-days: 1
+          name: school-apk
+          path: ${{ env.PROJECT_NAME }}/build/app/outputs/flutter-apk/app-release.apk
