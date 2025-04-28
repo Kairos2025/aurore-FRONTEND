@@ -51,36 +51,33 @@ jobs:
             source/aurore_frontend/ \
             aurore_app/
           
-          # Force-create asset directory structure
           mkdir -p aurore_app/assets/images/aurore_icons
           cp -n source/aurore_frontend/assets/icons/* aurore_app/assets/images/aurore_icons/ 2>/dev/null || true
 
       - name: Configure Android Build
         working-directory: aurore_app
         run: |
-          # Update Gradle configuration
-          sed -i 's/^version = "7\./version = "8./' android/build.gradle.kts
-          sed -i 's|distributionUrl=.*|distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip|' android/gradle/wrapper/gradle-wrapper.properties
+          # Update to Gradle 8.9 and compatible AGP
+          sed -i 's/^version = "7\./version = "8.4.0"/' android/build.gradle.kts  # Android Gradle Plugin
+          sed -i 's|distributionUrl=.*|distributionUrl=https\://services.gradle.org/distributions/gradle-8.9-bin.zip|' android/gradle/wrapper/gradle-wrapper.properties
           
-          # Add NDK version with proper Kotlin DSL syntax
+          # NDK configuration
           sed -i '/android {/a \
               ndkVersion.set("27.0.12077973")' android/app/build.gradle.kts
 
-      - name: Build APK (Final Fix)
+      - name: Build APK
         working-directory: aurore_app
         run: |
           set -eo pipefail
           flutter clean
           flutter pub get
           
-          # Build with full diagnostics
           flutter build apk --release \
             --no-shrink \
             --no-tree-shake-icons \
             --dart-define=CI_BUILD=true \
             --verbose 2>&1 | tee build.log || true
           
-          # Always generate output for upload
           mkdir -p build-artifacts
           [ -f "build/app/outputs/flutter-apk/app-release.apk" ] && cp build/app/outputs/flutter-apk/app-release.apk build-artifacts/
           cp build.log build-artifacts/
@@ -90,6 +87,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-results
-          path: |
-            aurore_app/build-artifacts/*
+          path: aurore_app/build-artifacts/*
           retention-days: 7
