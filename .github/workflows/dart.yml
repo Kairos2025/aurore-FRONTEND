@@ -16,34 +16,23 @@ jobs:
           path: 'aurore-FRONTEND'
           fetch-depth: 0
 
-      - name: Fix asset paths
+      - name: Fix asset structure
         run: |
-          # Rename .png.png files
-          cd aurore-FRONTEND/assets/icons
+          # Navigate to ACTUAL asset location
+          cd aurore-FRONTEND/assets/images/aurore_icons
+          
+          # Fix double extensions (analytics.png.png → analytics.png)
           for file in *.png.png; do
             mv "$file" "${file%.png.png}.png"
           done
 
-          # Create required directory structure
-          mkdir -p ../images/aurore_icons
-          mv *.png ../images/aurore_icons/
+          # Verify fixes
+          ls -la
 
-      - name: Verify assets
-        run: |
-          echo "Final asset structure:"
-          ls -laR aurore-FRONTEND/assets/images/aurore_icons
-          [ -f "aurore-FRONTEND/assets/images/aurore_icons/dashboard.png" ] || exit 1
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.29.3'
-          channel: 'stable'
-          cache: true
-
-      - name: Update pubspec
+      - name: Update pubspec paths
         working-directory: aurore-FRONTEND
         run: |
+          # Update pubspec.yaml to match ACTUAL paths
           sed -i 's/assets\/icons\//assets\/images\/aurore_icons\//g' pubspec.yaml
           flutter pub get
 
