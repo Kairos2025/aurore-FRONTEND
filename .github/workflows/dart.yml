@@ -49,33 +49,31 @@ jobs:
       - name: Configure Android project
         working-directory: aurore_frontend_new/android
         run: |
-          # Verify files exist first
-          ls -la
-          [ -f build.gradle ] || { echo "build.gradle not found"; exit 1; }
-          [ -f gradle/wrapper/gradle-wrapper.properties ] || { echo "gradle-wrapper.properties not found"; exit 1; }
-
-          # Force Gradle 8.4 configuration
+          # Update for Kotlin DSL (build.gradle.kts)
           ./gradlew wrapper --gradle-version=8.4 --distribution-type=bin
           
-          # Update build.gradle with exact path
-          sed -i "s/com.android.tools.build:gradle:.*/com.android.tools.build:gradle:8.1.4/" build.gradle
+          # Update build.gradle.kts
+          sed -i "s/id(\"com.android.application\") version \".*\"/id(\"com.android.application\") version \"8.1.4\"/" build.gradle.kts
           
-          # Update wrapper properties with full URL
+          # Update gradle-wrapper.properties
           sed -i "s|distributionUrl=.*|distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip|" gradle/wrapper/gradle-wrapper.properties
 
-          # Add essential properties
+          # Update gradle.properties
           echo -e "\nandroid.useAndroidX=true" >> gradle.properties
           echo "android.enableJetifier=true" >> gradle.properties
           echo "org.gradle.jvmargs=-Xmx4096M -Dfile.encoding=UTF-8" >> gradle.properties
+          echo "kotlin.code.style=official" >> gradle.properties
 
       - name: Update app configuration
         working-directory: aurore_frontend_new
         run: |
-          # Ensure Android SDK versions
-          sed -i '/minSdkVersion flutter.minSdkVersion/a\
-                  minSdkVersion 21' android/app/build.gradle
-          sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 33/' android/app/build.gradle
-          sed -i 's/targetSdkVersion flutter.targetSdkVersion/targetSdkVersion 33/' android/app/build.gradle
+          # Update app/build.gradle.kts
+          sed -i '/minSdk =/c\        minSdk = 21' android/app/build.gradle.kts
+          sed -i '/compileSdk =/c\        compileSdk = 33' android/app/build.gradle.kts
+          sed -i '/targetSdk =/c\        targetSdk = 33' android/app/build.gradle.kts
+
+          # Update settings.gradle.kts
+          sed -i 's/pluginManagement {/pluginManagement {\n    repositories {\n        google()\n        mavenCentral()\n        gradlePluginPortal()\n    }/' android/settings.gradle.kts
 
       - name: Build APK
         working-directory: aurore_frontend_new
