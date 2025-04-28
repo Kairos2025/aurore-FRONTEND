@@ -16,30 +16,36 @@ jobs:
           path: 'aurore-FRONTEND'
           fetch-depth: 0
 
-      - name: Fix Asset Paths
+      - name: Validate Assets
         run: |
-          # Create target directory
-          mkdir -p aurore-FRONTEND/aurore_frontend/assets/images/aurore_icons
-          
-          # Copy files from ACTUAL location visible in screenshot
-          cp aurore-FRONTEND/aurore_frontend/assets/images/aurore_icons/*.png.png \
-             aurore-FRONTEND/aurore_frontend/assets/images/aurore_icons/
+          echo "=== VERIFY ASSET PATHS ==="
+          ls -la aurore-FRONTEND/aurore_frontend/assets/images/aurore_icons/*.png.png
+          [ -f "aurore-FRONTEND/aurore_frontend/assets/images/aurore_icons/dashboard.png.png" ] || exit 1
 
       - name: Update Pubspec
         working-directory: aurore-FRONTEND/aurore_frontend
         run: |
-          # Update pubspec.yaml with EXACT paths from screenshot
-          echo "flutter:" > pubspec.yaml
-          echo "  assets:" >> pubspec.yaml
-          echo "    - assets/images/aurore_icons/analytics.png.png" >> pubspec.yaml
-          echo "    - assets/images/aurore_icons/attendance_absent.png.png" >> pubspec.yaml
-          echo "    - assets/images/aurore_icons/attendance_present.png.png" >> pubspec.yaml
-          echo "    - assets/images/aurore_icons/communication.png.png" >> pubspec.yaml
-          echo "    - assets/images/aurore_icons/dashboard.png.png" >> pubspec.yaml
-          echo "    - assets/images/aurore_icons/grades.png.png" >> pubspec.yaml
-          echo "    - assets/images/aurore_icons/logout.png.png" >> pubspec.yaml
-          echo "    - assets/images/aurore_icons/profile.png.png" >> pubspec.yaml
-          
+          # Use EXACT paths from your directory structure
+          cat <<EOF > pubspec.yaml
+          name: aurore_frontend
+          description: Aurore School App
+          version: 1.0.0
+
+          flutter:
+            assets:
+              - assets/images/aurore_icons/analytics.png.png
+              - assets/images/aurore_icons/attendance_absent.png.png
+              - assets/images/aurore_icons/attendance_present.png.png
+              - assets/images/aurore_icons/communication.png.png
+              - assets/images/aurore_icons/dashboard.png.png
+              - assets/images/aurore_icons/grades.png.png
+              - assets/images/aurore_icons/logout.png.png
+              - assets/images/aurore_icons/profile.png.png
+              - assets/images/aurore_icons/qr_scan.png.png
+              - assets/images/aurore_icons/settings.png.png
+              - assets/images/aurore_icons/timetable.png.png
+          EOF
+
           flutter pub get
 
       - name: Build APK
