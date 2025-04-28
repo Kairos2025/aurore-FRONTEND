@@ -13,27 +13,39 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          path: 'aurore-FRONTEND'  # Exact repo name
+          path: 'aurore-FRONTEND' # Exact repository name
           fetch-depth: 0
 
-      - name: Fix Asset Structure
+      - name: Diagnose Directory Structure
         run: |
-          # Navigate to ACTUAL location from screenshot
-          cd aurore-FRONTEND/assets/icons
+          echo "=== FULL REPOSITORY STRUCTURE ==="
+          cd aurore-FRONTEND
+          find . -type d -print
+          echo "=== ASSET DIRECTORY CONTENT ==="
+          ls -la assets/* assets/*/* || true
+
+      - name: Fix Asset Configuration
+        run: |
+          cd aurore-FRONTEND
           
-          # Fix double extensions (analytics.png.png → analytics.png)
-          for file in *.png.png; do
-            mv -v "$file" "${file%.png.png}.png"
-          done
+          # 1. Fix double file extensions
+          find assets/ -name "*.png.png" -exec rename 's/\.png\.png$/.png/' {} \;
+          
+          # 2. Ensure correct directory structure
+          mkdir -p assets/images/aurore_icons
+          mv assets/icons/*.png assets/images/aurore_icons/ 2>/dev/null || true
+          mv assets/aurore_icons/*.png assets/images/aurore_icons/ 2>/dev/null || true
 
-          # Verify
-          ls -la
+      - name: Final Path Validation
+        run: |
+          echo "=== FINAL ASSET STRUCTURE ==="
+          ls -laR aurore-FRONTEND/assets/
+          [ -f "aurore-FRONTEND/assets/images/aurore_icons/dashboard.png" ] || exit 1
 
-      - name: Update Pubspec Paths
+      - name: Update Pubspec
         working-directory: aurore-FRONTEND
         run: |
-          # Match EXACT paths from your screenshot
-          sed -i 's/assets\/images\/aurore_icons/assets\/icons/g' pubspec.yaml
+          sed -i 's/assets\/icons\//assets\/images\/aurore_icons\//g' pubspec.yaml
           flutter pub get
 
       - name: Build APK
