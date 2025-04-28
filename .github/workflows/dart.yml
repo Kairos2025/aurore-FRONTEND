@@ -14,11 +14,22 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: 'aurore_frontend'
+          fetch-depth: 0
 
-      - name: Verify actual asset location
+      - name: Verify repository structure
         run: |
-          ls -laR aurore_frontend/assets/images/aurore_icons
-          [ -f "aurore_frontend/assets/images/aurore_icons/dashboard.png" ] || exit 1
+          echo "Current directory structure:"
+          ls -laR
+          
+          echo "Checking asset location:"
+          if [ -d "aurore_frontend/assets/images/aurore_icons" ]; then
+            ls -la aurore_frontend/assets/images/aurore_icons
+          else
+            echo "::error::Asset directory not found at aurore_frontend/assets/images/aurore_icons"
+            echo "Please ensure assets exist in the correct location:"
+            echo "https://github.com/<your-username>/<repo-name>/tree/main/aurore_frontend/assets/images/aurore_icons"
+            exit 1
+          fi
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -27,34 +38,40 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Create project structure
+      - name: Create new project
         run: |
           rm -rf aurore_frontend_new
           flutter create --platforms android --org com.auroreschool aurore_frontend_new
 
-      - name: Copy project files
+      - name: Copy core files
         run: |
-          # Copy core code
+          # Copy main code
           cp -r aurore_frontend/lib aurore_frontend_new/
           cp aurore_frontend/pubspec.yaml aurore_frontend_new/
-          
-          # Copy assets from correct location
+
+          # Copy assets with exact path matching
           mkdir -p aurore_frontend_new/assets/images/aurore_icons
           cp -r aurore_frontend/assets/images/aurore_icons/* aurore_frontend_new/assets/images/aurore_icons/
 
-      - name: Update pubspec assets
+      - name: Update pubspec configuration
         working-directory: aurore_frontend_new
         run: |
           # Update asset paths in pubspec.yaml
           sed -i 's/assets\/icons\//assets\/images\/aurore_icons\//g' pubspec.yaml
+          
+          # Verify pubspec changes
+          echo "Modified pubspec.yaml:"
+          cat pubspec.yaml
+          
           flutter pub get
 
       - name: Build APK
         working-directory: aurore_frontend_new
         run: |
-          flutter build apk --release --no-shrink --verbose
+          flutter build apk --release --verbose
+          ls -la build/app/outputs/flutter-apk/
 
-      - name: Upload artifacts
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: school-apk
