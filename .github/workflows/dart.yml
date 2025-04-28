@@ -16,48 +16,26 @@ jobs:
           path: 'aurore-FRONTEND'
           fetch-depth: 0
 
-      - name: Fix Double Extensions
+      - name: Prepare Assets
         run: |
-          cd aurore-FRONTEND
+          # Create directory structure
+          mkdir -p aurore-FRONTEND/assets/images/aurore_icons
           
-          # Fix .png.png → .png in ALL directories
-          find . -name "*.png.png" -exec bash -c 'mv -v "$0" "${0%.png.png}.png"' {} \;
-
-      - name: Organize Assets
-        run: |
-          cd aurore-FRONTEND
-          
-          # Create target directory
-          mkdir -p assets/images/aurore_icons
-          
-          # Move all icons to target location (from any directory)
-          find . -name "*.png" -exec mv -n {} assets/images/aurore_icons/ \; 2>/dev/null || true
-
-      - name: Validate Assets
-        run: |
-          cd aurore-FRONTEND
-          
-          echo "=== FINAL ASSET STRUCTURE ==="
-          ls -la assets/images/aurore_icons
-          
-          declare -a required=(
-            dashboard.png timetable.png attendance_present.png
-            attendance_absent.png grades.png profile.png
-            settings.png logout.png communication.png
-            analytics.png qr_scan.png
-          )
-          
-          for file in "${required[@]}"; do
-            if [ ! -f "assets/images/aurore_icons/$file" ]; then
-              echo "::error::Missing file: $file"
-              exit 1
-            fi
-          done
+          # Copy files with double extensions
+          cp aurore-FRONTEND/aurore_icons/*.png.png aurore-FRONTEND/assets/images/aurore_icons/
 
       - name: Update Pubspec
         working-directory: aurore-FRONTEND
         run: |
-          sed -i 's/- assets\/.*/- assets\/images\/aurore_icons\//g' pubspec.yaml
+          # Update pubspec.yaml with actual paths
+          echo "flutter:" > pubspec.yaml
+          echo "  assets:" >> pubspec.yaml
+          for file in assets/images/aurore_icons/*.png.png; do
+            echo "    - $file" >> pubspec.yaml
+          done
+          
+          # Verify pubspec content
+          cat pubspec.yaml
           flutter pub get
 
       - name: Build APK
