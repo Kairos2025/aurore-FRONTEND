@@ -23,25 +23,49 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Create Fresh Project
+      - name: Create Fresh Project Structure
         run: |
-          # Create new project with modern Gradle config
+          # Remove existing directory
+          rm -rf aurore_frontend_new
+          
+          # Create new Flutter project
           flutter create --platforms android --org com.auroreschool aurore_frontend_new
           
-          # Copy essential files
+          # Validate Android files
+          ls -la aurore_frontend_new/android/app/build.gradle
+          ls -la aurore_frontend_new/android/build.gradle
+
+      - name: Migrate Project Files
+        run: |
+          # Copy core components
           cp -r aurore-FRONTEND/aurore_frontend/lib aurore_frontend_new/
           cp aurore-FRONTEND/aurore_frontend/pubspec.yaml aurore_frontend_new/
-          cp -r aurore-FRONTEND/aurore_frontend/assets aurore_frontend_new/
+          
+          # Copy assets without overwriting Android files
+          rsync -av --exclude='android/' aurore-FRONTEND/aurore_frontend/ aurore_frontend_new/
 
-      - name: Update Gradle Configuration
+      - name: Safe Gradle Update
         working-directory: aurore_frontend_new
         run: |
-          # Update Android build configuration
-          sed -i 's/gradle:7.5.0/gradle:8.4/' android/build.gradle
-          sed -i 's/gradle-7.5-all.zip/gradle-8.4-bin.zip/' android/gradle/wrapper/gradle-wrapper.properties
+          # Update only if files exist
+          if [ -f "android/build.gradle" ]; then
+            sed -i 's/gradle:7.5.0/gradle:8.4/' android/build.gradle
+            echo "Updated build.gradle"
+          else
+            echo "::warning::android/build.gradle not found, using default"
+          fi
 
-          # Add NDK version
-          echo "ndkVersion = '27.0.12077973'" >> android/app/build.gradle
+          if [ -f "android/gradle/wrapper/gradle-wrapper.properties" ]; then
+            sed -i 's/gradle-7.5-all.zip/gradle-8.4-bin.zip/' android/gradle/wrapper/gradle-wrapper.properties
+            echo "Updated gradle-wrapper.properties"
+          else
+            echo "::warning::gradle-wrapper.properties not found"
+          fi
+
+          # Add NDK version safely
+          if [ -f "android/app/build.gradle" ]; then
+            echo "ndkVersion = '27.0.12077973'" >> android/app/build.gradle
+          fi
 
       - name: Build APK
         working-directory: aurore_frontend_new
@@ -50,7 +74,7 @@ jobs:
           flutter pub get
           flutter build apk --release --verbose
 
-      - name: Upload APK
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: school-apk
