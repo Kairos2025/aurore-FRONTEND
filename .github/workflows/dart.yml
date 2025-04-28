@@ -14,6 +14,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          path: 'aurore_frontend_original'  # Checkout to different directory
 
       - name: Set up Java 17
         uses: actions/setup-java@v3
@@ -35,23 +36,22 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Prepare for project recreation
+      - name: Create fresh Flutter project
         run: |
-          # Remove conflicting directories
-          rm -rf aurore_frontend/android
-          rm -rf aurore_frontend/test
-          rm -rf aurore_frontend/.idea
-
-      - name: Recreate Flutter project properly
-        run: |
-          # Create fresh Flutter project
-          flutter create --platforms android --org com.auroreschool aurore_frontend
+          # Remove existing directory if it exists
+          rm -rf aurore_frontend
           
+          # Create new Flutter project
+          flutter create --platforms android --org com.auroreschool aurore_frontend
+
+      - name: Copy application files
+        run: |
           # Copy only necessary files from original project
           cp -r aurore_frontend_original/lib aurore_frontend/
           cp aurore_frontend_original/pubspec.yaml aurore_frontend/
           [ -d "aurore_frontend_original/assets" ] && cp -r aurore_frontend_original/assets aurore_frontend/
           [ -d "aurore_frontend_original/fonts" ] && cp -r aurore_frontend_original/fonts aurore_frontend/
+          [ -d "aurore_frontend_original/test" ] && cp -r aurore_frontend_original/test aurore_frontend/
 
       - name: Configure Android project
         working-directory: aurore_frontend
