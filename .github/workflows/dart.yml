@@ -49,52 +49,40 @@ jobs:
       - name: Configure Android project
         working-directory: aurore_frontend_new/android
         run: |
-          # Update Gradle wrapper to 8.4
+          # Verify files exist first
+          ls -la
+          [ -f build.gradle ] || { echo "build.gradle not found"; exit 1; }
+          [ -f gradle/wrapper/gradle-wrapper.properties ] || { echo "gradle-wrapper.properties not found"; exit 1; }
+
+          # Force Gradle 8.4 configuration
           ./gradlew wrapper --gradle-version=8.4 --distribution-type=bin
           
-          # Update build.gradle (Groovy DSL)
+          # Update build.gradle with exact path
           sed -i "s/com.android.tools.build:gradle:.*/com.android.tools.build:gradle:8.1.4/" build.gradle
           
-          # Update gradle-wrapper.properties
-          sed -i "s/gradle-.*.zip/gradle-8.4-bin.zip/" gradle/wrapper/gradle-wrapper.properties
+          # Update wrapper properties with full URL
+          sed -i "s|distributionUrl=.*|distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip|" gradle/wrapper/gradle-wrapper.properties
 
           # Add essential properties
           echo -e "\nandroid.useAndroidX=true" >> gradle.properties
           echo "android.enableJetifier=true" >> gradle.properties
-          echo "org.gradle.jvmargs=-Xmx4096M" >> gradle.properties
+          echo "org.gradle.jvmargs=-Xmx4096M -Dfile.encoding=UTF-8" >> gradle.properties
 
-      - name: Update app build configuration
+      - name: Update app configuration
         working-directory: aurore_frontend_new
         run: |
-          # Ensure minSdkVersion in app/build.gradle
+          # Ensure Android SDK versions
           sed -i '/minSdkVersion flutter.minSdkVersion/a\
                   minSdkVersion 21' android/app/build.gradle
-
-          # Update compileSdkVersion and targetSdkVersion
           sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 33/' android/app/build.gradle
           sed -i 's/targetSdkVersion flutter.targetSdkVersion/targetSdkVersion 33/' android/app/build.gradle
-
-      - name: Resolve dependencies
-        working-directory: aurore_frontend_new
-        run: |
-          flutter pub get
-          flutter pub upgrade
 
       - name: Build APK
         working-directory: aurore_frontend_new
         run: |
-          set -o pipefail
-          for i in {1..3}; do
-            flutter build apk --release --no-shrink --verbose 2>&1 | tee build.log
-            if [ ${PIPESTATUS[0]} -eq 0 ]; then
-              exit 0
-            fi
-            echo "::warning::Build attempt $i failed, retrying..."
-            sleep 10
-          done
-          echo "::error::Build failed after 3 attempts. Last 100 lines:"
-          tail -n 100 build.log
-          exit 1
+          flutter clean
+          flutter pub get
+          flutter build apk --release --no-shrink --verbose
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -102,11 +90,3 @@ jobs:
           name: aurore-school-apk
           path: aurore_frontend_new/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 7
-
-      - name: Upload build logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-logs
-          path: aurore_frontend_new/build.log
-          retention-days: 1
