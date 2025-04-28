@@ -1,4 +1,4 @@
-name: Build Aurore School APK
+name: Essential APK Builder
 
 on:
   push:
@@ -9,121 +9,43 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     env:
-      FLUTTER_CHANNEL: stable
       FLUTTER_VERSION: '3.29.3'
-      GRADLE_VERSION: '8.9'
-      AGP_VERSION: '8.4.0'
-      NDK_VERSION: '27.0.12077973'
-      JAVA_VERSION: '17'
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          sparse-checkout: |
-            *
-            !ios
-            !windows
-          sparse-checkout-cone-mode: false
-          path: source
+          path: src
 
-      - name: Validate Core Files
-        run: |
-          cd source
-          [ -f "pubspec.yaml" ] || { echo "pubspec.yaml missing!"; exit 1; }
-
-      - name: Setup Java ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: ${{ env.JAVA_VERSION }}
-          check-latest: true
-
-      - name: Setup Android Environment
+      - name: Direct Android Setup
         uses: android-actions/setup-android@v3
         with:
-          ndk-version: ${{ env.NDK_VERSION }}
           sdk-platform: '34'
-          cmake-version: '3.22.1'
+          disable-checks: true
 
-      - name: Accept Android Licenses
-        run: yes | sdkmanager --licenses || true
-
-      - name: Setup Flutter
+      - name: Bare Flutter Install
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: ${{ env.FLUTTER_CHANNEL }}
-          cache: true
-          cache-key: flutter-${{ runner.os }}-${{ hashFiles('**/pubspec.lock') }}
+          cache: false
 
-      - name: Initialize Project
+      - name: Force APK Build
         run: |
-          # Create clean workspace
-          rm -rf build_dir
-          mkdir -p build_dir
-          
-          # Generate Android config if missing
-          if [ ! -d "source/android" ]; then
-            echo "Generating new Android configuration..."
-            flutter create --platforms android --org com.auroreschool temp_project
-            mv temp_project/android source/
-            rm -rf temp_project
-          fi
-
-          # Copy project files
-          rsync -a --delete \
-            --exclude='build/' \
-            --exclude='.dart_tool/' \
-            --exclude='android/' \
-            source/ build_dir/
-
-          # Copy Android config
-          cp -a source/android build_dir/
-
-      - name: Configure Gradle
-        working-directory: build_dir
-        run: |
-          # Update Gradle wrapper
-          ./gradlew wrapper --gradle-version $GRADLE_VERSION --distribution-type all
-          
-          # Set NDK version
-          sed -i "/android {/a \
-              ndkVersion = \"$NDK_VERSION\"" android/app/build.gradle
-          
-          # Update AGP version
-          sed -i "s/id 'com.android.application' version '.*'/id 'com.android.application' version '$AGP_VERSION'/" android/app/build.gradle
-
-      - name: Build APK
-        working-directory: build_dir
-        run: |
-          flutter pub get
-          flutter build apk --release \
-            --split-debug-info=build/debug-info \
-            --obfuscate \
-            --dart-define=CI_BUILD=true
+          mkdir -p build
+          flutter create --platforms android --no-pub --org com.auroreschool .
+          flutter build apk --release --no-version-check --no-pub --no-tree-shake-icons
         env:
-          JAVA_HOME: ${{ env.JAVA_HOME }}
-          GRADLE_OPTS: -Dorg.gradle.daemon=false
+          JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
 
-      - name: Upload Artifacts
+      - name: Extract APK
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk final.apk
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: release-artifacts
-          path: |
-            build_dir/build/app/outputs/flutter-apk/app-release.apk
-            build_dir/build/debug-info/
-          retention-days: 7
-
-      - name: Failure Diagnostics
-        if: ${{ failure() }}
-        run: |
-          echo "=== Build Diagnostics ==="
-          echo "Flutter: $(flutter --version)"
-          echo "Java: $(java -version 2>&1)"
-          echo "Android SDK: $(sdkmanager --list | head -n 10)"
-          echo "Project Structure:"
-          tree -L 3 build_dir
+          name: raw-apk
+          path: final.apk
+          retention-days: 1
