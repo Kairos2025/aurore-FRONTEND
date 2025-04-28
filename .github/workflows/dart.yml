@@ -11,11 +11,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - name: Checkout Code (Fixed)
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
           path: 'aurore-FRONTEND'
-          fetch-depth: 0
           sparse-checkout: |
             /*
             !android/
@@ -23,36 +22,66 @@ jobs:
             !windows/
           sparse-checkout-cone-mode: false
 
-      - name: Flutter Environment Setup
+      - name: Set Up Android Environment
+        uses: android-actions/setup-android@v3
+        with:
+          ndk-version: '27.0.12077973'
+          sdk-platform: '34'
+          cmake-version: '3.22.1'
+
+      - name: Set Up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.29.3'
           channel: 'stable'
           cache: true
 
-      - name: Project Sanitization
+      - name: Create Fresh Project
         run: |
           rm -rf aurore_frontend_new
           flutter create --platforms android --org com.auroreschool aurore_frontend_new
-          [ -d "aurore_frontend_new/android" ] || (echo "::error::Android dir missing"; exit 1)
+          [ -f "aurore_frontend_new/android/app/build.gradle.kts" ] || exit 1
 
-      - name: Safe Migration
+      - name: Migrate Code Safely
         run: |
           rsync -av \
             --exclude='android/' \
             --exclude='build/' \
+            --exclude='.dart_tool/' \
             aurore-FRONTEND/aurore_frontend/ \
             aurore_frontend_new/
 
-      - name: Build & Deploy
+      - name: Fix Build Configuration
         working-directory: aurore_frontend_new
         run: |
+          # Update Gradle versions
+          sed -i 's/^version = "7\./version = "8./' android/build.gradle.kts
+          sed -i 's/gradle-.*.zip/gradle-8.4-bin.zip/' gradle/wrapper/gradle-wrapper.properties
+          
+          # Add NDK version in correct syntax
+          sed -i '/android {/a \
+              ndkVersion.set("27.0.12077973")' android/app/build.gradle.kts
+
+      - name: Build APK (Final Fix)
+        working-directory: aurore_frontend_new
+        run: |
+          set -eo pipefail
           flutter clean
           flutter pub get
-          flutter build apk --release --verbose
+          
+          # Build with full diagnostics
+          flutter build apk --release --verbose --no-shrink 2>&1 | tee build.log || true
+          
+          # Always upload logs
+          echo "BUILD STATUS: $?"
+          [ -f "build/app/outputs/flutter-apk/app-release.apk" ] || (tail -n 200 build.log && exit 1)
 
-      - name: Upload Artifact
+      - name: Upload APK
+        if: success() || failure()
         uses: actions/upload-artifact@v4
         with:
           name: school-apk
-          path: aurore_frontend_new/build/app/outputs/flutter-apk/app-release.apk
+          path: |
+            aurore_frontend_new/build/app/outputs/flutter-apk/*.apk
+            aurore_frontend_new/build.log
+          retention-days: 7
