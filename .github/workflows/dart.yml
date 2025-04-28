@@ -15,30 +15,10 @@ jobs:
         with:
           path: 'aurore_frontend'
 
-      - name: Install dependencies
+      - name: Verify actual asset location
         run: |
-          sudo apt-get update
-          sudo apt-get install -y imagemagick
-
-      - name: Setup asset structure
-        run: |
-          mkdir -p aurore_frontend/assets/icons
-          
-          # Generate placeholder assets if missing using FFMPEG (pre-installed on GitHub runners)
-          for icon in dashboard timetable attendance_present attendance_absent grades profile settings logout communication analytics qr_scan; do
-            if [ ! -f "aurore_frontend/assets/icons/$icon.png" ]; then
-              echo "::warning::Generating placeholder for missing icon: $icon.png"
-              ffmpeg -f lavfi -i color=c=white:s=512x512 -frames:v 1 "aurore_frontend/assets/icons/$icon.png" || echo "::warning::Failed to generate placeholder for $icon.png"
-            fi
-          done
-
-      - name: Verify assets
-        run: |
-          ls -laR aurore_frontend/assets
-          if ! [ -f "aurore_frontend/assets/icons/dashboard.png" ]; then
-            echo "::error::Critical assets missing even after fallback generation"
-            exit 1
-          fi
+          ls -laR aurore_frontend/assets/images/aurore_icons
+          [ -f "aurore_frontend/assets/images/aurore_icons/dashboard.png" ] || exit 1
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -54,18 +34,19 @@ jobs:
 
       - name: Copy project files
         run: |
-          # Copy core files
+          # Copy core code
           cp -r aurore_frontend/lib aurore_frontend_new/
           cp aurore_frontend/pubspec.yaml aurore_frontend_new/
           
-          # Copy assets using find + cpio to preserve structure
-          (cd aurore_frontend && find assets -type f -print0 | cpio -0pdm ../aurore_frontend_new)
+          # Copy assets from correct location
+          mkdir -p aurore_frontend_new/assets/images/aurore_icons
+          cp -r aurore_frontend/assets/images/aurore_icons/* aurore_frontend_new/assets/images/aurore_icons/
 
       - name: Update pubspec assets
         working-directory: aurore_frontend_new
         run: |
-          # Use wildcard asset reference
-          sed -i 's/^ *- assets\/icons\/\*/    - assets\//' pubspec.yaml
+          # Update asset paths in pubspec.yaml
+          sed -i 's/assets\/icons\//assets\/images\/aurore_icons\//g' pubspec.yaml
           flutter pub get
 
       - name: Build APK
