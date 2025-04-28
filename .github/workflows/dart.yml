@@ -16,64 +16,47 @@ jobs:
           path: 'aurore-FRONTEND'
           fetch-depth: 0
 
-      - name: Initialize Assets
-        run: |
-          # Create base assets directory if missing
-          mkdir -p aurore-FRONTEND/assets
-          
-          # Check existing files
-          echo "=== PRE-STRUCTURE ==="
-          ls -laR aurore-FRONTEND || true
-
-      - name: Fix File Structure
+      - name: Fix Double Extensions
         run: |
           cd aurore-FRONTEND
           
-          # Handle all possible asset locations
+          # Fix .png.png → .png in ALL directories
+          find . -name "*.png.png" -exec bash -c 'mv -v "$0" "${0%.png.png}.png"' {} \;
+
+      - name: Organize Assets
+        run: |
+          cd aurore-FRONTEND
+          
+          # Create target directory
           mkdir -p assets/images/aurore_icons
           
-          # 1. Fix double extensions anywhere
-          find . -name "*.png.png" -exec rename 's/\.png\.png$/.png/' {} \; || true
-          
-          # 2. Collect assets from all potential locations
-          cp -n android/app/src/main/res/mipmap-*/ic_*.png assets/images/aurore_icons/ 2>/dev/null || true
-          cp -n windows/runner/resources/*.png assets/images/aurore_icons/ 2>/dev/null || true
-          cp -n assets/icons/*.png assets/images/aurore_icons/ 2>/dev/null || true
-          cp -n assets/*.png assets/images/aurore_icons/ 2>/dev/null || true
+          # Move all icons to target location (from any directory)
+          find . -name "*.png" -exec mv -n {} assets/images/aurore_icons/ \; 2>/dev/null || true
 
-      - name: Final Verification
+      - name: Validate Assets
         run: |
-          echo "=== FINAL STRUCTURE ==="
-          ls -laR aurore-FRONTEND/assets
+          cd aurore-FRONTEND
           
-          echo "=== REQUIRED FILES ==="
+          echo "=== FINAL ASSET STRUCTURE ==="
+          ls -la assets/images/aurore_icons
+          
           declare -a required=(
-            "dashboard.png" 
-            "timetable.png"
-            "attendance_present.png"
-            "attendance_absent.png"
-            "grades.png"
-            "profile.png"
-            "settings.png"
-            "logout.png"
-            "communication.png"
-            "analytics.png"
-            "qr_scan.png"
+            dashboard.png timetable.png attendance_present.png
+            attendance_absent.png grades.png profile.png
+            settings.png logout.png communication.png
+            analytics.png qr_scan.png
           )
           
           for file in "${required[@]}"; do
-            if [ -f "aurore-FRONTEND/assets/images/aurore_icons/$file" ]; then
-              echo "✓ Found: $file"
-            else
-              echo "::error::Missing: $file"
+            if [ ! -f "assets/images/aurore_icons/$file" ]; then
+              echo "::error::Missing file: $file"
               exit 1
             fi
           done
 
-      - name: Configure Project
+      - name: Update Pubspec
         working-directory: aurore-FRONTEND
         run: |
-          # Update pubspec.yaml
           sed -i 's/- assets\/.*/- assets\/images\/aurore_icons\//g' pubspec.yaml
           flutter pub get
 
@@ -82,7 +65,7 @@ jobs:
         run: |
           flutter build apk --release --verbose
 
-      - name: Upload Artifacts
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: school-apk
