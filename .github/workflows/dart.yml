@@ -11,16 +11,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - name: Checkout Code (Safe)
+      - name: Checkout Code (Fixed)
         uses: actions/checkout@v4
         with:
           path: 'aurore-FRONTEND'
           fetch-depth: 0
           sparse-checkout: |
-            /*
-            !android/
-            !ios/
-            !windows/
+            *
+            !android
+            !ios
+            !windows
 
       - name: Flutter Environment Setup
         uses: subosito/flutter-action@v2
@@ -39,13 +39,13 @@ jobs:
           # Validate critical structure
           if [ ! -d "aurore_frontend_new/android" ]; then
             echo "::error::Android directory missing after project creation"
-            ls -la
+            ls -laR aurore_frontend_new
             exit 1
           fi
 
       - name: Safe Migration Engine
         run: |
-          # Preserve new Android config while copying code
+          # Copy core files while preserving new Android config
           rsync -av \
             --exclude='android/' \
             --exclude='build/' \
@@ -53,23 +53,26 @@ jobs:
             aurore-FRONTEND/aurore_frontend/ \
             aurore_frontend_new/
 
-          # Fix asset names and structure
+          # Fix asset names and paths
           mkdir -p aurore_frontend_new/assets/images/aurore_icons
-          find aurore_frontend_new/assets -name "*.png.png" -exec rename 's/\.png\.png$/.png/' {} \; || true
+          find aurore_frontend_new/assets -name "*.png.png" -exec rename 's/\.png\.png$/.png/' {} \; 2>/dev/null || true
           cp -n aurore-FRONTEND/aurore_frontend/assets/icons/* aurore_frontend_new/assets/images/aurore_icons/ 2>/dev/null || true
 
-      - name: Gradle Configuration (Kotlin DSL)
+      - name: Gradle Configuration (Validated)
         working-directory: aurore_frontend_new
         run: |
-          # Update AGP version
+          # Update AGP version (Kotlin DSL)
           sed -i 's/^version = "7\./version = "8./' android/build.gradle.kts
           
           # Update Gradle wrapper
           sed -i 's/gradle-.*.zip/gradle-8.4-bin.zip/' gradle/wrapper/gradle-wrapper.properties
           
-          # Add NDK version in correct block
+          # Add NDK version with proper syntax
           sed -i '/android {/a \
               ndkVersion = "27.0.12077973"' android/app/build.gradle.kts
+
+          # Validate Gradle files
+          [ -f "android/app/build.gradle.kts" ] || (echo "::error::Missing build.gradle.kts"; exit 1)
 
       - name: Build APK (Robust)
         working-directory: aurore_frontend_new
@@ -83,18 +86,18 @@ jobs:
             if [ ${PIPESTATUS[0]} -eq 0 ]; then
               break
             fi
-            echo "::warning::Build failed (attempt $i), retrying..."
+            echo "::warning::Build attempt $i failed, retrying..."
             sleep 10
           done
           
-          # Post-build validation
+          # Final APK validation
           if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "::error::APK generation failed. Last 100 lines:"
-            tail -n 100 build.log
+            echo "::error::APK generation failed. Build log:"
+            tail -n 200 build.log
             exit 1
           fi
 
-      - name: Artifact Management
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: school-apk
@@ -104,13 +107,13 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
-      - name: Post-Build Cleanup (Safe)
+      - name: Post-Build Cleanup
         if: always()
         run: |
-          # Safe directory check
+          # Safe cleanup with existence checks
           if [ -d "aurore_frontend_new/build" ]; then
             du -sh aurore_frontend_new/build
           else
-            echo "::warning::Build directory not found for cleanup"
+            echo "::warning::No build directory found for cleanup"
           fi
           df -h
