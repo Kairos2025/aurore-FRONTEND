@@ -10,42 +10,71 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          path: 'aurore-FRONTEND' # Exact repository name
+          path: 'aurore-FRONTEND'
           fetch-depth: 0
 
-      - name: Diagnose Directory Structure
+      - name: Initialize Assets
         run: |
-          echo "=== FULL REPOSITORY STRUCTURE ==="
-          cd aurore-FRONTEND
-          find . -type d -print
-          echo "=== ASSET DIRECTORY CONTENT ==="
-          ls -la assets/* assets/*/* || true
+          # Create base assets directory if missing
+          mkdir -p aurore-FRONTEND/assets
+          
+          # Check existing files
+          echo "=== PRE-STRUCTURE ==="
+          ls -laR aurore-FRONTEND || true
 
-      - name: Fix Asset Configuration
+      - name: Fix File Structure
         run: |
           cd aurore-FRONTEND
           
-          # 1. Fix double file extensions
-          find assets/ -name "*.png.png" -exec rename 's/\.png\.png$/.png/' {} \;
-          
-          # 2. Ensure correct directory structure
+          # Handle all possible asset locations
           mkdir -p assets/images/aurore_icons
-          mv assets/icons/*.png assets/images/aurore_icons/ 2>/dev/null || true
-          mv assets/aurore_icons/*.png assets/images/aurore_icons/ 2>/dev/null || true
+          
+          # 1. Fix double extensions anywhere
+          find . -name "*.png.png" -exec rename 's/\.png\.png$/.png/' {} \; || true
+          
+          # 2. Collect assets from all potential locations
+          cp -n android/app/src/main/res/mipmap-*/ic_*.png assets/images/aurore_icons/ 2>/dev/null || true
+          cp -n windows/runner/resources/*.png assets/images/aurore_icons/ 2>/dev/null || true
+          cp -n assets/icons/*.png assets/images/aurore_icons/ 2>/dev/null || true
+          cp -n assets/*.png assets/images/aurore_icons/ 2>/dev/null || true
 
-      - name: Final Path Validation
+      - name: Final Verification
         run: |
-          echo "=== FINAL ASSET STRUCTURE ==="
-          ls -laR aurore-FRONTEND/assets/
-          [ -f "aurore-FRONTEND/assets/images/aurore_icons/dashboard.png" ] || exit 1
+          echo "=== FINAL STRUCTURE ==="
+          ls -laR aurore-FRONTEND/assets
+          
+          echo "=== REQUIRED FILES ==="
+          declare -a required=(
+            "dashboard.png" 
+            "timetable.png"
+            "attendance_present.png"
+            "attendance_absent.png"
+            "grades.png"
+            "profile.png"
+            "settings.png"
+            "logout.png"
+            "communication.png"
+            "analytics.png"
+            "qr_scan.png"
+          )
+          
+          for file in "${required[@]}"; do
+            if [ -f "aurore-FRONTEND/assets/images/aurore_icons/$file" ]; then
+              echo "✓ Found: $file"
+            else
+              echo "::error::Missing: $file"
+              exit 1
+            fi
+          done
 
-      - name: Update Pubspec
+      - name: Configure Project
         working-directory: aurore-FRONTEND
         run: |
-          sed -i 's/assets\/icons\//assets\/images\/aurore_icons\//g' pubspec.yaml
+          # Update pubspec.yaml
+          sed -i 's/- assets\/.*/- assets\/images\/aurore_icons\//g' pubspec.yaml
           flutter pub get
 
       - name: Build APK
@@ -53,7 +82,7 @@ jobs:
         run: |
           flutter build apk --release --verbose
 
-      - name: Upload APK
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: school-apk
