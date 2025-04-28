@@ -9,66 +9,122 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
-      - name: Checkout Code
+      - name: Checkout Code (Robust)
         uses: actions/checkout@v4
         with:
           path: 'aurore-FRONTEND'
+          fetch-depth: 0
+          sparse-checkout: |
+            /*
+            !android/
+            !ios/
+            !windows/
+            !linux/
+            !macos/
+            !web/
 
-      - name: Set Up Flutter
+      - name: Flutter Environment Setup
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.29.3'
           channel: 'stable'
           cache: true
+          cache-key: flutter-v3.29.3
+          cache-path: ${{ runner.temp }}/flutter_cache
 
       - name: Configure Environment
         run: |
           flutter config --no-analytics
           flutter doctor -v
+          sudo apt-get install -y rename  # For batch file renaming
 
-      - name: Create Fresh Project
+      - name: Project Sanitization
         run: |
           rm -rf aurore_frontend_new
           flutter create --platforms android --org com.auroreschool aurore_frontend_new
-          sleep 5  # Add delay for file system sync
-          
-          # Validate critical files
-          if [ ! -f "aurore_frontend_new/android/app/build.gradle" ]; then
-            echo "::error::Critical file missing: android/app/build.gradle"
+          sleep 5  # Filesystem synchronization
+
+          # Validate critical files using Kotlin DSL
+          if [ ! -f "aurore_frontend_new/android/app/build.gradle.kts" ]; then
+            echo "::error::Missing critical file: android/app/build.gradle.kts"
             ls -laR aurore_frontend_new/android
             exit 1
           fi
 
-      - name: Migrate Project Files
+      - name: Safe Migration Engine
         run: |
-          # Copy only necessary components
-          cp -r aurore-FRONTEND/aurore_frontend/lib aurore_frontend_new/
-          cp aurore-FRONTEND/aurore_frontend/pubspec.yaml aurore_frontend_new/
-          cp -r aurore-FRONTEND/aurore_frontend/assets aurore_frontend_new/
+          # Preserve new Android configuration
+          rsync -av --exclude='android/' \
+            aurore-FRONTEND/aurore_frontend/ \
+            aurore_frontend_new/
 
-      - name: Update Gradle Configuration
+          # Fix asset naming convention
+          find aurore_frontend_new/assets -name "*.png.png" -exec rename 's/\.png\.png$/.png/' {} \;
+
+          # Ensure asset directory structure
+          mkdir -p aurore_frontend_new/assets/images/aurore_icons
+          cp -n aurore-FRONTEND/aurore_frontend/assets/icons/* aurore_frontend_new/assets/images/aurore_icons/ || true
+
+      - name: Gradle Configuration (Kotlin DSL)
         working-directory: aurore_frontend_new
         run: |
-          # Update build.gradle (Kotlin DSL)
-          sed -i 's/com.android.application\" version \".*\"/com.android.application\" version \"8.4.0\"/' android/build.gradle.kts
+          # Update Android Gradle Plugin
+          sed -i 's/^version = "7\./version = "8./' android/build.gradle.kts
           
-          # Update gradle-wrapper.properties
+          # Update Gradle wrapper
           sed -i 's/gradle-.*.zip/gradle-8.4-bin.zip/' gradle/wrapper/gradle-wrapper.properties
           
-          # Add NDK version
-          echo "ndkVersion = \"27.0.12077973\"" >> android/app/build.gradle.kts
+          # Add NDK version with Kotlin DSL syntax
+          echo -e "\nandroid {\n    ndkVersion = \"27.0.12077973\"\n}" >> android/app/build.gradle.kts
 
-      - name: Build APK
+          # Validate Gradle configuration
+          ./gradlew --version || (echo "::error::Gradle configuration invalid"; exit 1)
+
+      - name: Dependency Resolution
         working-directory: aurore_frontend_new
         run: |
           flutter clean
-          flutter pub get
-          flutter build apk --release --verbose
+          for i in {1..3}; do
+            flutter pub get && exit 0
+            echo "::warning::Dependency resolution failed (attempt $i), retrying..."
+            sleep 5
+          done
+          exit 1
 
-      - name: Upload Artifact
+      - name: Build APK (Robust)
+        working-directory: aurore_frontend_new
+        run: |
+          set -eo pipefail
+          for i in {1..3}; do
+            flutter build apk --release --no-shrink --verbose 2>&1 | tee build.log
+            if [ ${PIPESTATUS[0]} -eq 0 ]; then
+              break
+            fi
+            echo "::warning::Build failed (attempt $i), retrying..."
+            sleep 10
+          done
+          
+          # Post-build validation
+          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
+            echo "::error::APK generation failed. Last 100 lines:"
+            tail -n 100 build.log
+            exit 1
+          fi
+
+      - name: Artifact Management
         uses: actions/upload-artifact@v4
         with:
           name: school-apk
-          path: aurore_frontend_new/build/app/outputs/flutter-apk/app-release.apk
+          path: |
+            aurore_frontend_new/build/app/outputs/flutter-apk/*.apk
+            aurore_frontend_new/build.log
           retention-days: 7
+          if-no-files-found: error
+
+      - name: Post-Build Cleanup
+        if: always()
+        run: |
+          du -sh aurore_frontend_new/build
+          df -h
