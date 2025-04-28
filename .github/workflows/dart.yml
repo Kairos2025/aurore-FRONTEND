@@ -16,36 +16,40 @@ jobs:
           path: 'aurore-FRONTEND'
           fetch-depth: 0
 
-      - name: Prepare Assets
+      - name: Fix Asset Paths
         run: |
-          # Create directory structure
-          mkdir -p aurore-FRONTEND/assets/images/aurore_icons
+          # Create target directory
+          mkdir -p aurore-FRONTEND/aurore_frontend/assets/images/aurore_icons
           
-          # Copy files with double extensions
-          cp aurore-FRONTEND/aurore_icons/*.png.png aurore-FRONTEND/assets/images/aurore_icons/
+          # Copy files from ACTUAL location visible in screenshot
+          cp aurore-FRONTEND/aurore_frontend/assets/images/aurore_icons/*.png.png \
+             aurore-FRONTEND/aurore_frontend/assets/images/aurore_icons/
 
       - name: Update Pubspec
-        working-directory: aurore-FRONTEND
+        working-directory: aurore-FRONTEND/aurore_frontend
         run: |
-          # Update pubspec.yaml with actual paths
+          # Update pubspec.yaml with EXACT paths from screenshot
           echo "flutter:" > pubspec.yaml
           echo "  assets:" >> pubspec.yaml
-          for file in assets/images/aurore_icons/*.png.png; do
-            echo "    - $file" >> pubspec.yaml
-          done
+          echo "    - assets/images/aurore_icons/analytics.png.png" >> pubspec.yaml
+          echo "    - assets/images/aurore_icons/attendance_absent.png.png" >> pubspec.yaml
+          echo "    - assets/images/aurore_icons/attendance_present.png.png" >> pubspec.yaml
+          echo "    - assets/images/aurore_icons/communication.png.png" >> pubspec.yaml
+          echo "    - assets/images/aurore_icons/dashboard.png.png" >> pubspec.yaml
+          echo "    - assets/images/aurore_icons/grades.png.png" >> pubspec.yaml
+          echo "    - assets/images/aurore_icons/logout.png.png" >> pubspec.yaml
+          echo "    - assets/images/aurore_icons/profile.png.png" >> pubspec.yaml
           
-          # Verify pubspec content
-          cat pubspec.yaml
           flutter pub get
 
       - name: Build APK
-        working-directory: aurore-FRONTEND
+        working-directory: aurore-FRONTEND/aurore_frontend
         run: |
-          flutter build apk --release --verbose
+          flutter build apk --release --no-shrink --verbose
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: school-apk
-          path: aurore-FRONTEND/build/app/outputs/flutter-apk/app-release.apk
+          path: aurore-FRONTEND/aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 7
