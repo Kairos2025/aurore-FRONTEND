@@ -17,10 +17,11 @@ jobs:
           path: 'aurore-FRONTEND'
           fetch-depth: 0
           sparse-checkout: |
-            *
-            !android
-            !ios
-            !windows
+            /*
+            !android/
+            !ios/
+            !windows/
+          sparse-checkout-cone-mode: false
 
       - name: Flutter Environment Setup
         uses: subosito/flutter-action@v2
@@ -28,92 +29,30 @@ jobs:
           flutter-version: '3.29.3'
           channel: 'stable'
           cache: true
-          cache-key: flutter-v3.29.3
 
       - name: Project Sanitization
         run: |
           rm -rf aurore_frontend_new
           flutter create --platforms android --org com.auroreschool aurore_frontend_new
-          sleep 3
-          
-          # Validate critical structure
-          if [ ! -d "aurore_frontend_new/android" ]; then
-            echo "::error::Android directory missing after project creation"
-            ls -laR aurore_frontend_new
-            exit 1
-          fi
+          [ -d "aurore_frontend_new/android" ] || (echo "::error::Android dir missing"; exit 1)
 
-      - name: Safe Migration Engine
+      - name: Safe Migration
         run: |
-          # Copy core files while preserving new Android config
           rsync -av \
             --exclude='android/' \
             --exclude='build/' \
-            --exclude='.dart_tool/' \
             aurore-FRONTEND/aurore_frontend/ \
             aurore_frontend_new/
 
-          # Fix asset names and paths
-          mkdir -p aurore_frontend_new/assets/images/aurore_icons
-          find aurore_frontend_new/assets -name "*.png.png" -exec rename 's/\.png\.png$/.png/' {} \; 2>/dev/null || true
-          cp -n aurore-FRONTEND/aurore_frontend/assets/icons/* aurore_frontend_new/assets/images/aurore_icons/ 2>/dev/null || true
-
-      - name: Gradle Configuration (Validated)
+      - name: Build & Deploy
         working-directory: aurore_frontend_new
         run: |
-          # Update AGP version (Kotlin DSL)
-          sed -i 's/^version = "7\./version = "8./' android/build.gradle.kts
-          
-          # Update Gradle wrapper
-          sed -i 's/gradle-.*.zip/gradle-8.4-bin.zip/' gradle/wrapper/gradle-wrapper.properties
-          
-          # Add NDK version with proper syntax
-          sed -i '/android {/a \
-              ndkVersion = "27.0.12077973"' android/app/build.gradle.kts
-
-          # Validate Gradle files
-          [ -f "android/app/build.gradle.kts" ] || (echo "::error::Missing build.gradle.kts"; exit 1)
-
-      - name: Build APK (Robust)
-        working-directory: aurore_frontend_new
-        run: |
-          set -eo pipefail
           flutter clean
           flutter pub get
-          
-          for i in {1..3}; do
-            flutter build apk --release --no-shrink --verbose 2>&1 | tee build.log
-            if [ ${PIPESTATUS[0]} -eq 0 ]; then
-              break
-            fi
-            echo "::warning::Build attempt $i failed, retrying..."
-            sleep 10
-          done
-          
-          # Final APK validation
-          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "::error::APK generation failed. Build log:"
-            tail -n 200 build.log
-            exit 1
-          fi
+          flutter build apk --release --verbose
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: school-apk
-          path: |
-            aurore_frontend_new/build/app/outputs/flutter-apk/*.apk
-            aurore_frontend_new/build.log
-          retention-days: 7
-          if-no-files-found: error
-
-      - name: Post-Build Cleanup
-        if: always()
-        run: |
-          # Safe cleanup with existence checks
-          if [ -d "aurore_frontend_new/build" ]; then
-            du -sh aurore_frontend_new/build
-          else
-            echo "::warning::No build directory found for cleanup"
-          fi
-          df -h
+          path: aurore_frontend_new/build/app/outputs/flutter-apk/app-release.apk
