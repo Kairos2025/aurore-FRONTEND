@@ -23,48 +23,36 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Configure Flutter
+      - name: Create Fresh Project
         run: |
-          flutter config --no-analytics
-          flutter doctor -v
+          # Create new project with modern Gradle config
+          flutter create --platforms android --org com.auroreschool aurore_frontend_new
+          
+          # Copy essential files
+          cp -r aurore-FRONTEND/aurore_frontend/lib aurore_frontend_new/
+          cp aurore-FRONTEND/aurore_frontend/pubspec.yaml aurore_frontend_new/
+          cp -r aurore-FRONTEND/aurore_frontend/assets aurore_frontend_new/
 
-      - name: Update Pubspec
-        working-directory: aurore-FRONTEND/aurore_frontend
+      - name: Update Gradle Configuration
+        working-directory: aurore_frontend_new
         run: |
-          cat <<EOF > pubspec.yaml
-          name: aurore_frontend
-          description: Aurore School App
-          version: 1.0.0
+          # Update Android build configuration
+          sed -i 's/gradle:7.5.0/gradle:8.4/' android/build.gradle
+          sed -i 's/gradle-7.5-all.zip/gradle-8.4-bin.zip/' android/gradle/wrapper/gradle-wrapper.properties
 
-          environment:
-            sdk: '>=3.7.0 <4.0.0'
-            flutter: '>=3.29.3'
-
-          flutter:
-            assets:
-              - assets/images/aurore_icons/analytics.png.png
-              - assets/images/aurore_icons/attendance_absent.png.png
-              - assets/images/aurore_icons/attendance_present.png.png
-              - assets/images/aurore_icons/communication.png.png
-              - assets/images/aurore_icons/dashboard.png.png
-              - assets/images/aurore_icons/grades.png.png
-              - assets/images/aurore_icons/logout.png.png
-              - assets/images/aurore_icons/profile.png.png
-              - assets/images/aurore_icons/qr_scan.png.png
-              - assets/images/aurore_icons/settings.png.png
-              - assets/images/aurore_icons/timetable.png.png
-          EOF
-
-          flutter pub get
+          # Add NDK version
+          echo "ndkVersion = '27.0.12077973'" >> android/app/build.gradle
 
       - name: Build APK
-        working-directory: aurore-FRONTEND/aurore_frontend
+        working-directory: aurore_frontend_new
         run: |
-          flutter build apk --release --no-shrink --verbose
+          flutter clean
+          flutter pub get
+          flutter build apk --release --verbose
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: school-apk
-          path: aurore-FRONTEND/aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
+          path: aurore_frontend_new/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 7
