@@ -12,8 +12,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Set up Java 17
         uses: actions/setup-java@v3
@@ -48,38 +46,41 @@ jobs:
           [ -d "aurore_frontend/fonts" ] && cp -r aurore_frontend/fonts aurore_frontend_new/
           [ -d "aurore_frontend/test" ] && cp -r aurore_frontend/test aurore_frontend_new/
 
-      - name: Configure Gradle properties
-        working-directory: aurore_frontend_new
+      - name: Configure Android project
+        working-directory: aurore_frontend_new/android
         run: |
-          # Update Gradle wrapper first
-          cd android
+          # Update Gradle wrapper to 8.4
           ./gradlew wrapper --gradle-version=8.4 --distribution-type=bin
-
-          # Update build configuration
-          sed -i 's/com.android.tools.build:gradle:.*/com.android.tools.build:gradle:8.1.4/' build.gradle
-          sed -i 's/gradle:.*/gradle:8.4\"/' gradle/wrapper/gradle-wrapper.properties
+          
+          # Update build.gradle (Groovy DSL)
+          sed -i "s/com.android.tools.build:gradle:.*/com.android.tools.build:gradle:8.1.4/" build.gradle
+          
+          # Update gradle-wrapper.properties
+          sed -i "s/gradle-.*.zip/gradle-8.4-bin.zip/" gradle/wrapper/gradle-wrapper.properties
 
           # Add essential properties
-          cat >> gradle.properties <<EOL
-          android.useAndroidX=true
-          android.enableJetifier=true
-          org.gradle.jvmargs=-Xmx4096M
-          EOL
+          echo -e "\nandroid.useAndroidX=true" >> gradle.properties
+          echo "android.enableJetifier=true" >> gradle.properties
+          echo "org.gradle.jvmargs=-Xmx4096M" >> gradle.properties
 
-      - name: Update Android manifest
+      - name: Update app build configuration
         working-directory: aurore_frontend_new
         run: |
-          # Ensure minSdkVersion is set
+          # Ensure minSdkVersion in app/build.gradle
           sed -i '/minSdkVersion flutter.minSdkVersion/a\
                   minSdkVersion 21' android/app/build.gradle
 
-      - name: Fix dependencies
+          # Update compileSdkVersion and targetSdkVersion
+          sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 33/' android/app/build.gradle
+          sed -i 's/targetSdkVersion flutter.targetSdkVersion/targetSdkVersion 33/' android/app/build.gradle
+
+      - name: Resolve dependencies
         working-directory: aurore_frontend_new
         run: |
           flutter pub get
           flutter pub upgrade
 
-      - name: Build APK with retries
+      - name: Build APK
         working-directory: aurore_frontend_new
         run: |
           set -o pipefail
