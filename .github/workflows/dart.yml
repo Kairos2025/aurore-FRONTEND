@@ -57,11 +57,13 @@ jobs:
       - name: Configure Android Build
         working-directory: aurore_app
         run: |
-          # Update to Gradle 8.9 and compatible AGP
-          sed -i 's/^version = "7\./version = "8.4.0"/' android/build.gradle.kts  # Android Gradle Plugin
-          sed -i 's|distributionUrl=.*|distributionUrl=https\://services.gradle.org/distributions/gradle-8.9-bin.zip|' android/gradle/wrapper/gradle-wrapper.properties
+          # Force-update AGP to 8.4.0 (critical fix)
+          sed -i 's/^version = ".*"/version = "8.4.0"/' android/build.gradle.kts
           
-          # NDK configuration
+          # Update to Gradle 8.9 (required by AGP)
+          sed -i 's|distributionUrl=.*|distributionUrl=https\://services.gradle.org/distributions/gradle-8.9-all.zip|' android/gradle/wrapper/gradle-wrapper.properties
+          
+          # Add NDK version
           sed -i '/android {/a \
               ndkVersion.set("27.0.12077973")' android/app/build.gradle.kts
 
@@ -71,21 +73,11 @@ jobs:
           set -eo pipefail
           flutter clean
           flutter pub get
-          
-          flutter build apk --release \
-            --no-shrink \
-            --no-tree-shake-icons \
-            --dart-define=CI_BUILD=true \
-            --verbose 2>&1 | tee build.log || true
-          
-          mkdir -p build-artifacts
-          [ -f "build/app/outputs/flutter-apk/app-release.apk" ] && cp build/app/outputs/flutter-apk/app-release.apk build-artifacts/
-          cp build.log build-artifacts/
+          flutter build apk --release --verbose --no-shrink
 
-      - name: Upload Artifacts
-        if: always()
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: build-results
-          path: aurore_app/build-artifacts/*
+          name: school-apk
+          path: aurore_app/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 7
