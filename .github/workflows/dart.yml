@@ -32,7 +32,6 @@ jobs:
         with:
           sdk-platform: '34'
           ndk-version: '27.0.12077973'
-          cmake-version: '3.22.1'
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -42,66 +41,51 @@ jobs:
 
       - name: Create Fresh Project
         run: |
-          # Generate new project with modern template
           flutter create -t app \
             --org $PACKAGE_NAME \
             --platforms android \
             fresh_project
 
-          # Migrate critical files
           rsync -av --delete \
             --exclude='android/' \
             --exclude='build/' \
             --exclude='.dart_tool/' \
-            --exclude='.git/' \
             original_code/$PROJECT_DIR/ fresh_project/
 
-          # Preserve custom gradle files if exist
-          if [ -f "original_code/$PROJECT_DIR/android/build.gradle" ]; then
-            cp original_code/$PROJECT_DIR/android/build.gradle fresh_project/android/
-          fi
-          if [ -f "original_code/$PROJECT_DIR/android/app/build.gradle" ]; then
-            cp original_code/$PROJECT_DIR/android/app/build.gradle fresh_project/android/app/
-          fi
-
-      - name: Force Dependency Resolution
+      - name: Resolve Dependencies
         working-directory: fresh_project
         run: |
-          # Update dependencies aggressively
-          flutter pub upgrade --major-versions --force
-          flutter pub outdated
+          # First pass upgrade
+          flutter pub upgrade --major-versions
           
-          # Lock specific problematic packages
-          sed -i '/vibration:/c\  vibration: 3.1.3' pubspec.yaml
-          sed -i '/vibration_platform_interface:/c\  vibration_platform_interface: 0.1.0' pubspec.yaml
+          # Manual version overrides for problematic packages
+          sed -i '/^  vibration:/c\  vibration: ^3.1.3' pubspec.yaml
+          sed -i '/^  vibration_platform_interface:/c\  vibration_platform_interface: ^0.1.0' pubspec.yaml
+          sed -i '/^  vm_service:/c\  vm_service: ^15.0.0' pubspec.yaml
+          
+          # Final dependency resolution
           flutter pub get
 
       - name: Modernize Gradle
         working-directory: fresh_project
         run: |
-          # Update Gradle to 8.9
-          sed -i 's/gradle-8.7-all.zip/gradle-8.9-all.zip/' android/gradle/wrapper/gradle-wrapper.properties
+          # Update Gradle wrapper
+          ./gradlew wrapper --gradle-version 8.9 --distribution-type all
           
-          # Update AGP to 8.4.0
-          sed -i 's/com.android.application:8.1.2/com.android.application:8.4.0/' android/app/build.gradle
+          # Update Android Gradle Plugin
+          sed -i 's/id "com.android.application" version ".*"/id "com.android.application" version "8.4.0"/' android/app/build.gradle
           
           # Add NDK version
-          echo "android.ndkVersion=$NDK_VERSION" >> android/gradle.properties
+          echo "android.ndkVersion=27.0.12077973" >> android/gradle.properties
 
       - name: Build APK
         working-directory: fresh_project
         run: |
           flutter clean
-          flutter pub get
-          flutter build apk --release --verbose \
-            --dart-define=APP_NAME="AURORE SCHOOL" \
-            --split-debug-info=build/debug-info
+          flutter build apk --release --verbose
 
-      - name: Upload Artifacts
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: school-apk
-          path: |
-            fresh_project/build/app/outputs/flutter-apk/app-release.apk
-            fresh_project/build/debug-info
-          retention-days: 7
+          path: fresh_project/build/app/outputs/flutter-apk/app-release.apk
