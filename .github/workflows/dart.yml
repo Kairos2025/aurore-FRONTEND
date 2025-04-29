@@ -41,36 +41,40 @@ jobs:
 
       - name: Regenerate Project Structure
         run: |
+          # Remove existing project
           rm -rf fresh_project
           
-          # Create new project with full Android structure
+          # Create new project with Android structure
           flutter create -t app \
             --org $PACKAGE_NAME \
             --platforms android \
             fresh_project
 
+          # Verify initial Android structure
+          [ -f "fresh_project/android/app/build.gradle" ] || { echo "Android template missing!"; exit 1; }
+
           # Merge code while preserving new Android structure
           rsync -av \
-            --exclude='android/' \
+            --exclude='/android/' \
             --exclude='build/' \
             --exclude='.dart_tool/' \
+            --exclude='.git/' \
             source/$PROJECT_DIR/ fresh_project/
+
+          # Final structure verification
+          [ -f "fresh_project/android/app/build.gradle" ] || { echo "Android files corrupted!"; exit 1; }
 
       - name: Modernize Gradle
         working-directory: fresh_project
         run: |
-          # Verify Android files exist
-          [ -f "android/app/build.gradle" ] || { echo "Android app build.gradle missing!"; exit 1; }
-          
-          # Update Gradle wrapper using direct path
+          # Update Gradle wrapper
           ./android/gradlew wrapper --gradle-version 8.10.2 --distribution-type all -p android
           
-          # Update AGP version with backup file creation
-          sed -i.bak 's/id "com.android.application" version ".*"/id "com.android.application" version "8.4.0"/' android/app/build.gradle
+          # Update AGP version using absolute path
+          sed -i 's/id "com.android.application" version ".*"/id "com.android.application" version "8.4.0"/' $PWD/android/app/build.gradle
           
-          # Verify sed changes
-          diff android/app/build.gradle android/app/build.gradle.bak || true
-          rm android/app/build.gradle.bak
+          # Verify file modifications
+          [ -f "android/app/build.gradle" ] || { echo "Build.gradle missing after update!"; exit 1; }
 
       - name: Build APK
         working-directory: fresh_project
