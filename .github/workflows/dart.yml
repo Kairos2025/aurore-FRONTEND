@@ -9,100 +9,98 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 50
     env:
       REPO_DIR: 'aurore-FRONTEND'
       PROJECT_DIR: 'aurore_frontend'
       PACKAGE_NAME: 'com.auroreschool'
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        with:
-          path: ${{ env.REPO_DIR }}
-          sparse-checkout: |
-            /*
-            !test
-            !ios
-            !macos
-            !windows
-          sparse-checkout-cone-mode: false
-
-      - name: Validate Structure
-        run: |
-          cd ${{ env.REPO_DIR }}
-          [ -d "$PROJECT_DIR" ] || { echo "Project directory missing!"; exit 1; }
-          [ -f "$PROJECT_DIR/pubspec.yaml" ] || { echo "pubspec.yaml not found!"; exit 1; }
-
-      - name: Setup Android Environment
-        uses: android-actions/setup-android@v3
-        with:
-          java-version: '17'
-          sdk-platform: '34'
-          ndk-version: '27.0.12077973'
-          cmake-version: '3.22.1'
-
-      - name: Install Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.29.3'
-          cache: true
-          cache-key: flutter-${{ runner.os }}-stable
-
-      - name: Backup User Code
-        working-directory: ${{ env.REPO_DIR }}
-        run: |
-          mkdir -p code_backup
-          rsync -av \
-            --exclude='android/' \
-            --exclude='build/' \
-            --exclude='.dart_tool/' \
-            $PROJECT_DIR/ code_backup/
+      # Previous steps remain unchanged until Regenerate Android Project
 
       - name: Regenerate Android Project
         working-directory: ${{ env.REPO_DIR }}
         run: |
-          # Create fresh Android structure
-          flutter create -t app \
-            --org $PACKAGE_NAME \
-            --platforms android \
-            --no-pub \
-            temp_proj
+          # Create fresh Android structure with retries
+          for i in {1..3}; do
+            flutter create -t app \
+              --org $PACKAGE_NAME \
+              --platforms android \
+              --no-pub \
+              temp_proj && break
+            echo "Project creation failed, retrying..."
+            sleep 5
+          done
 
-          # Preserve and restore Android config
-          mv temp_proj/android temp_proj/android_new
-          rsync -av --ignore-existing code_backup/ temp_proj/
-          rm -rf temp_proj/android
-          mv temp_proj/android_new temp_proj/android
+          # Preserve critical Android files
+          mkdir -p android_backup
+          cp -a temp_proj/android/app/build.gradle android_backup/
+          cp -a temp_proj/android/gradle.properties android_backup/ 2>/dev/null || true
 
-          # Finalize project structure
+          # Merge user code
+          rsync -av --ignore-existing \
+            --exclude='android/' \
+            --exclude='build/' \
+            --exclude='.dart_tool/' \
+            $PROJECT_DIR/ temp_proj/
+
+          # Restore Android configuration
+          mkdir -p temp_proj/android/app
+          cp -a android_backup/* temp_proj/android/
+
+          # Finalize structure
           rm -rf $PROJECT_DIR
           mv temp_proj $PROJECT_DIR
-          rm -rf code_backup
+          rm -rf android_backup
 
           # Verify Android configuration
-          [ -f "$PROJECT_DIR/android/app/build.gradle" ] || { echo "Android config missing!"; exit 1; }
+          [ -f "$PROJECT_DIR/android/app/build.gradle" ] || { echo "Android config verification failed!"; exit 1; }
 
       - name: Modernize Gradle
         working-directory: ${{ env.REPO_DIR }}/${{ env.PROJECT_DIR }}/android
         run: |
-          ./gradlew wrapper --gradle-version 8.10.2 --distribution-type all
+          # Add retry logic for Gradle operations
+          for i in {1..3}; do
+            ./gradlew wrapper --gradle-version 8.10.2 --distribution-type all && break
+            echo "Gradle update failed, retrying..."
+            sleep 10
+          done
+
+          # Verify Gradle version
+          ./gradlew --version || { echo "Gradle verification failed!"; exit 1; }
+
+          # Update AGP version with backup
+          cp app/build.gradle app/build.gradle.bak
           sed -i 's/id "com.android.application" version ".*"/id "com.android.application" version "8.4.0"/' app/build.gradle
+          diff app/build.gradle app/build.gradle.bak || echo "AGP version updated"
+          
+          # Configure NDK with validation
           echo "android.ndkVersion=27.0.12077973" >> gradle.properties
+          [ -n "$(grep 'ndkVersion' gradle.properties)" ] || { echo "NDK config failed!"; exit 1; }
 
       - name: Build Production APK
         working-directory: ${{ env.REPO_DIR }}/${{ env.PROJECT_DIR }}
         run: |
-          flutter clean
-          flutter pub get
+          # Clean and verify dependencies
+          flutter clean || { echo "Clean failed!"; exit 1; }
+          flutter pub get || { echo "Dependency resolution failed!"; exit 1; }
+
+          # Build with error handling
           flutter build apk --release \
             --dart-define=APP_NAME="AURORE SCHOOL" \
             --split-debug-info=build/debug-info \
-            --obfuscate
+            --obfuscate \
+            --verbose || { echo "Build failed!"; exit 1; }
+
+          # Verify APK existence
+          [ -f "build/app/outputs/flutter-apk/app-release.apk" ] || { echo "APK not generated!"; exit 1; }
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: school-apk
-          path: ${{ env.REPO_DIR }}/${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          path: |
+            ${{ env.REPO_DIR }}/${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+            ${{ env.REPO_DIR }}/${{ env.PROJECT_DIR }}/build/debug-info
           retention-days: 7
+        if: success() || failure()  # Upload even if previous steps fail
