@@ -9,49 +9,54 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     env:
-      FLUTTER_CHANNEL: stable
       FLUTTER_VERSION: '3.29.3'
-      PROJECT_NAME: 'aurore_frontend'  # Valid Dart package name
+      PROJECT_DIR: 'aurore_frontend'  # Matches your folder name
+      PACKAGE_NAME: 'com.auroreschool'
 
     steps:
-      - name: Checkout Code
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          path: ${{ env.PROJECT_NAME }}
+          path: aurore-FRONTEND
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
           sdk-platform: '34'
+          ndk-version: '27.0.12077973'
+          cmake-version: '3.22.1'
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
 
-      - name: Initialize Project
+      - name: Configure Project
+        working-directory: aurore-FRONTEND/${{ env.PROJECT_DIR }}
         run: |
-          # Create valid project structure
-          flutter create \
-            --project-name $PROJECT_NAME \
-            --org com.auroreschool \
-            --platforms android \
-            ./$PROJECT_NAME
-
-          # Copy existing code
-          rsync -av --exclude='android/' --exclude='.git/' $PROJECT_NAME/ $PROJECT_NAME/
+          # Ensure valid Dart package name
+          sed -i "s/name: .*/name: aurore_school/" pubspec.yaml
+          
+          # Update Android package name
+          sed -i "s/applicationId \".*\"/applicationId \"$PACKAGE_NAME\"/" android/app/build.gradle
 
       - name: Build APK
-        working-directory: ${{ env.PROJECT_NAME }}
+        working-directory: aurore-FRONTEND/${{ env.PROJECT_DIR }}
         run: |
           flutter pub get
-          flutter build apk --release
+          flutter build apk --release \
+            --dart-define=APP_NAME="AURORE SCHOOL" \
+            --obfuscate \
+            --split-debug-info=build/debug-info
 
-      - name: Upload APK
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: school-apk
-          path: ${{ env.PROJECT_NAME }}/build/app/outputs/flutter-apk/app-release.apk
+          path: |
+            aurore-FRONTEND/${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+            aurore-FRONTEND/${{ env.PROJECT_DIR }}/build/debug-info
+          retention-days: 7
