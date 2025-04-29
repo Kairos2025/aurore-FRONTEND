@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
     env:
       FLUTTER_VERSION: '3.29.3'
       PACKAGE_NAME: 'com.auroreschool'
@@ -19,7 +19,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          path: original_code
+          path: source
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -32,6 +32,7 @@ jobs:
         with:
           sdk-platform: '34'
           ndk-version: '27.0.12077973'
+          cmake-version: '3.22.1'
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -39,49 +40,43 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
-      - name: Create Fresh Project
+      - name: Regenerate Project Structure
         run: |
+          # Remove existing directories
+          rm -rf fresh_project
+          
+          # Create new project with latest template
           flutter create -t app \
             --org $PACKAGE_NAME \
             --platforms android \
+            --project-name aurore_school \
             fresh_project
 
-          rsync -av --delete \
+          # Merge code while preserving new Android structure
+          rsync -av \
             --exclude='android/' \
             --exclude='build/' \
             --exclude='.dart_tool/' \
-            original_code/$PROJECT_DIR/ fresh_project/
+            --exclude='.git/' \
+            source/$PROJECT_DIR/ fresh_project/
 
-      - name: Resolve Dependencies
+      - name: Verify Gradle Setup
         working-directory: fresh_project
         run: |
-          # First pass upgrade
-          flutter pub upgrade --major-versions
-          
-          # Manual version overrides for problematic packages
-          sed -i '/^  vibration:/c\  vibration: ^3.1.3' pubspec.yaml
-          sed -i '/^  vibration_platform_interface:/c\  vibration_platform_interface: ^0.1.0' pubspec.yaml
-          sed -i '/^  vm_service:/c\  vm_service: ^15.0.0' pubspec.yaml
-          
-          # Final dependency resolution
-          flutter pub get
+          [ -f "android/gradlew" ] || { echo "Gradle wrapper missing!"; exit 1; }
+          [ -d "android/app" ] || { echo "Android app directory missing!"; exit 1; }
 
       - name: Modernize Gradle
-        working-directory: fresh_project
+        working-directory: fresh_project/android
         run: |
-          # Update Gradle wrapper
           ./gradlew wrapper --gradle-version 8.9 --distribution-type all
-          
-          # Update Android Gradle Plugin
-          sed -i 's/id "com.android.application" version ".*"/id "com.android.application" version "8.4.0"/' android/app/build.gradle
-          
-          # Add NDK version
-          echo "android.ndkVersion=27.0.12077973" >> android/gradle.properties
+          sed -i 's/com.android.application:8.1.2/com.android.application:8.4.0/' app/build.gradle
 
       - name: Build APK
         working-directory: fresh_project
         run: |
           flutter clean
+          flutter pub get
           flutter build apk --release --verbose
 
       - name: Upload Artifact
