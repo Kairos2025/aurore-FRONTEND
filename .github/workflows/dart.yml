@@ -14,11 +14,9 @@ jobs:
       REPO_DIR: 'aurore-FRONTEND'
       PROJECT_DIR: 'aurore_frontend'
       PACKAGE_NAME: 'com.auroreschool'
-      GRADLE_VERSION: '8.10.2'
-      AGP_VERSION: '8.4.0'
 
     steps:
-      - name: Checkout Code (Android Only)
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
           path: ${{ env.REPO_DIR }}
@@ -36,7 +34,7 @@ jobs:
           [ -d "$PROJECT_DIR" ] || { echo "Project directory missing!"; exit 1; }
           [ -f "$PROJECT_DIR/pubspec.yaml" ] || { echo "pubspec.yaml not found!"; exit 1; }
 
-      - name: Setup Java & Android
+      - name: Setup Android Environment
         uses: android-actions/setup-android@v3
         with:
           java-version: '17'
@@ -49,13 +47,13 @@ jobs:
         with:
           flutter-version: '3.29.3'
           cache: true
-          cache-key: flutter-${{ runner.os }}-${{ env.GRADLE_VERSION }}
+          cache-key: flutter-${{ runner.os }}-stable
 
       - name: Backup User Code
         working-directory: ${{ env.REPO_DIR }}
         run: |
           mkdir -p code_backup
-          rsync -av --delete \
+          rsync -av \
             --exclude='android/' \
             --exclude='build/' \
             --exclude='.dart_tool/' \
@@ -71,59 +69,40 @@ jobs:
             --no-pub \
             temp_proj
 
-          # Merge user code safely
-          rsync -av --ignore-existing \
-            code_backup/ temp_proj/
+          # Preserve and restore Android config
+          mv temp_proj/android temp_proj/android_new
+          rsync -av --ignore-existing code_backup/ temp_proj/
+          rm -rf temp_proj/android
+          mv temp_proj/android_new temp_proj/android
 
           # Finalize project structure
           rm -rf $PROJECT_DIR
           mv temp_proj $PROJECT_DIR
           rm -rf code_backup
 
-          # Verify critical files
+          # Verify Android configuration
           [ -f "$PROJECT_DIR/android/app/build.gradle" ] || { echo "Android config missing!"; exit 1; }
 
       - name: Modernize Gradle
         working-directory: ${{ env.REPO_DIR }}/${{ env.PROJECT_DIR }}/android
         run: |
-          # Update Gradle wrapper
-          ./gradlew wrapper --gradle-version $GRADLE_VERSION --distribution-type all
-          
-          # Update Android Gradle Plugin
-          sed -i "s/id 'com.android.application' version '.*'/id 'com.android.application' version '$AGP_VERSION'/" app/build.gradle
-          
-          # Configure NDK
-          echo "android.ndkVersion=\"27.0.12077973\"" >> gradle.properties
-
-      - name: Resolve Dependencies
-        working-directory: ${{ env.REPO_DIR }}/${{ env.PROJECT_DIR }}
-        run: |
-          flutter pub upgrade --major-versions
-          
-          # Force compatible versions
-          sed -i '/vibration:/c\  vibration: 3.1.3' pubspec.yaml
-          sed -i '/flutter_secure_storage/c\  flutter_secure_storage: ^7.0.0' pubspec.yaml
-          flutter pub get
+          ./gradlew wrapper --gradle-version 8.10.2 --distribution-type all
+          sed -i 's/id "com.android.application" version ".*"/id "com.android.application" version "8.4.0"/' app/build.gradle
+          echo "android.ndkVersion=27.0.12077973" >> gradle.properties
 
       - name: Build Production APK
         working-directory: ${{ env.REPO_DIR }}/${{ env.PROJECT_DIR }}
         run: |
           flutter clean
+          flutter pub get
           flutter build apk --release \
             --dart-define=APP_NAME="AURORE SCHOOL" \
             --split-debug-info=build/debug-info \
             --obfuscate
 
-      - name: Verify APK Artifact
-        run: |
-          cd ${{ env.REPO_DIR }}/${{ env.PROJECT_DIR }}
-          [ -f "build/app/outputs/flutter-apk/app-release.apk" ] || { echo "APK generation failed!"; exit 1; }
-
-      - name: Upload Artifacts
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: school-apk
-          path: |
-            ${{ env.REPO_DIR }}/${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
-            ${{ env.REPO_DIR }}/${{ env.PROJECT_DIR }}/build/debug-info
+          path: ${{ env.REPO_DIR }}/${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 7
