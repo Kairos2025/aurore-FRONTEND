@@ -115,4 +115,4 @@ jobs:
           path: |
             ${{ env.REPO_DIR }}/${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
             ${{ env.REPO_DIR }}/${{ env.PROJECT_DIR }}/build/debug-info
-        if: success() || failure()  
+        if: success() || failure()
