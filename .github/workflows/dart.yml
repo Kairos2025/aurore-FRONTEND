@@ -21,16 +21,30 @@ jobs:
         with:
           path: ${{ env.REPO_DIR }}
 
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v2
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          flutter-version: '3.19.5'
           cache: true
+
+      - name: Accept Android licenses
+        run: |
+          yes | sdkmanager --licenses || true
+          flutter doctor -v
 
       - name: Regenerate Android Project
         working-directory: ${{ env.REPO_DIR }}
         run: |
-          # Create fresh Android structure with retries
           for i in {1..3}; do
             flutter create -t app \
               --org $PACKAGE_NAME \
@@ -41,68 +55,58 @@ jobs:
             sleep 5
           done
 
-          # Preserve critical Android files
+          # Verify Android structure exists before copying
+          if [ ! -f "temp_proj/android/app/build.gradle" ]; then
+            echo "Android project structure verification failed!"
+            ls -la temp_proj/android/app
+            exit 1
+          fi
+
           mkdir -p android_backup
           cp -a temp_proj/android/app/build.gradle android_backup/
           cp -a temp_proj/android/gradle.properties android_backup/ 2>/dev/null || true
 
-          # Merge user code
           rsync -av --ignore-existing \
             --exclude='android/' \
             --exclude='build/' \
             --exclude='.dart_tool/' \
             $PROJECT_DIR/ temp_proj/
 
-          # Restore Android configuration
           mkdir -p temp_proj/android/app
           cp -a android_backup/* temp_proj/android/
 
-          # Finalize structure
           rm -rf $PROJECT_DIR
           mv temp_proj $PROJECT_DIR
           rm -rf android_backup
 
-          # Verify Android configuration
-          [ -f "$PROJECT_DIR/android/app/build.gradle" ] || { echo "Android config verification failed!"; exit 1; }
+          [ -f "$PROJECT_DIR/android/app/build.gradle" ] || { echo "Final Android config check failed!"; exit 1; }
 
       - name: Modernize Gradle
         working-directory: ${{ env.REPO_DIR }}/${{ env.PROJECT_DIR }}/android
         run: |
-          # Add retry logic for Gradle operations
           for i in {1..3}; do
             ./gradlew wrapper --gradle-version 8.10.2 --distribution-type all && break
             echo "Gradle update failed, retrying..."
             sleep 10
           done
 
-          # Verify Gradle version
-          ./gradlew --version || { echo "Gradle verification failed!"; exit 1; }
-
-          # Update AGP version with backup
+          ./gradlew --version || exit 1
           cp app/build.gradle app/build.gradle.bak
-          sed -i 's/id "com.android.application" version ".*"/id "com.android.application" version "8.4.0"/' app/build.gradle
-          diff app/build.gradle app/build.gradle.bak || echo "AGP version updated"
-          
-          # Configure NDK with validation
+          sed -i 's/com.android.application" version ".*"/com.android.application" version "8.4.0"/' app/build.gradle
           echo "android.ndkVersion=27.0.12077973" >> gradle.properties
-          [ -n "$(grep 'ndkVersion' gradle.properties)" ] || { echo "NDK config failed!"; exit 1; }
+          [ -n "$(grep 'ndkVersion' gradle.properties)" ] || exit 1
 
       - name: Build Production APK
         working-directory: ${{ env.REPO_DIR }}/${{ env.PROJECT_DIR }}
         run: |
-          # Clean and verify dependencies
-          flutter clean || { echo "Clean failed!"; exit 1; }
-          flutter pub get || { echo "Dependency resolution failed!"; exit 1; }
-
-          # Build with error handling
+          flutter clean
+          flutter pub get
           flutter build apk --release \
             --dart-define=APP_NAME="AURORE SCHOOL" \
             --split-debug-info=build/debug-info \
             --obfuscate \
-            --verbose || { echo "Build failed!"; exit 1; }
-
-          # Verify APK existence
-          [ -f "build/app/outputs/flutter-apk/app-release.apk" ] || { echo "APK not generated!"; exit 1; }
+            --verbose
+          [ -f "build/app/outputs/flutter-apk/app-release.apk" ] || exit 1
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
@@ -111,5 +115,4 @@ jobs:
           path: |
             ${{ env.REPO_DIR }}/${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
             ${{ env.REPO_DIR }}/${{ env.PROJECT_DIR }}/build/debug-info
-          retention-days: 7
-        if: success() || failure()
+        if: success() || failure()  
