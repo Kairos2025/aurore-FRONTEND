@@ -32,7 +32,6 @@ jobs:
         with:
           sdk-platform: '34'
           ndk-version: '27.0.12077973'
-          cmake-version: '3.22.1'
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -42,35 +41,28 @@ jobs:
 
       - name: Regenerate Project Structure
         run: |
-          # Remove existing directories
           rm -rf fresh_project
-          
-          # Create new project with latest template
           flutter create -t app \
             --org $PACKAGE_NAME \
             --platforms android \
-            --project-name aurore_school \
             fresh_project
-
-          # Merge code while preserving new Android structure
-          rsync -av \
+          rsync -av --delete \
             --exclude='android/' \
             --exclude='build/' \
             --exclude='.dart_tool/' \
-            --exclude='.git/' \
             source/$PROJECT_DIR/ fresh_project/
 
-      - name: Verify Gradle Setup
+      - name: Modernize Gradle
         working-directory: fresh_project
         run: |
-          [ -f "android/gradlew" ] || { echo "Gradle wrapper missing!"; exit 1; }
-          [ -d "android/app" ] || { echo "Android app directory missing!"; exit 1; }
-
-      - name: Modernize Gradle
-        working-directory: fresh_project/android
-        run: |
-          ./gradlew wrapper --gradle-version 8.9 --distribution-type all
-          sed -i 's/com.android.application:8.1.2/com.android.application:8.4.0/' app/build.gradle
+          # Update Gradle wrapper using project root context
+          ./android/gradlew wrapper --gradle-version 8.10.2 --distribution-type all -p android
+          
+          # Update AGP version with wildcard pattern match
+          sed -i 's/id "com.android.application" version ".*"/id "com.android.application" version "8.4.0"/' android/app/build.gradle
+          
+          # Add NDK version
+          echo "android.ndkVersion=27.0.12077973" >> android/gradle.properties
 
       - name: Build APK
         working-directory: fresh_project
