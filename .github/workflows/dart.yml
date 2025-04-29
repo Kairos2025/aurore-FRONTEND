@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     env:
       FLUTTER_VERSION: '3.29.3'
       PACKAGE_NAME: 'com.auroreschool'
@@ -42,11 +42,15 @@ jobs:
       - name: Regenerate Project Structure
         run: |
           rm -rf fresh_project
+          
+          # Create new project with full Android structure
           flutter create -t app \
             --org $PACKAGE_NAME \
             --platforms android \
             fresh_project
-          rsync -av --delete \
+
+          # Merge code while preserving new Android structure
+          rsync -av \
             --exclude='android/' \
             --exclude='build/' \
             --exclude='.dart_tool/' \
@@ -55,14 +59,18 @@ jobs:
       - name: Modernize Gradle
         working-directory: fresh_project
         run: |
-          # Update Gradle wrapper using project root context
+          # Verify Android files exist
+          [ -f "android/app/build.gradle" ] || { echo "Android app build.gradle missing!"; exit 1; }
+          
+          # Update Gradle wrapper using direct path
           ./android/gradlew wrapper --gradle-version 8.10.2 --distribution-type all -p android
           
-          # Update AGP version with wildcard pattern match
-          sed -i 's/id "com.android.application" version ".*"/id "com.android.application" version "8.4.0"/' android/app/build.gradle
+          # Update AGP version with backup file creation
+          sed -i.bak 's/id "com.android.application" version ".*"/id "com.android.application" version "8.4.0"/' android/app/build.gradle
           
-          # Add NDK version
-          echo "android.ndkVersion=27.0.12077973" >> android/gradle.properties
+          # Verify sed changes
+          diff android/app/build.gradle android/app/build.gradle.bak || true
+          rm android/app/build.gradle.bak
 
       - name: Build APK
         working-directory: fresh_project
