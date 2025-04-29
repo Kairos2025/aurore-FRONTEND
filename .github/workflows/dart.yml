@@ -46,36 +46,27 @@ jobs:
           flutter-version: '3.22.2'
           cache: true
 
-      - name: Verify Environment
-        run: |
-          flutter doctor -v
-          which flutter
-          java -version
-          adb --version
-
-      - name: Regenerate Android Project Structure
+      - name: Regenerate Android Project
         working-directory: ${{ env.REPO_DIR }}
         run: |
           set -ex
           # Clean previous attempts
           rm -rf temp_proj android_backup || true
           
-          # Create fresh Flutter project
+          # Create fresh Flutter project with proper structure
           flutter create -t app \
             --org $PACKAGE_NAME \
             --platforms android \
             --no-pub \
             temp_proj
 
-          # Verify critical files exist
+          # Verify critical Android files
           [ -f "temp_proj/android/settings.gradle" ] || { echo "Missing settings.gradle"; exit 1; }
           [ -f "temp_proj/android/app/build.gradle" ] || { echo "Missing app/build.gradle"; exit 1; }
 
-          # Backup Android configuration
+          # Backup entire Android configuration
           mkdir -p android_backup
-          cp -v temp_proj/android/settings.gradle android_backup/
-          cp -v temp_proj/android/app/build.gradle android_backup/
-          cp -v temp_proj/android/gradle.properties android_backup/ 2>/dev/null || true
+          cp -r temp_proj/android/* android_backup/
 
           # Merge project files while preserving Android config
           rsync -av --ignore-existing \
@@ -85,30 +76,35 @@ jobs:
             $PROJECT_DIR/ temp_proj/
 
           # Restore Android configuration
-          mkdir -p temp_proj/android/app
-          cp -vr android_backup/* temp_proj/android/
+          rm -rf temp_proj/android
+          cp -r android_backup/ temp_proj/android/
 
           # Finalize project structure
           rm -rf $PROJECT_DIR
           mv temp_proj $PROJECT_DIR
           rm -rf android_backup
 
-      - name: Configure Gradle Properties
+      - name: Configure Gradle
         working-directory: ${{ env.REPO_DIR }}/${{ env.PROJECT_DIR }}/android
         run: |
-          echo "org.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8" >> gradle.properties
-          echo "android.useAndroidX=true" >> gradle.properties
-          echo "android.enableJetifier=true" >> gradle.properties
-          echo "android.ndkVersion=27.0.12077973" >> gradle.properties
-
-      - name: Update Gradle Wrapper
-        working-directory: ${{ env.REPO_DIR }}/${{ env.PROJECT_DIR }}/android
-        run: |
+          # Clean Gradle cache
+          ./gradlew --stop
+          rm -rf ~/.gradle/caches/
+          
+          # Update Gradle wrapper
           ./gradlew wrapper --gradle-version 8.4 --distribution-type all
+          
+          # Configure build.gradle
           sed -i.bak \
             -e 's/com.android.application" version ".*"/com.android.application" version "8.3.0"/' \
             -e 's/flutter.minSdkVersion/21/' \
             app/build.gradle
+          
+          # Add essential properties
+          echo "org.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8" >> gradle.properties
+          echo "android.useAndroidX=true" >> gradle.properties
+          echo "android.enableJetifier=true" >> gradle.properties
+          echo "android.ndkVersion=27.0.12077973" >> gradle.properties
 
       - name: Build Release APK
         working-directory: ${{ env.REPO_DIR }}/${{ env.PROJECT_DIR }}
@@ -121,8 +117,8 @@ jobs:
             --obfuscate \
             --verbose
           
-          # Verify APK was created
-          [ -f "build/app/outputs/flutter-apk/app-release.apk" ] || { echo "APK not generated"; exit 1; }
+          # Verify APK existence
+          [ -f "build/app/outputs/flutter-apk/app-release.apk" ] || { echo "APK generation failed"; exit 1; }
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
