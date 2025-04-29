@@ -16,7 +16,16 @@ jobs:
       PACKAGE_NAME: 'com.auroreschool'
 
     steps:
-      # Previous steps remain unchanged until Regenerate Android Project
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          path: ${{ env.REPO_DIR }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
 
       - name: Regenerate Android Project
         working-directory: ${{ env.REPO_DIR }}
@@ -103,4 +112,4 @@ jobs:
             ${{ env.REPO_DIR }}/${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
             ${{ env.REPO_DIR }}/${{ env.PROJECT_DIR }}/build/debug-info
           retention-days: 7
-        if: success() || failure()  # Upload even if previous steps fail
+        if: success() || failure()
