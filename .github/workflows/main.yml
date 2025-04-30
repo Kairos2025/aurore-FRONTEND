@@ -1,0 +1,46 @@
+name: Build APK
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.2'
+          channel: 'stable'
+
+      - name: List directory contents
+        run: |
+          echo "Root directory contents:"
+          ls -la
+          echo "aurore_frontend directory contents:"
+          ls -la aurore_frontend
+          echo "aurore_frontend/lib directory contents:"
+          ls -la aurore_frontend/lib
+          echo "Contents of aurore_frontend/lib/main.dart:"
+          cat aurore_frontend/lib/main.dart
+
+      - name: Get dependencies
+        run: flutter pub get
+        working-directory: aurore_frontend
+
+      - name: Build APK
+        run: flutter build apk --release
+        working-directory: aurore_frontend
+
+      - name: Verify APK exists
+        run: test -f build/app/outputs/flutter-apk/app-release.apk || { echo "APK not found"; exit 1; }
+        working-directory: aurore_frontend
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-release.apk
+          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
