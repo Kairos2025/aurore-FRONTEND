@@ -20,27 +20,25 @@ jobs:
         run: |
           echo "Root directory contents:"
           ls -la
-          echo "aurore_frontend directory contents:"
-          ls -la aurore_frontend
-          echo "aurore_frontend/lib directory contents:"
-          ls -la aurore_frontend/lib
-          echo "Contents of aurore_frontend/lib/main.dart:"
-          cat aurore_frontend/lib/main.dart || echo "main.dart not found"
+          echo "lib directory contents:"
+          ls -la lib
+          echo "Contents of main.dart:"
+          cat lib/main.dart || echo "main.dart not found"
+
+      - name: Clean build
+        run: flutter clean
 
       - name: Get dependencies
         run: flutter pub get
-        working-directory: aurore_frontend
 
       - name: Build APK
         run: flutter build apk --release
-        working-directory: aurore_frontend
 
       - name: Verify APK exists
         run: test -f build/app/outputs/flutter-apk/app-release.apk || { echo "APK not found"; exit 1; }
-        working-directory: aurore_frontend
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@834a144ee995460fba8ed112a2d6f634b217dcc # v4.4.3
+        uses: actions/upload-artifact@v4
         with:
           name: app-release.apk
-          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
