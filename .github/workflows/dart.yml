@@ -16,6 +16,17 @@ jobs:
           flutter-version: '3.29.2'
           channel: 'stable'
 
+      - name: List directory contents
+        run: |
+          echo "Root directory contents:"
+          ls -la
+          echo "aurore_frontend directory contents:"
+          ls -la aurore_frontend
+          echo "aurore_frontend/lib directory contents:"
+          ls -la aurore_frontend/lib
+          echo "Contents of aurore_frontend/lib/main.dart:"
+          cat aurore_frontend/lib/main.dart
+
       - name: Get dependencies
         run: flutter pub get
         working-directory: aurore_frontend
