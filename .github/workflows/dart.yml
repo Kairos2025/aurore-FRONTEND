@@ -18,11 +18,8 @@ jobs:
 
       - name: List directory contents
         run: |
-          echo "Root directory contents:"
           ls -la
-          echo "lib directory contents:"
           ls -la lib
-          echo "Contents of main.dart:"
           cat lib/main.dart || echo "main.dart not found"
 
       - name: Clean build
