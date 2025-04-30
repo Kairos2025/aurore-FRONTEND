@@ -1,131 +1,35 @@
-name: Aurore School Production APK Builder
-
+name: Build APK
 on:
   push:
-    branches: [update-gradle]
-  pull_request:
-    branches: [update-gradle]
-
+    branches: [ main, master ]
+  workflow_dispatch:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
-    env:
-      REPO_DIR: 'aurore-FRONTEND'
-      PROJECT_DIR: 'aurore_frontend'
-      PACKAGE_NAME: 'com.auroreschool'
-
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          path: ${{ env.REPO_DIR }}
-          fetch-depth: 0
 
-      - name: Setup Java
-        uses: actions/setup-java@v3
-        with:
-          java-version: '17'
-          distribution: 'zulu'
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v2
-        with:
-          ndk-version: '27.0.12077973'
-          cmake-version: '3.22.1'
-
-      - name: Install Android Components
-        run: |
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
-          yes | sdkmanager --licenses
-
-      - name: Install Flutter
+      - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.29.2'
           channel: 'stable'
-          flutter-version: '3.22.2'
-          cache: true
 
-      - name: Regenerate Android Project
-        working-directory: ${{ env.REPO_DIR }}
-        run: |
-          set -ex
-          # Clean previous attempts
-          rm -rf temp_proj android_backup || true
-          
-          # Create fresh Flutter project with proper structure
-          flutter create -t app \
-            --org $PACKAGE_NAME \
-            --platforms android \
-            --no-pub \
-            temp_proj
+      - name: Get dependencies
+        run: flutter pub get
+        working-directory: aurore_frontend
 
-          # Verify critical Android files
-          [ -f "temp_proj/android/settings.gradle" ] || { echo "Missing settings.gradle"; exit 1; }
-          [ -f "temp_proj/android/app/build.gradle" ] || { echo "Missing app/build.gradle"; exit 1; }
+      - name: Build APK
+        run: flutter build apk --release
+        working-directory: aurore_frontend
 
-          # Backup entire Android configuration
-          mkdir -p android_backup
-          cp -r temp_proj/android/* android_backup/
+      - name: Verify APK exists
+        run: test -f build/app/outputs/flutter-apk/app-release.apk || { echo "APK not found"; exit 1; }
+        working-directory: aurore_frontend
 
-          # Merge project files while preserving Android config
-          rsync -av --ignore-existing \
-            --exclude='android/' \
-            --exclude='build/' \
-            --exclude='.dart_tool/' \
-            $PROJECT_DIR/ temp_proj/
-
-          # Restore Android configuration
-          rm -rf temp_proj/android
-          cp -r android_backup/ temp_proj/android/
-
-          # Finalize project structure
-          rm -rf $PROJECT_DIR
-          mv temp_proj $PROJECT_DIR
-          rm -rf android_backup
-
-      - name: Configure Gradle
-        working-directory: ${{ env.REPO_DIR }}/${{ env.PROJECT_DIR }}/android
-        run: |
-          # Clean Gradle cache
-          ./gradlew --stop
-          rm -rf ~/.gradle/caches/
-          
-          # Update Gradle wrapper
-          ./gradlew wrapper --gradle-version 8.4 --distribution-type all
-          
-          # Configure build.gradle
-          sed -i.bak \
-            -e 's/com.android.application" version ".*"/com.android.application" version "8.3.0"/' \
-            -e 's/flutter.minSdkVersion/21/' \
-            app/build.gradle
-          
-          # Add essential properties
-          echo "org.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8" >> gradle.properties
-          echo "android.useAndroidX=true" >> gradle.properties
-          echo "android.enableJetifier=true" >> gradle.properties
-          echo "android.ndkVersion=27.0.12077973" >> gradle.properties
-
-      - name: Build Release APK
-        working-directory: ${{ env.REPO_DIR }}/${{ env.PROJECT_DIR }}
-        run: |
-          flutter clean
-          flutter pub upgrade
-          flutter build apk --release \
-            --dart-define=APP_NAME="AURORE SCHOOL" \
-            --split-debug-info=build/debug-info \
-            --obfuscate \
-            --verbose
-          
-          # Verify APK existence
-          [ -f "build/app/outputs/flutter-apk/app-release.apk" ] || { echo "APK generation failed"; exit 1; }
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v3
         with:
-          name: school-apk
-          path: |
-            ${{ env.REPO_DIR }}/${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/*.apk
-            ${{ env.REPO_DIR }}/${{ env.PROJECT_DIR }}/build/debug-info
-          retention-days: 7
-        if: always()
+          name: app-release.apk
+          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
