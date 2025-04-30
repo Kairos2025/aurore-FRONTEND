@@ -40,7 +40,7 @@ jobs:
         working-directory: aurore_frontend
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: app-release.apk
           path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
