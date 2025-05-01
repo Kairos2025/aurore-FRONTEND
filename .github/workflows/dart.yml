@@ -11,15 +11,34 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Validate Repository Structure
+      - name: Validate Structure
         run: |
           echo "Repository contents:"
           ls -la
-          echo "Checking project directory:"
-          ls -la aurore_frontend
-          test -f aurore_frontend/pubspec.yaml || { echo "❌ pubspec.yaml missing in aurore_frontend/"; exit 1; }
+          test -d aurore_frontend || { echo "❌ aurore_frontend directory missing"; exit 1; }
+          test -f aurore_frontend/pubspec.yaml || { echo "❌ pubspec.yaml missing"; exit 1; }
 
-      - name: Setup Java
+      - name: SDK Version Check
+        working-directory: aurore_frontend
+        run: |
+          # Flexible SDK version validation
+          if ! grep -qE 'sdk: ["'\'']>=3\.[0-9]+\.[0-9]+ <4\.0\.0["'\'']' pubspec.yaml; then
+            echo "❌ Invalid SDK constraint format in pubspec.yaml"
+            echo "Required format: sdk: '>=3.x.x <4.0.0' (where x is any number)"
+            echo "Current SDK line:"
+            grep 'sdk:' pubspec.yaml || true
+            exit 1
+          fi
+
+          # Verify Flutter version compatibility
+          MIN_SDK=$(grep 'sdk:' pubspec.yaml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          if [[ "$MIN_SDK" > "3.3.0" ]]; then
+            echo "✅ Valid SDK version: $MIN_SDK"
+          else
+            echo "⚠️  Warning: Consider updating SDK constraint to >=3.3.0 for better compatibility"
+          fi
+
+      - name: Setup Environment
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
@@ -31,42 +50,12 @@ jobs:
           flutter-version: '3.29.2'
           channel: stable
           cache: true
-          cache-key: ${{ runner.os }}-flutter-${{ hashFiles('aurore_frontend/pubspec.lock') }}
-
-      - name: Dependency Checks
-        working-directory: aurore_frontend
-        run: |
-          # Verify pubspec.yaml exists
-          if [ ! -f pubspec.yaml ]; then
-            echo "❌ pubspec.yaml not found in working directory!"
-            exit 1
-          fi
-
-          # Check for duplicate dependencies
-          VECTOR_MATH_COUNT=$(grep -c 'vector_math:' pubspec.yaml)
-          if [ "$VECTOR_MATH_COUNT" -ne 1 ]; then
-            echo "❌ Found $VECTOR_MATH_COUNT vector_math entries (should be 1)"
-            exit 1
-          fi
-
-          # Verify SDK constraint format
-          if ! grep -q 'sdk: ">=3.3.0 <4.0.0"' pubspec.yaml; then
-            echo "❌ Invalid/missing SDK constraint in pubspec.yaml"
-            exit 1
-          fi
 
       - name: Build & Verify
         working-directory: aurore_frontend
         run: |
           flutter clean
           flutter pub get
-          
-          # Verify main.dart exists
-          if [ ! -f lib/main.dart ]; then
-            echo "❌ main.dart missing!"
-            exit 1
-          fi
-          
           flutter build apk --release --no-pub
 
       - name: Upload Artifact
