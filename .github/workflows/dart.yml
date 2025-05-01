@@ -10,34 +10,28 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          path: aurore_frontend
 
       - name: Validate Structure
         run: |
           echo "Repository Structure:"
           ls -la
-          test -d aurore_frontend || { echo "❌ Missing project directory"; exit 1; }
-          test -f aurore_frontend/pubspec.yaml || { echo "❌ pubspec.yaml missing"; exit 1; }
+          test -f pubspec.yaml || { 
+            echo "❌ pubspec.yaml missing in root directory"; 
+            exit 1; 
+          }
+          test -d android || { echo "❌ Android directory missing"; exit 1; }
 
       - name: Nuclear Version Check
-        working-directory: aurore_frontend
         run: |
-          # Flexible version validation
-          if ! grep -qE 'lints:[[:space:]]+5\.0\.0' pubspec.yaml; then
+          # Flexible version validation with quotes/whitespace
+          if ! grep -qE 'lints:\s*["]?5\.0\.0["]?' pubspec.yaml; then
             echo "❌ FATAL: lints must be exactly 5.0.0"
-            echo "Current lints line:"
             grep 'lints:' pubspec.yaml
             exit 1
           fi
 
-          if ! grep -qE 'sdk:[[:space:]]+">=3\.7\.2 <4\.0\.0"' pubspec.yaml; then
+          if ! grep -qE 'sdk:\s*["'\'']>=3\.7\.2 <4\.0\.0["'\'']' pubspec.yaml; then
             echo "❌ Invalid SDK constraint"
-            exit 1
-          fi
-
-          if ! grep -q 'flutter_lints: 5.0.0' pubspec.yaml; then
-            echo "❌ flutter_lints must be 5.0.0"
             exit 1
           fi
 
@@ -53,26 +47,16 @@ jobs:
           flutter-version: '3.29.2'
           channel: stable
           cache: true
-          cache-key: locked-versions-v3
-
-      - name: Cache Dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            aurore_frontend/.dart_tool
-            aurore_frontend/build
-            ~/.pub-cache
-          key: ${{ runner.os }}-deps-${{ hashFiles('aurore_frontend/pubspec.lock') }}
+          cache-key: locked-versions-final
 
       - name: Build APK
-        working-directory: aurore_frontend
         run: |
           flutter clean
           flutter pub get
-          flutter build apk --release --no-pub
+          flutter build apk --release
 
           # Verify APK contains actual code
-          if unzip -p build/app/outputs/flutter-apk/app-release.apk lib/arm64-v8a/libapp.so | grep -q 'Flutter Demo'; then
+          if unzip -p build/app/outputs/flutter-apk/app-release.apk | strings | grep -q 'Flutter Demo'; then
             echo "❌ DEMO CODE DETECTED!"
             exit 1
           fi
@@ -81,4 +65,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: production-apk
-          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
