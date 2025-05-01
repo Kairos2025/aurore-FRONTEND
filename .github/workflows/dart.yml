@@ -1,4 +1,4 @@
-name: Build APK
+name: Guaranteed Build
 on:
   push:
     branches: [ main, master ]
@@ -7,31 +7,40 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      FLUTTER_HOME: ${{ github.workspace }}/flutter
+      PROJECT_ROOT: aurore_frontend  # 👈 MUST match your directory structure
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: ${{ env.PROJECT_ROOT }}  # 👈 Critical path specification
 
-      - name: Setup Flutter
+      - name: Flutter Setup
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.29.2'
           channel: 'stable'
           cache: true
-          cache-path: ${{ github.workspace }}/.pub-cache
-          cache-key: flutter-pub-cache-${{ runner.os }}
+          cache-path: ${{ env.PROJECT_ROOT }}/.flutter-cache
 
-      - name: Verify Flutter Installation
+      - name: Validate Project Root
         run: |
-          echo "Flutter path: $(which flutter)"
-          flutter doctor -v
+          echo "Project directory: $PROJECT_ROOT"
+          ls -la $PROJECT_ROOT
+          test -f $PROJECT_ROOT/pubspec.yaml || { echo "pubspec.yaml missing!"; exit 1; }
+
+      - name: Resolve Dependencies
+        working-directory: ${{ env.PROJECT_ROOT }}
+        run: |
+          flutter clean
+          flutter pub cache repair
+          flutter pub get --verbose
 
       - name: Build APK
-        run: |
-          flutter pub get
-          flutter build apk --release
+        working-directory: ${{ env.PROJECT_ROOT }}
+        run: flutter build apk --release --no-pub
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: production-apk
+          path: ${{ env.PROJECT_ROOT }}/build/app/outputs/flutter-apk/app-release.apk 
+          
