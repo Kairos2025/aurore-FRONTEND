@@ -6,45 +6,47 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      PROJECT_DIR: aurore_frontend
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
+          distribution: 'temurin'
           java-version: '17'
 
-      - uses: subosito/flutter-action@v2
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.29.2'
           channel: 'stable'
 
-      - name: Validate project
-        working-directory: aurore_frontend
+      - name: Validate structure
         run: |
-          flutter pub upgrade --major-versions
-          flutter pub outdated
-          ls -la android/app/build.gradle
+          test -d $PROJECT_DIR/android || { echo "Android directory missing!"; exit 1; }
+          test -f $PROJECT_DIR/lib/main.dart || { echo "main.dart missing!"; exit 1; }
 
-      - name: Cache Flutter dependencies
+      - name: Cache dependencies
         uses: actions/cache@v4
         with:
           path: |
-            aurore_frontend/.dart_tool
-            aurore_frontend/build
-            aurore_frontend/android/gradle-wrapper
-          key: ${{ runner.os }}-flutter-${{ hashFiles('aurore_frontend/pubspec.lock') }}
+            $PROJECT_DIR/.dart_tool
+            $PROJECT_DIR/build
+            $PROJECT_DIR/android/.gradle
+            ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-${{ hashFiles('$PROJECT_DIR/pubspec.lock') }}
 
       - name: Build APK
-        working-directory: aurore_frontend
+        working-directory: $PROJECT_DIR
         run: |
           flutter clean
-          flutter pub get
+          flutter pub upgrade --major-versions
           flutter build apk --release --no-pub
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
+          path: $PROJECT_DIR/build/app/outputs/flutter-apk/app-release.apk
