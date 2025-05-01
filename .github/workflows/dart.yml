@@ -1,4 +1,4 @@
-name: Production APK Build
+name: Production APK Builder
 on:
   push:
     branches: [main, master]
@@ -6,31 +6,80 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          path: aurore_frontend
 
-      - name: Setup Flutter (Critical Fix)
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.29.2'
           channel: stable
           cache: true
+          cache-key: ${{ runner.os }}-flutter-${{ hashFiles('aurore_frontend/pubspec.lock') }}
 
-      - name: Verify Flutter Path
+      - name: Validate Environment
         run: |
-          echo "PATH: $PATH"
-          which flutter
+          echo "Flutter path: $(which flutter)"
           flutter --version
+          echo "Java version:"
+          java -version
 
-      - name: Build APK
+      - name: Dependency Checks
+        working-directory: aurore_frontend
+        run: |
+          # Check for duplicate dependencies
+          if [ $(grep -c 'vector_math:' pubspec.yaml) -ne 1 ]; then
+            echo "❌ Duplicate vector_math dependency"
+            exit 1
+          fi
+          
+          # Verify minimum Flutter version
+          if ! grep -q 'sdk: ">=3.3.0 <4.0.0"' pubspec.yaml; then
+            echo "❌ Invalid SDK constraint"
+            exit 1
+          fi
+
+      - name: Cache Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            aurore_frontend/.dart_tool
+            aurore_frontend/build
+            ~/.gradle/caches
+          key: ${{ runner.os }}-build-${{ hashFiles('aurore_frontend/pubspec.lock') }}
+
+      - name: Build & Verify
         working-directory: aurore_frontend
         run: |
           flutter clean
           flutter pub get
-          flutter build apk --release
-          # APK verification would go here
+          
+          # Critical code validation
+          if ! grep -q 'main() => runApp(MyApp());' lib/main.dart; then
+            echo "❌ Invalid entry point detected!"
+            exit 1
+          fi
+          
+          flutter build apk --release --no-pub
+          
+          # APK content check
+          if unzip -p build/app/outputs/flutter-apk/app-release.apqk lib/arm64-v8a/libapp.so | grep -q 'Flutter Demo'; then
+            echo "❌ DEMO CODE DETECTED!"
+            exit 1
+          fi
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: app-release
+          name: production-apk
           path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
