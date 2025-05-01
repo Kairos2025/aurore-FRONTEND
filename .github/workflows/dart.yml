@@ -6,84 +6,117 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    env:
+      PROJECT_DIR: aurore_frontend
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          path: ${{ env.PROJECT_DIR }}
 
-      - name: Validate Structure
+      - name: Validate Project Structure
         run: |
           echo "Repository Structure:"
-          ls -la
-          test -d aurore_frontend || { echo "❌ Missing project directory"; exit 1; }
-          test -f aurore_frontend/pubspec.yaml || { 
-            echo "❌ pubspec.yaml missing in aurore_frontend/"; 
-            exit 1; 
-          }
-          test -f aurore_frontend/lib/main.dart || { 
-            echo "❌ main.dart missing"; 
-            exit 1; 
-          }
+          ls -la ${{ env.PROJECT_DIR }}
+          
+          required_files=(
+            "${{ env.PROJECT_DIR }}/pubspec.yaml"
+            "${{ env.PROJECT_DIR }}/lib/main.dart"
+            "${{ env.PROJECT_DIR }}/android/app/build.gradle"
+          )
+          
+          for file in "${required_files[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "❌ Missing critical file: $file"
+              exit 1
+            fi
+          done
 
-      - name: Setup Java 17
+      - name: Setup Environment
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
-
+          
       - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.29.2'
           channel: stable
           cache: true
-          cache-key: flutter-deps-${{ hashFiles('aurore_frontend/pubspec.lock') }}
+          cache-key: flutter-${{ hashFiles('**/pubspec.lock') }}
 
-      - name: SDK Validation
-        working-directory: aurore_frontend
-        run: |
-          if ! awk '/environment:/ {getline; if ($0 ~ /sdk: *"?"?>=3\.7\.2 <4\.0\.0"?>?/) exit 0; else exit 1}' pubspec.yaml; then
-            echo "❌ Invalid SDK constraint"
-            awk '/environment:/ {print; getline; print}' pubspec.yaml
-            exit 1
-          fi
+      - name: Cache Optimization
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            ${{ env.PROJECT_DIR }}/.dart_tool
+            ${{ env.PROJECT_DIR }}/build
+            ${{ env.PROJECT_DIR }}/android/.gradle
+          key: ${{ runner.os }}-build-${{ hashFiles('**/pubspec.lock') }}
 
-      - name: Dependency Check
-        working-directory: aurore_frontend
+      - name: Dependency Validation
+        working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          # Validate critical dependencies
-          if ! grep -qE 'lints:[" ]*5\.0\.0' pubspec.yaml; then
-            echo "❌ lints must be exactly 5.0.0"
-            grep 'lints:' pubspec.yaml
-            exit 1
-          fi
+          # Version Compatibility Check
+          flutter --version
+          dart --version
           
-          if ! grep -qE 'vector_math:[" ]*2\.1\.4' pubspec.yaml; then
-            echo "❌ vector_math must be 2.1.4 (matches Flutter SDK)"
-            grep 'vector_math:' pubspec.yaml
-            exit 1
-          fi
+          # Critical Dependency Validation
+          declare -A required_versions=(
+            ["sdk"]=">=3.7.2 <4.0.0"
+            ["lints"]="5.0.0"
+            ["vector_math"]="2.1.4"
+            ["flutter_lints"]="5.0.0"
+          )
+          
+          for dep in "${!required_versions[@]}"; do
+            if ! grep -qE "$dep:.*${required_versions[$dep]}" pubspec.yaml; then
+              echo "❌ Invalid $dep version - Requires: ${required_versions[$dep]}"
+              grep "$dep:" pubspec.yaml || true
+              exit 1
+            fi
+          done
+          
+          # Check for potential conflicts
+          flutter pub outdated --mode=null-safety
 
-      - name: Build APK
-        working-directory: aurore_frontend
+      - name: Build Preparation
+        working-directory: ${{ env.PROJECT_DIR }}
         run: |
           flutter clean
           flutter pub get --no-upgrade
           
-          if ! grep -q '// PRODUCTION-APP-ID' lib/main.dart; then
+          # Codebase Integrity Check
+          if ! grep -q '// PRODUCTION-APP-V1' lib/main.dart; then
             echo "❌ Missing production identifier in main.dart"
             exit 1
           fi
-          
-          flutter build apk --release --no-pub
 
-          if unzip -p build/app/outputs/flutter-apk/app-release.apk | strings | grep -qi 'flutter demo'; then
-            echo "❌ Demo code detected in APK!"
-            exit 1
-          fi
+      - name: Build & Verify APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          flutter build apk --release --no-pub
+          
+          # APK Content Validation
+          apk_checks=(
+            "Flutter Demo" 
+            "MainActivity"
+            "aurore_school"
+          )
+          
+          apk_content=$(unzip -p build/app/outputs/flutter-apk/app-release.apk)
+          for check in "${apk_checks[@]}"; do
+            if echo "$apk_content" | grep -qi "$check"; then
+              echo "❌ Invalid APK content detected: $check"
+              exit 1
+            fi
+          done
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: production-apk
-          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
+          name: production-apk-v1
+          path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
