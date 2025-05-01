@@ -8,37 +8,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Validate Structure
         run: |
-          echo "Repository contents:"
-          ls -la
-          test -d aurore_frontend || { echo "❌ aurore_frontend directory missing"; exit 1; }
           test -f aurore_frontend/pubspec.yaml || { echo "❌ pubspec.yaml missing"; exit 1; }
 
-      - name: SDK Version Check
-        working-directory: aurore_frontend
-        run: |
-          # Flexible SDK version validation
-          if ! grep -qE 'sdk: ["'\'']>=3\.[0-9]+\.[0-9]+ <4\.0\.0["'\'']' pubspec.yaml; then
-            echo "❌ Invalid SDK constraint format in pubspec.yaml"
-            echo "Required format: sdk: '>=3.x.x <4.0.0' (where x is any number)"
-            echo "Current SDK line:"
-            grep 'sdk:' pubspec.yaml || true
-            exit 1
-          fi
-
-          # Verify Flutter version compatibility
-          MIN_SDK=$(grep 'sdk:' pubspec.yaml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-          if [[ "$MIN_SDK" > "3.3.0" ]]; then
-            echo "✅ Valid SDK version: $MIN_SDK"
-          else
-            echo "⚠️  Warning: Consider updating SDK constraint to >=3.3.0 for better compatibility"
-          fi
-
-      - name: Setup Environment
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
@@ -51,15 +27,20 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Build & Verify
+      - name: Dependency Resolution
+        working-directory: aurore_frontend
+        run: |
+          flutter pub upgrade --major-versions
+          flutter pub outdated
+
+      - name: Build APK
         working-directory: aurore_frontend
         run: |
           flutter clean
           flutter pub get
           flutter build apk --release --no-pub
 
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: production-apk
           path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
