@@ -10,23 +10,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate directory structure
-        run: |
-          # Check for EXACT directory name shown in your screenshot
-          if [ ! -d "aurore_frontend" ]; then
-            echo "❌ Project directory 'aurore_frontend' not found in root"
-            exit 1
-          fi
-
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.16.9'
+          flutter-version: '3.28.0'  # Updated to match Dart 3.7.2+ requirement
           channel: stable
           architecture: x64
 
       - name: Build APK
-        working-directory: ./aurore_frontend  # Direct root-level directory
+        working-directory: ./aurore_frontend
         run: |
           flutter config --no-analytics
           flutter clean
