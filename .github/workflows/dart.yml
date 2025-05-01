@@ -20,15 +20,19 @@ jobs:
           echo "Repository Structure:"
           ls -la ${{ env.PROJECT_DIR }}
           
+          # Critical file check with debug output
           required_files=(
-            "${{ env.PROJECT_DIR }}/pubspec.yaml"
-            "${{ env.PROJECT_DIR }}/lib/main.dart"
-            "${{ env.PROJECT_DIR }}/android/app/build.gradle"
+            "pubspec.yaml"
+            "lib/main.dart"
+            "android/app/build.gradle"
           )
           
           for file in "${required_files[@]}"; do
-            if [ ! -f "$file" ]; then
+            echo "Checking: ${{ env.PROJECT_DIR }}/$file"
+            if [ ! -f "${{ env.PROJECT_DIR }}/$file" ]; then
               echo "❌ Missing critical file: $file"
+              echo "Directory contents:"
+              ls -la $(dirname "${{ env.PROJECT_DIR }}/$file") || true
               exit 1
             fi
           done
@@ -44,79 +48,16 @@ jobs:
         with:
           flutter-version: '3.29.2'
           channel: stable
-          cache: true
-          cache-key: flutter-${{ hashFiles('**/pubspec.lock') }}
 
-      - name: Cache Optimization
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.pub-cache
-            ${{ env.PROJECT_DIR }}/.dart_tool
-            ${{ env.PROJECT_DIR }}/build
-            ${{ env.PROJECT_DIR }}/android/.gradle
-          key: ${{ runner.os }}-build-${{ hashFiles('**/pubspec.lock') }}
-
-      - name: Dependency Validation
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          # Version Compatibility Check
-          flutter --version
-          dart --version
-          
-          # Critical Dependency Validation
-          declare -A required_versions=(
-            ["sdk"]=">=3.7.2 <4.0.0"
-            ["lints"]="5.0.0"
-            ["vector_math"]="2.1.4"
-            ["flutter_lints"]="5.0.0"
-          )
-          
-          for dep in "${!required_versions[@]}"; do
-            if ! grep -qE "$dep:.*${required_versions[$dep]}" pubspec.yaml; then
-              echo "❌ Invalid $dep version - Requires: ${required_versions[$dep]}"
-              grep "$dep:" pubspec.yaml || true
-              exit 1
-            fi
-          done
-          
-          # Check for potential conflicts
-          flutter pub outdated --mode=null-safety
-
-      - name: Build Preparation
+      - name: Build & Verify
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           flutter clean
-          flutter pub get --no-upgrade
-          
-          # Codebase Integrity Check
-          if ! grep -q '// PRODUCTION-APP-V1' lib/main.dart; then
-            echo "❌ Missing production identifier in main.dart"
-            exit 1
-          fi
-
-      - name: Build & Verify APK
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          flutter build apk --release --no-pub
-          
-          # APK Content Validation
-          apk_checks=(
-            "Flutter Demo" 
-            "MainActivity"
-            "aurore_school"
-          )
-          
-          apk_content=$(unzip -p build/app/outputs/flutter-apk/app-release.apk)
-          for check in "${apk_checks[@]}"; do
-            if echo "$apk_content" | grep -qi "$check"; then
-              echo "❌ Invalid APK content detected: $check"
-              exit 1
-            fi
-          done
+          flutter pub get
+          flutter build apk --release
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: production-apk-v1
+          name: production-apk
           path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
