@@ -6,37 +6,53 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      PROJECT_DIR: aurore_frontend
     steps:
       - uses: actions/checkout@v4
 
-      - name: Nuclear Clean
+      - name: Destroy Demo Artifacts
         run: |
-          rm -rf .dart_tool .flutter-plugins* 
-          rm -rf android ios build
+          rm -rf $PROJECT_DIR/android/.gradle
+          rm -rf $PROJECT_DIR/build
 
-      - name: Fresh Project Scaffold
-        run: |
-          flutter create --no-pub --project-name aurore --org com.yourcompany .
+      - name: Setup Java & Gradle
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'
 
-      - name: Inject Real Code
-        run: |
-          git checkout HEAD -- lib pubspec.yaml assets
+      - name: Flutter Enforcer
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.2'
+          channel: 'stable'
 
-      - name: Build with Verification
+      - name: Code Validation
+        working-directory: $PROJECT_DIR
         run: |
-          flutter pub get
-          if ! grep -q 'YourUniqueAppIdentifier' lib/main.dart; then
-            echo "❌ WRONG CODEBASE DETECTED - Still showing demo screen!"
-            exit 1
+          if ! grep -q 'YOUR_UNIQUE_APP_IDENTIFIER' lib/main.dart; then
+            echo "❌ Demo code detected! Aborting build";
+            exit 1;
           fi
-          flutter build apk --release
+
+      - name: Build with Fresh Gradle
+        working-directory: $PROJECT_DIR
+        run: |
+          flutter pub upgrade --major-versions --force
+          ./gradlew clean
+          flutter build apk --release --no-pub
 
       - name: APK Reality Check
+        working-directory: $PROJECT_DIR
         run: |
-          unzip -l build/app/outputs/flutter-apk/app-release.apk | grep 'YourUniqueClass'
-          || { echo "APK contains demo code!"; exit 1; }
+          if unzip -p build/app/outputs/flutter-apk/app-release.apk lib/arm64-v8a/libapp.so | strings | grep -q 'Flutter Demo'; then
+            echo "❌ DEMO SCREEN DETECTED IN APK!";
+            exit 1;
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
           name: real-app-release
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: $PROJECT_DIR/build/app/outputs/flutter-apk/app-release.apk
