@@ -3,27 +3,37 @@ on:
   push:
     branches: [main, master]
   workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate project structure
+        run: |
+          if [ ! -d "aurore-FRONTEND/aurore_frontend" ]; then
+            echo "❌ Project directory structure incorrect"
+            exit 1
+          fi
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.29.2'
           channel: stable
-        working-directory: ./aurore-FRONTEND/aurore_frontend  # Added directory
 
       - name: Build APK
-        working-directory: ./aurore-FRONTEND/aurore_frontend  # Added directory
+        working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
+          flutter doctor
           flutter clean
           flutter pub get
           flutter build apk --release
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: aurore-FRONTEND/aurore_frontend/build/app/outputs/flutter-apk/app-release.apk  # Updated path
+          path: aurore-FRONTEND/aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
