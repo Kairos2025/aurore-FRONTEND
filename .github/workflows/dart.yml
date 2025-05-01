@@ -10,39 +10,63 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate structure
+      - name: Validate environment
         run: |
+          # Verify directory structure
           if [ ! -f "aurore_frontend/pubspec.yaml" ]; then
-            echo "❌ Missing pubspec.yaml in aurore_frontend directory"
+            echo "❌ Critical Error: Missing pubspec.yaml in aurore_frontend"
+            echo "Directory structure:"
+            ls -la
+            exit 1
+          fi
+
+          # Verify Flutter version availability
+          if ! curl -s https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json | grep -q '"version": "3.22.0"'; then
+            echo "❌ Flutter 3.22.0 not available in stable channel"
+            echo "Available stable versions:"
+            curl -s https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json | jq '.releases[] | select(.channel=="stable") | .version'
             exit 1
           fi
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.0'  # Verified stable version with Dart 3.8.0
+          flutter-version: '3.22.0'
           channel: stable
           architecture: x64
+        timeout-minutes: 5
 
       - name: Build APK
         working-directory: ./aurore_frontend
         run: |
-          # Prevent analytics and license prompts
+          set -euo pipefail  # Enable strict error checking
+          
+          # Configure environment
           flutter config --no-analytics
           flutter config --no-enable-android-license-gen
           flutter config --no-enable-ios-license-gen
           
-          # Clean environment
+          # Version verification
+          echo "Flutter Version: $(flutter --version)"
+          echo "Dart Version: $(dart --version)"
+          
+          # Clean build environment
           flutter clean
           
-          # Get dependencies with retry
-          flutter pub get --verbose || flutter pub get --verbose
+          # Dependency management with cache
+          flutter pub get --verbose || {
+            echo "⚠️ First pub get failed, retrying..."
+            flutter pub get --verbose
+          }
           
-          # Build with detailed logging
-          flutter build apk --release --verbose
+          # Build with resource limits
+          flutter build apk --release --verbose \
+            --dart-define=CI_ENV=true \
+            --shrink
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
