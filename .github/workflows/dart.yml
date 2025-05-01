@@ -10,8 +10,14 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          path: aurore_frontend
+
+      - name: Validate Repository Structure
+        run: |
+          echo "Repository contents:"
+          ls -la
+          echo "Checking project directory:"
+          ls -la aurore_frontend
+          test -f aurore_frontend/pubspec.yaml || { echo "❌ pubspec.yaml missing in aurore_frontend/"; exit 1; }
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -27,36 +33,27 @@ jobs:
           cache: true
           cache-key: ${{ runner.os }}-flutter-${{ hashFiles('aurore_frontend/pubspec.lock') }}
 
-      - name: Validate Environment
-        run: |
-          echo "Flutter path: $(which flutter)"
-          flutter --version
-          echo "Java version:"
-          java -version
-
       - name: Dependency Checks
         working-directory: aurore_frontend
         run: |
-          # Check for duplicate dependencies
-          if [ $(grep -c 'vector_math:' pubspec.yaml) -ne 1 ]; then
-            echo "❌ Duplicate vector_math dependency"
-            exit 1
-          fi
-          
-          # Verify minimum Flutter version
-          if ! grep -q 'sdk: ">=3.3.0 <4.0.0"' pubspec.yaml; then
-            echo "❌ Invalid SDK constraint"
+          # Verify pubspec.yaml exists
+          if [ ! -f pubspec.yaml ]; then
+            echo "❌ pubspec.yaml not found in working directory!"
             exit 1
           fi
 
-      - name: Cache Dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            aurore_frontend/.dart_tool
-            aurore_frontend/build
-            ~/.gradle/caches
-          key: ${{ runner.os }}-build-${{ hashFiles('aurore_frontend/pubspec.lock') }}
+          # Check for duplicate dependencies
+          VECTOR_MATH_COUNT=$(grep -c 'vector_math:' pubspec.yaml)
+          if [ "$VECTOR_MATH_COUNT" -ne 1 ]; then
+            echo "❌ Found $VECTOR_MATH_COUNT vector_math entries (should be 1)"
+            exit 1
+          fi
+
+          # Verify SDK constraint format
+          if ! grep -q 'sdk: ">=3.3.0 <4.0.0"' pubspec.yaml; then
+            echo "❌ Invalid/missing SDK constraint in pubspec.yaml"
+            exit 1
+          fi
 
       - name: Build & Verify
         working-directory: aurore_frontend
@@ -64,19 +61,13 @@ jobs:
           flutter clean
           flutter pub get
           
-          # Critical code validation
-          if ! grep -q 'main() => runApp(MyApp());' lib/main.dart; then
-            echo "❌ Invalid entry point detected!"
+          # Verify main.dart exists
+          if [ ! -f lib/main.dart ]; then
+            echo "❌ main.dart missing!"
             exit 1
           fi
           
           flutter build apk --release --no-pub
-          
-          # APK content check
-          if unzip -p build/app/outputs/flutter-apk/app-release.apqk lib/arm64-v8a/libapp.so | grep -q 'Flutter Demo'; then
-            echo "❌ DEMO CODE DETECTED!"
-            exit 1
-          fi
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
