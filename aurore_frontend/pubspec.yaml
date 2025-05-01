@@ -3,45 +3,44 @@ description: A Flutter application for Aurore School management, providing sched
 version: 1.0.1+2
 
 environment:
-  sdk: '>=3.6.0 <4.0.0'
+  sdk: '>=3.3.0 <4.0.0'  # Updated for Flutter 3.29 compatibility
 
 dependencies:
   flutter:
     sdk: flutter
   firebase_core: ^3.13.0
   firebase_auth: ^5.5.3
-  firebase_analytics: ^11.3.0
-  google_sign_in: ^6.1.1
+  firebase_analytics: ^11.4.5
+  google_sign_in: ^6.3.0
   flutter_secure_storage: ^9.2.4
-  crypto: ^3.0.5
+  crypto: ^3.0.6
   path_provider: ^2.1.5
   mobile_scanner: ^6.0.10
   qr_flutter: ^4.1.0
-  dio: ^5.7.0
-  http: ^1.2.2
+  dio: ^5.8.0+1
+  http: ^1.3.0
   provider: ^6.1.5
   get_it: ^8.0.3
   google_mlkit_text_recognition: ^0.15.0
   google_mlkit_commons: ^0.11.0
   image_picker: ^1.1.2
   email_validator: ^3.0.0
-  animations: ^2.0.8
-  vibration: ^2.0.0
-  vibration_platform_interface: ^0.0.1
+  animations: ^2.0.11
+  vibration: ^3.1.3  # Updated to latest version
+  vibration_platform_interface: ^0.1.0  # Updated to match vibration
   fl_chart: ^0.71.0
-  vector_math: ^2.1.4
+  vector_math: ^2.1.5  # Removed duplicate entry
   intl: ^0.20.2
-  flutter_svg: ^2.0.10
+  flutter_svg: ^2.1.0
   async: ^2.13.0
   material_color_utilities: ^0.12.0
-  vector_math: ^2.1.5
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^4.0.0
-  lints: ^4.0.0
-  test: ^1.25.8
+  flutter_lints: ^5.0.0  # Updated to latest
+  lints: ^6.0.0  # Updated to latest
+  test: ^1.25.15
 
 analyzer:
   exclude:
@@ -51,25 +50,18 @@ analyzer:
 linter:
   rules:
     prefer_final_fields: false
-    always_use_package_imports: true
     avoid_print: true
+    # Updated lint rules for better code quality
+    prefer_const_constructors: true
+    prefer_const_declarations: true
+    prefer_final_locals: true
 
 flutter:
   uses-material-design: true
   assets:
     - assets/images/aurore_logo.png
     - assets/images/login_logo.png
-    - assets/images/aurore_icons/dashboard.png
-    - assets/images/aurore_icons/timetable.png
-    - assets/images/aurore_icons/attendance_present.png
-    - assets/images/aurore_icons/attendance_absent.png
-    - assets/images/aurore_icons/grades.png
-    - assets/images/aurore_icons/profile.png
-    - assets/images/aurore_icons/settings.png
-    - assets/images/aurore_icons/logout.png
-    - assets/images/aurore_icons/communication.png
-    - assets/images/aurore_icons/analytics.png
-    - assets/images/aurore_icons/qr_scan.png
+    - assets/images/aurore_icons/
   fonts:
     - family: Inter
       fonts:
