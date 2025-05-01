@@ -6,26 +6,14 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
-      - name: Nuclear Validation
+      - name: Nuclear Clean
         run: |
           cd aurore_frontend
-          # Version lock verification
-          if ! grep -qx '  lints: 5.0.0' pubspec.yaml; then
-            echo "❌ FATAL: lints must be exactly 5.0.0"
-            echo "Current lints line:"
-            grep 'lints:' pubspec.yaml || true
-            exit 1
-          fi
-          
-          # SDK version verification
-          if ! grep -q 'sdk: ">=3.7.2 <4.0.0"' pubspec.yaml; then
-            echo "❌ Invalid SDK constraint"
-            exit 1
-          fi
+          rm -rf pubspec.lock .dart_tool
+          flutter clean
 
       - name: Flutter Setup
         uses: subosito/flutter-action@v2
@@ -33,18 +21,27 @@ jobs:
           flutter-version: '3.29.2'
           channel: stable
           cache: true
-          cache-key: locked-lints-5.0.0
+          cache-key: fixed-lints-5.0.0
 
-      - name: Build with Locked Dependencies
+      - name: Version Enforcement
         working-directory: aurore_frontend
         run: |
-          # Clean environment
-          rm -rf pubspec.lock .dart_tool
-          
-          # Install with version lock
-          flutter pub get --offline --no-upgrade
-          
-          # Build without pub access
+          if ! grep -q 'lints: 5.0.0' pubspec.yaml || \
+             grep -q '^  lints: [^5]' pubspec.yaml; then
+            echo "❌ Critical: lints must be exactly 5.0.0"
+            grep 'lints:' pubspec.yaml
+            exit 1
+          fi
+
+          if ! grep -q 'sdk: ">=3.7.2 <4.0.0"' pubspec.yaml; then
+            echo "❌ Invalid SDK version"
+            exit 1
+          fi
+
+      - name: Build APK
+        working-directory: aurore_frontend
+        run: |
+          flutter pub get --offline
           flutter build apk --release --no-pub
 
       - uses: actions/upload-artifact@v4
