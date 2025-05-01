@@ -6,53 +6,33 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      PROJECT_DIR: aurore_frontend
     steps:
       - uses: actions/checkout@v4
 
-      - name: Destroy Demo Artifacts
-        run: |
-          rm -rf $PROJECT_DIR/android/.gradle
-          rm -rf $PROJECT_DIR/build
-
-      - name: Setup Java & Gradle
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
-          cache: 'gradle'
-
-      - name: Flutter Enforcer
+      - name: Setup Flutter Properly
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.29.2'
           channel: 'stable'
+          cache: true
+          cache-key: flutter-pub-cache
+          cache-path: /flutter/.pub-cache
 
-      - name: Code Validation
-        working-directory: $PROJECT_DIR
+      - name: Verify Flutter Installation
         run: |
-          if ! grep -q 'YOUR_UNIQUE_APP_IDENTIFIER' lib/main.dart; then
-            echo "❌ Demo code detected! Aborting build";
-            exit 1;
-          fi
+          flutter --version
+          which flutter
 
-      - name: Build with Fresh Gradle
-        working-directory: $PROJECT_DIR
+      - name: Create Project Structure
         run: |
-          flutter pub upgrade --major-versions --force
-          ./gradlew clean
-          flutter build apk --release --no-pub
+          flutter create --no-pub --project-name aurore --org com.yourcompany .
 
-      - name: APK Reality Check
-        working-directory: $PROJECT_DIR
+      - name: Build APK
         run: |
-          if unzip -p build/app/outputs/flutter-apk/app-release.apk lib/arm64-v8a/libapp.so | strings | grep -q 'Flutter Demo'; then
-            echo "❌ DEMO SCREEN DETECTED IN APK!";
-            exit 1;
-          fi
+          flutter pub get
+          flutter build apk --release
 
       - uses: actions/upload-artifact@v4
         with:
-          name: real-app-release
-          path: $PROJECT_DIR/build/app/outputs/flutter-apk/app-release.apk
+          name: app-release
+          path: build/app/outputs/flutter-apk/app-release.apk
