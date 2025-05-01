@@ -7,6 +7,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
     steps:
       - uses: actions/checkout@v4
 
@@ -14,7 +16,7 @@ jobs:
         run: |
           if [ ! -f "aurore_frontend/pubspec.yaml" ]; then
             echo "❌ Missing pubspec.yaml in aurore_frontend directory"
-            ls -la aurore_frontend
+            ls -la
             exit 1
           fi
 
@@ -25,30 +27,31 @@ jobs:
           java-version: '17'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          skip-jdk-check: true  # Bypass version check
+        run: |
+          mkdir -p $ANDROID_SDK_ROOT
+          wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+          unzip commandlinetools-linux-9477386_latest.zip -d $ANDROID_SDK_ROOT/cmdline-tools
+          mv $ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools $ANDROID_SDK_ROOT/cmdline-tools/latest
+          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.0'
+          flutter-version: '3.28.0'  # Contains Dart 3.8.0
           channel: stable
           architecture: x64
 
       - name: Build APK
         working-directory: ./aurore_frontend
-        env:
-          FLUTTER_SUPPRESS_ANALYTICS: true
         run: |
           # Configure environment
           flutter config --no-analytics
           flutter config --no-cli-animations
           
-          # Accept licenses
+          # Accept licenses safely
           mkdir -p ~/.android
           touch ~/.android/repositories.cfg
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
+          printf 'y\n' | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses
           flutter doctor --android-licenses
           
           # Build process
