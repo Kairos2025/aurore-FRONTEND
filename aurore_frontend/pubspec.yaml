@@ -3,7 +3,7 @@ description: A Flutter application for Aurore School management, providing sched
 version: 1.0.1+2
 
 environment:
-  sdk: '>=3.3.0 <4.0.0'  # Updated for Flutter 3.29 compatibility
+  sdk: '>=3.7.2 <4.0.0'  # Updated for Flutter 3.29 compatibility
 
 dependencies:
   flutter:
