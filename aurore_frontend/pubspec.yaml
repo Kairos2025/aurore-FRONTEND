@@ -3,16 +3,16 @@ description: A Flutter application for Aurore School management, providing sched
 version: 1.0.1+2
 
 environment:
- sdk: '>=3.6.0 <4.0.0'
+  sdk: '>=3.6.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
- firebase_core: ^3.13.0
+  firebase_core: ^3.13.0
   firebase_auth: ^5.5.3
   firebase_analytics: ^11.3.0
   google_sign_in: ^6.1.1
-   flutter_secure_storage: ^9.2.4
+  flutter_secure_storage: ^9.2.4
   crypto: ^3.0.5
   path_provider: ^2.1.5
   mobile_scanner: ^6.0.10
@@ -59,17 +59,17 @@ flutter:
   assets:
     - assets/images/aurore_logo.png
     - assets/images/login_logo.png
-    - assets/icons/dashboard.png
-    - assets/icons/timetable.png
-    - assets/icons/attendance_present.png
-    - assets/icons/attendance_absent.png
-    - assets/icons/grades.png
-    - assets/icons/profile.png
-    - assets/icons/settings.png
-    - assets/icons/logout.png
-    - assets/icons/communication.png
-    - assets/icons/analytics.png
-    - assets/icons/qr_scan.png
+    - assets/images/aurore_icons/dashboard.png
+    - assets/images/aurore_icons/timetable.png
+    - assets/images/aurore_icons/attendance_present.png
+    - assets/images/aurore_icons/attendance_absent.png
+    - assets/images/aurore_icons/grades.png
+    - assets/images/aurore_icons/profile.png
+    - assets/images/aurore_icons/settings.png
+    - assets/images/aurore_icons/logout.png
+    - assets/images/aurore_icons/communication.png
+    - assets/images/aurore_icons/analytics.png
+    - assets/images/aurore_icons/qr_scan.png
   fonts:
     - family: Inter
       fonts:
