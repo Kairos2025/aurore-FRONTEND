@@ -1,4 +1,4 @@
-name: Production APK Builder
+name: Production Build
 on:
   push:
     branches: [main, master]
@@ -6,26 +6,37 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
       - name: Validate Structure
         run: |
-          test -f aurore_frontend/pubspec.yaml || { 
-            echo "❌ pubspec.yaml missing"; exit 1; 
-          }
+          test -d aurore_frontend || { echo "❌ Missing project directory"; exit 1; }
+          test -f aurore_frontend/pubspec.yaml || { echo "❌ pubspec.yaml missing"; exit 1; }
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.29.2'
           channel: stable
+          cache: true
 
-      - name: Dependency Validation
+      - name: Dependency Check
         working-directory: aurore_frontend
         run: |
-          if ! grep -qE 'material_color_utilities:[" ]*0\.11\.1' pubspec.yaml; then
-            echo "❌ Required: material_color_utilities: 0.11.1"
+          if ! grep -q 'material_color_utilities: 0.11.1' pubspec.yaml; then
+            echo "❌ material_color_utilities must be 0.11.1"
+            exit 1
+          fi
+          if ! grep -q 'vector_math: 2.1.4' pubspec.yaml; then
+            echo "❌ vector_math must be 2.1.4"
             exit 1
           fi
 
@@ -34,7 +45,13 @@ jobs:
         run: |
           flutter clean
           flutter pub get
-          flutter build apk --release
+          flutter build apk --release --no-pub
+          
+          # Verify APK contains actual code
+          if unzip -p build/app/outputs/flutter-apk/app-release.apk | strings | grep -qi 'flutter demo'; then
+            echo "❌ Demo code detected!"
+            exit 1
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
