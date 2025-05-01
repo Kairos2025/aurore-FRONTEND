@@ -9,21 +9,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate Structure
-        run: |
-          # Check for pubspec.yaml in the root directory
-          test -f pubspec.yaml || { 
-            echo "❌ pubspec.yaml missing in root directory"; 
-            exit 1; 
-          }
-
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.29.2'
           channel: stable
+        working-directory: ./aurore-FRONTEND/aurore_frontend  # Added directory
 
       - name: Build APK
+        working-directory: ./aurore-FRONTEND/aurore_frontend  # Added directory
         run: |
           flutter clean
           flutter pub get
@@ -32,4 +26,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: aurore-FRONTEND/aurore_frontend/build/app/outputs/flutter-apk/app-release.apk  # Updated path
