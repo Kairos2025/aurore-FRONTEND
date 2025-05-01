@@ -6,12 +6,16 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      PROJECT_ROOT: aurore_frontend  # 👈 MUST match your directory structure
     steps:
       - uses: actions/checkout@v4
-        with:
-          path: ${{ env.PROJECT_ROOT }}  # 👈 Critical path specification
+
+      - name: Validate Structure
+        run: |
+          echo "Repository Structure:"
+          ls -la
+          echo "Project Directory:"
+          ls -la aurore_frontend
+          test -f aurore_frontend/pubspec.yaml || { echo "❌ CRITICAL: pubspec.yaml missing in aurore_frontend/"; exit 1; }
 
       - name: Flutter Setup
         uses: subosito/flutter-action@v2
@@ -19,28 +23,17 @@ jobs:
           flutter-version: '3.29.2'
           channel: 'stable'
           cache: true
-          cache-path: ${{ env.PROJECT_ROOT }}/.flutter-cache
-
-      - name: Validate Project Root
-        run: |
-          echo "Project directory: $PROJECT_ROOT"
-          ls -la $PROJECT_ROOT
-          test -f $PROJECT_ROOT/pubspec.yaml || { echo "pubspec.yaml missing!"; exit 1; }
-
-      - name: Resolve Dependencies
-        working-directory: ${{ env.PROJECT_ROOT }}
-        run: |
-          flutter clean
-          flutter pub cache repair
-          flutter pub get --verbose
+          cache-path: aurore_frontend/.flutter-cache
 
       - name: Build APK
-        working-directory: ${{ env.PROJECT_ROOT }}
-        run: flutter build apk --release --no-pub
+        working-directory: aurore_frontend
+        run: |
+          flutter clean
+          flutter pub get
+          flutter build apk --release --no-pub
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: production-apk
-          path: ${{ env.PROJECT_ROOT }}/build/app/outputs/flutter-apk/app-release.apk 
-          
+          name: app-release
+          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
