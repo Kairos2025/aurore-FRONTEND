@@ -7,23 +7,20 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      PROJECT_DIR: aurore_frontend
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          path: ${{ env.PROJECT_DIR }}
 
       - name: Validate Structure
         run: |
           echo "Repository Structure:"
-          ls -la ${{ env.PROJECT_DIR }}
-          test -f ${{ env.PROJECT_DIR }}/pubspec.yaml || { 
-            echo "❌ pubspec.yaml missing"; 
+          ls -la
+          test -d aurore_frontend || { echo "❌ Missing project directory"; exit 1; }
+          test -f aurore_frontend/pubspec.yaml || { 
+            echo "❌ pubspec.yaml missing in aurore_frontend/"; 
             exit 1; 
           }
-          test -f ${{ env.PROJECT_DIR }}/lib/main.dart || { 
+          test -f aurore_frontend/lib/main.dart || { 
             echo "❌ main.dart missing"; 
             exit 1; 
           }
@@ -40,41 +37,41 @@ jobs:
           flutter-version: '3.29.2'
           channel: stable
           cache: true
-          cache-key: flutter-deps-${{ hashFiles(format('{0}/pubspec.lock', env.PROJECT_DIR)) }}
+          cache-key: flutter-deps-${{ hashFiles('aurore_frontend/pubspec.lock') }}
 
       - name: Dependency Validation
-        working-directory: ${{ env.PROJECT_DIR }}
+        working-directory: aurore_frontend
         run: |
-          # Flexible version checks
+          # Verify critical versions
           if ! grep -qE 'sdk:[" ]*>=3\.7\.2 <4\.0\.0' pubspec.yaml; then
-            echo "❌ Invalid SDK constraint - Required: '>=3.7.2 <4.0.0'"
+            echo "❌ Required SDK: '>=3.7.2 <4.0.0'"
+            echo "Current SDK line:"
             grep 'sdk:' pubspec.yaml
             exit 1
           fi
-          
           if ! grep -qE 'lints:[" ]*5\.0\.0' pubspec.yaml; then
-            echo "❌ lints must be exactly 5.0.0"
+            echo "❌ lints must be 5.0.0"
             grep 'lints:' pubspec.yaml
             exit 1
           fi
 
       - name: Build APK
-        working-directory: ${{ env.PROJECT_DIR }}
+        working-directory: aurore_frontend
         run: |
           flutter clean
           flutter pub get
           
           # Verify actual codebase
           if ! grep -q '// PRODUCTION-APP-ID' lib/main.dart; then
-            echo "❌ Demo code detected! Add identifier to main.dart"
+            echo "❌ Add identifier to main.dart to prevent demo"
             exit 1
           fi
           
           flutter build apk --release --no-pub
 
-          # APK content validation
+          # Final APK check
           if unzip -p build/app/outputs/flutter-apk/app-release.apk | strings | grep -qi 'flutter demo'; then
-            echo "❌ DEMO CODE FOUND IN APK!"
+            echo "❌ Demo code detected in APK!"
             exit 1
           fi
 
@@ -82,4 +79,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: production-apk
-          path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
