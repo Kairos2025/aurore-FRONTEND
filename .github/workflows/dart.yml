@@ -9,25 +9,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.29.2'
           channel: 'stable'
 
-      - name: Verify Structure
+      - name: Validate project
+        working-directory: aurore_frontend
         run: |
-          ls -la aurore_frontend/android/app/build.gradle || { echo "Android files missing!"; exit 1; }
-          test -f aurore_frontend/lib/main.dart || { echo "main.dart missing!"; exit 1; }
+          flutter pub upgrade --major-versions
+          flutter pub outdated
+          ls -la android/app/build.gradle
 
-      - name: Clean & Build
+      - name: Cache Flutter dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            aurore_frontend/.dart_tool
+            aurore_frontend/build
+            aurore_frontend/android/gradle-wrapper
+          key: ${{ runner.os }}-flutter-${{ hashFiles('aurore_frontend/pubspec.lock') }}
+
+      - name: Build APK
         working-directory: aurore_frontend
         run: |
           flutter clean
           flutter pub get
-          flutter build apk --release
+          flutter build apk --release --no-pub
 
-      - name: Upload APK
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release.apk
+          name: app-release
           path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
