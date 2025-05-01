@@ -8,40 +8,23 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Validate project structure
-        run: |
-          # Check for either possible directory structure
-          if [ ! -d "aurore_frontend" ] && [ ! -d "aurore-FRONTEND/aurore_frontend" ]; then
-            echo "❌ Verify directory structure: Either 'aurore_frontend' (root) or 'aurore-FRONTEND/aurore_frontend' should exist"
-            exit 1
-          fi
+      - uses: actions/checkout@v4
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.29.2'
+          flutter-version: '3.30.0'  # Updated version
           channel: stable
 
       - name: Build APK
+        working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
-          # Auto-detect project location
-          if [ -d "aurore_frontend" ]; then
-            cd aurore_frontend
-          else
-            cd aurore-FRONTEND/aurore_frontend
-          fi
-
+          flutter config --no-analytics  # Disable analytics in CI
           flutter clean
           flutter pub get
           flutter build apk --release
 
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: |
-            aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
-            aurore-FRONTEND/aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
+          path: aurore-FRONTEND/aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
