@@ -1,4 +1,4 @@
-name: Production APK Builder
+name: Production Build
 on:
   push:
     branches: [main, master]
@@ -6,37 +6,37 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate Dependencies
+      - name: Version Validation
         run: |
           cd aurore_frontend
-          grep 'lints: ^5.0.0' pubspec.yaml || { 
-            echo "❌ Wrong lints version - must use 5.0.0"; 
-            exit 1; 
-          }
+          # Verify lints version is locked
+          if ! grep -q 'lints: 5.0.0' pubspec.yaml; then
+            echo "❌ Critical: lints must be 5.0.0"
+            exit 1
+          fi
+          # Verify Dart constraint
+          if ! grep -q 'sdk: ">=3.7.2 <4.0.0"' pubspec.yaml; then
+            echo "❌ Invalid SDK version"
+            exit 1
+          fi
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
-
-      - name: Install Flutter
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.29.2'
           channel: stable
           cache: true
+          cache-key: fixed-lints-version
 
       - name: Build APK
         working-directory: aurore_frontend
         run: |
           flutter clean
-          flutter pub get
-          flutter build apk --release
+          flutter pub get --offline
+          flutter build apk --release --no-pub
 
       - uses: actions/upload-artifact@v4
         with:
