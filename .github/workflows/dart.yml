@@ -42,10 +42,8 @@ jobs:
       - name: SDK Validation
         working-directory: aurore_frontend
         run: |
-          # Exact SDK version check using awk
           if ! awk '/environment:/ {getline; if ($0 ~ /sdk: *"?"?>=3\.7\.2 <4\.0\.0"?>?/) exit 0; else exit 1}' pubspec.yaml; then
             echo "❌ Invalid SDK constraint"
-            echo "Required: environment.sdk = '>=3.7.2 <4.0.0'"
             awk '/environment:/ {print; getline; print}' pubspec.yaml
             exit 1
           fi
@@ -53,9 +51,16 @@ jobs:
       - name: Dependency Check
         working-directory: aurore_frontend
         run: |
+          # Validate critical dependencies
           if ! grep -qE 'lints:[" ]*5\.0\.0' pubspec.yaml; then
             echo "❌ lints must be exactly 5.0.0"
             grep 'lints:' pubspec.yaml
+            exit 1
+          fi
+          
+          if ! grep -qE 'vector_math:[" ]*2\.1\.4' pubspec.yaml; then
+            echo "❌ vector_math must be 2.1.4 (matches Flutter SDK)"
+            grep 'vector_math:' pubspec.yaml
             exit 1
           fi
 
@@ -63,17 +68,15 @@ jobs:
         working-directory: aurore_frontend
         run: |
           flutter clean
-          flutter pub get
+          flutter pub get --no-upgrade
           
-          # Codebase verification
           if ! grep -q '// PRODUCTION-APP-ID' lib/main.dart; then
-            echo "❌ Add identifier to main.dart"
+            echo "❌ Missing production identifier in main.dart"
             exit 1
           fi
           
           flutter build apk --release --no-pub
 
-          # Final APK verification
           if unzip -p build/app/outputs/flutter-apk/app-release.apk | strings | grep -qi 'flutter demo'; then
             echo "❌ Demo code detected in APK!"
             exit 1
