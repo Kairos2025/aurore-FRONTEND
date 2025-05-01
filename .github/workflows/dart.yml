@@ -12,28 +12,28 @@ jobs:
 
       - name: Validate directory structure
         run: |
-          if [ ! -d "aurore-FRONTEND/aurore_frontend" ]; then
-            echo "❌ Directory structure mismatch: aurore-FRONTEND/aurore_frontend not found"
+          # Check for EXACT directory name shown in your screenshot
+          if [ ! -d "aurore_frontend" ]; then
+            echo "❌ Project directory 'aurore_frontend' not found in root"
             exit 1
           fi
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.16.9'  # Verified stable version
+          flutter-version: '3.16.9'
           channel: stable
           architecture: x64
 
       - name: Build APK
-        working-directory: aurore-FRONTEND/aurore_frontend
+        working-directory: ./aurore_frontend  # Direct root-level directory
         run: |
           flutter config --no-analytics
           flutter clean
           flutter pub get
           flutter build apk --release
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: aurore-FRONTEND/aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
+          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
