@@ -1,4 +1,4 @@
-name: Production Build
+name: Production APK Builder
 on:
   push:
     branches: [main, master]
@@ -6,16 +6,37 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    env:
+      PROJECT_DIR: aurore_frontend
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          path: ${{ env.PROJECT_DIR }}
 
       - name: Validate Structure
         run: |
-          test -d aurore_frontend || { echo "❌ Missing project directory"; exit 1; }
-          test -f aurore_frontend/pubspec.yaml || { echo "❌ pubspec.yaml missing"; exit 1; }
+          echo "Project Structure:"
+          ls -la ${{ env.PROJECT_DIR }}
+          
+          required_files=(
+            "pubspec.yaml"
+            "lib/main.dart"
+            "android/app/build.gradle"
+          )
+          
+          for file in "${required_files[@]}"; do
+            full_path="${{ env.PROJECT_DIR }}/$file"
+            if [ ! -f "$full_path" ]; then
+              echo "❌ Missing critical file: $file"
+              echo "Directory contents:"
+              ls -la $(dirname "$full_path") || true
+              exit 1
+            fi
+          done
 
-      - name: Setup Java
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
@@ -27,33 +48,60 @@ jobs:
           flutter-version: '3.29.2'
           channel: stable
           cache: true
+          cache-key: flutter-${{ hashFiles('**/pubspec.lock') }}
 
-      - name: Dependency Check
-        working-directory: aurore_frontend
+      - name: Dependency Validation
+        working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          if ! grep -q 'material_color_utilities: 0.11.1' pubspec.yaml; then
-            echo "❌ material_color_utilities must be 0.11.1"
-            exit 1
-          fi
-          if ! grep -q 'vector_math: 2.1.4' pubspec.yaml; then
-            echo "❌ vector_math must be 2.1.4"
-            exit 1
-          fi
+          declare -A required_versions=(
+            ["sdk"]=">=3.7.2 <4.0.0"
+            ["lints"]="5.0.0"
+            ["vector_math"]="2.1.4"
+            ["material_color_utilities"]="0.11.1"
+            ["flutter_lints"]="5.0.0"
+          )
+          
+          for dep in "${!required_versions[@]}"; do
+            if ! grep -qE "$dep:.*${required_versions[$dep]}" pubspec.yaml; then
+              echo "❌ Invalid $dep version - Requires: ${required_versions[$dep]}"
+              grep "$dep:" pubspec.yaml || true
+              exit 1
+            fi
+          done
 
-      - name: Build APK
-        working-directory: aurore_frontend
+      - name: Build Preparation
+        working-directory: ${{ env.PROJECT_DIR }}
         run: |
           flutter clean
-          flutter pub get
-          flutter build apk --release --no-pub
+          flutter pub get --no-upgrade
           
-          # Verify APK contains actual code
-          if unzip -p build/app/outputs/flutter-apk/app-release.apk | strings | grep -qi 'flutter demo'; then
-            echo "❌ Demo code detected!"
+          if ! grep -q '// PRODUCTION-APP-V1' lib/main.dart; then
+            echo "❌ Missing production identifier in main.dart"
             exit 1
           fi
 
-      - uses: actions/upload-artifact@v4
+      - name: Build & Verify APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          flutter build apk --release --no-pub
+          
+          # APK Content Validation
+          apk_checks=(
+            "Flutter Demo"
+            "MainActivity"
+            "aurore_school"
+          )
+          
+          apk_content=$(unzip -p build/app/outputs/flutter-apk/app-release.apk)
+          for check in "${apk_checks[@]}"; do
+            if echo "$apk_content" | grep -qi "$check"; then
+              echo "❌ Invalid APK content detected: $check"
+              exit 1
+            fi
+          done
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: production-apk
-          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
+          name: production-apk-v1
+          path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
