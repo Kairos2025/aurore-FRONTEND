@@ -11,17 +11,23 @@ jobs:
 
       - name: Validate Structure
         run: |
-          echo "Project Structure:"
-          ls -la aurore_frontend
           test -f aurore_frontend/pubspec.yaml || { 
             echo "❌ pubspec.yaml missing"; exit 1; 
           }
 
-      - name: Setup Flutter
+      - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.29.2'
           channel: stable
+
+      - name: Dependency Validation
+        working-directory: aurore_frontend
+        run: |
+          if ! grep -qE 'material_color_utilities:[" ]*0\.11\.1' pubspec.yaml; then
+            echo "❌ Required: material_color_utilities: 0.11.1"
+            exit 1
+          fi
 
       - name: Build APK
         working-directory: aurore_frontend
@@ -32,5 +38,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: app-release
+          name: production-apk
           path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
