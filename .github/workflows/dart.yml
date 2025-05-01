@@ -1,4 +1,4 @@
-name: Build Real APK
+name: Build APK
 on:
   push:
     branches: [ main, master ]
@@ -6,33 +6,32 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      FLUTTER_HOME: ${{ github.workspace }}/flutter
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Flutter Properly
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.29.2'
           channel: 'stable'
           cache: true
-          cache-key: flutter-pub-cache
-          cache-path: /flutter/.pub-cache
+          cache-path: ${{ github.workspace }}/.pub-cache
+          cache-key: flutter-pub-cache-${{ runner.os }}
 
       - name: Verify Flutter Installation
         run: |
-          flutter --version
-          which flutter
-
-      - name: Create Project Structure
-        run: |
-          flutter create --no-pub --project-name aurore --org com.yourcompany .
+          echo "Flutter path: $(which flutter)"
+          flutter doctor -v
 
       - name: Build APK
         run: |
           flutter pub get
           flutter build apk --release
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: build/app/outputs/flutter-apk/app-release.apk
