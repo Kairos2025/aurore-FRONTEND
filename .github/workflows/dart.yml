@@ -6,58 +6,31 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      PROJECT_DIR: aurore_frontend
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        with:
-          path: ${{ env.PROJECT_DIR }}
+      - uses: actions/checkout@v4
 
-      - name: Validate Project Structure
+      - name: Validate Structure
         run: |
-          echo "Repository Structure:"
-          ls -la ${{ env.PROJECT_DIR }}
-          
-          # Critical file check with debug output
-          required_files=(
-            "pubspec.yaml"
-            "lib/main.dart"
-            "android/app/build.gradle"
-          )
-          
-          for file in "${required_files[@]}"; do
-            echo "Checking: ${{ env.PROJECT_DIR }}/$file"
-            if [ ! -f "${{ env.PROJECT_DIR }}/$file" ]; then
-              echo "❌ Missing critical file: $file"
-              echo "Directory contents:"
-              ls -la $(dirname "${{ env.PROJECT_DIR }}/$file") || true
-              exit 1
-            fi
-          done
+          echo "Project Structure:"
+          ls -la aurore_frontend
+          test -f aurore_frontend/pubspec.yaml || { 
+            echo "❌ pubspec.yaml missing"; exit 1; 
+          }
 
-      - name: Setup Environment
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
-          
-      - name: Install Flutter
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.29.2'
           channel: stable
 
-      - name: Build & Verify
-        working-directory: ${{ env.PROJECT_DIR }}
+      - name: Build APK
+        working-directory: aurore_frontend
         run: |
           flutter clean
           flutter pub get
           flutter build apk --release
 
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: production-apk
-          path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          name: app-release
+          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
