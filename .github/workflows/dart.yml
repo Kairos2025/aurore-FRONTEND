@@ -14,8 +14,6 @@ jobs:
         run: |
           if [ ! -f "aurore_frontend/pubspec.yaml" ]; then
             echo "❌ Missing pubspec.yaml in aurore_frontend directory"
-            echo "Current directory structure:"
-            ls -la
             exit 1
           fi
 
@@ -32,34 +30,26 @@ jobs:
           channel: stable
           architecture: x64
 
-      - name: Cache Flutter dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            aurore_frontend/.dart_tool
-            aurore_frontend/build
-            ${{ env.HOME }}/.pub-cache
-          key: ${{ runner.os }}-flutter-${{ hashFiles('aurore_frontend/pubspec.yaml') }}
-
       - name: Build APK
         working-directory: ./aurore_frontend
+        env:
+          FLUTTER_SUPPRESS_ANALYTICS: true
         run: |
-          # Configure environment
+          # Suppress all Flutter first-run messages
           flutter config --no-analytics
           flutter config --no-cli-animations
           
-          # Accept Android licenses
-          yes | sdkmanager --licenses >/dev/null 2>&1 || true
-          flutter doctor --android-licenses -y
+          # Accept Android licenses non-interactively
+          (while sleep 1; do echo y; done) | sdkmanager --licenses >/dev/null 2>&1
+          flutter doctor --android-licenses
           
-          # Clean and build
+          # Build process
           flutter clean
           flutter pub get
-          flutter build apk --release --shrink-resources --split-debug-info=/debug-info
+          flutter build apk --release --shrink-resources
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 7
