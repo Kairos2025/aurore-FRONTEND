@@ -10,9 +10,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate Structure
+      - name: Validate Dependencies
         run: |
-          test -f aurore_frontend/pubspec.yaml || { echo "❌ pubspec.yaml missing"; exit 1; }
+          cd aurore_frontend
+          grep 'lints: ^5.0.0' pubspec.yaml || { 
+            echo "❌ Wrong lints version - must use 5.0.0"; 
+            exit 1; 
+          }
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -27,18 +31,12 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Dependency Resolution
-        working-directory: aurore_frontend
-        run: |
-          flutter pub upgrade --major-versions
-          flutter pub outdated
-
       - name: Build APK
         working-directory: aurore_frontend
         run: |
           flutter clean
           flutter pub get
-          flutter build apk --release --no-pub
+          flutter build apk --release
 
       - uses: actions/upload-artifact@v4
         with:
