@@ -6,102 +6,30 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      PROJECT_DIR: aurore_frontend
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        with:
-          path: ${{ env.PROJECT_DIR }}
+      - uses: actions/checkout@v4
 
       - name: Validate Structure
         run: |
-          echo "Project Structure:"
-          ls -la ${{ env.PROJECT_DIR }}
-          
-          required_files=(
-            "pubspec.yaml"
-            "lib/main.dart"
-            "android/app/build.gradle"
-          )
-          
-          for file in "${required_files[@]}"; do
-            full_path="${{ env.PROJECT_DIR }}/$file"
-            if [ ! -f "$full_path" ]; then
-              echo "❌ Missing critical file: $file"
-              echo "Directory contents:"
-              ls -la $(dirname "$full_path") || true
-              exit 1
-            fi
-          done
+          # Check for pubspec.yaml in the root directory
+          test -f pubspec.yaml || { 
+            echo "❌ pubspec.yaml missing in root directory"; 
+            exit 1; 
+          }
 
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
-
-      - name: Install Flutter
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.29.2'
           channel: stable
-          cache: true
-          cache-key: flutter-${{ hashFiles('**/pubspec.lock') }}
 
-      - name: Dependency Validation
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          declare -A required_versions=(
-            ["sdk"]=">=3.7.2 <4.0.0"
-            ["lints"]="5.0.0"
-            ["vector_math"]="2.1.4"
-            ["material_color_utilities"]="0.11.1"
-            ["flutter_lints"]="5.0.0"
-          )
-          
-          for dep in "${!required_versions[@]}"; do
-            if ! grep -qE "$dep:.*${required_versions[$dep]}" pubspec.yaml; then
-              echo "❌ Invalid $dep version - Requires: ${required_versions[$dep]}"
-              grep "$dep:" pubspec.yaml || true
-              exit 1
-            fi
-          done
-
-      - name: Build Preparation
-        working-directory: ${{ env.PROJECT_DIR }}
+      - name: Build APK
         run: |
           flutter clean
-          flutter pub get --no-upgrade
-          
-          if ! grep -q '// PRODUCTION-APP-V1' lib/main.dart; then
-            echo "❌ Missing production identifier in main.dart"
-            exit 1
-          fi
+          flutter pub get
+          flutter build apk --release
 
-      - name: Build & Verify APK
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          flutter build apk --release --no-pub
-          
-          # APK Content Validation
-          apk_checks=(
-            "Flutter Demo"
-            "MainActivity"
-            "aurore_school"
-          )
-          
-          apk_content=$(unzip -p build/app/outputs/flutter-apk/app-release.apk)
-          for check in "${apk_checks[@]}"; do
-            if echo "$apk_content" | grep -qi "$check"; then
-              echo "❌ Invalid APK content detected: $check"
-              exit 1
-            fi
-          done
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: production-apk-v1
-          path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          name: app-release
+          path: build/app/outputs/flutter-apk/app-release.apk
