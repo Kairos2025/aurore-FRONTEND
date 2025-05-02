@@ -8,43 +8,43 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      FLUTTER_VERSION: '3.29.0'  # Contains Dart 3.10.0
-      FLUTTER_DIR: ${{ github.workspace }}/flutter
+      FLUTTER_VERSION: '3.22.2'  # Contains Dart 3.8.0
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Specific Flutter Version
+      - name: Install Flutter with Path Fix
         run: |
-          # Download from verified URL
+          # Download and extract Flutter
           wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_$FLUTTER_VERSION-stable.tar.xz
-          mkdir -p $FLUTTER_DIR
-          tar xf flutter_linux_$FLUTTER_VERSION-stable.tar.xz -C $FLUTTER_DIR
-          echo "$FLUTTER_DIR/bin" >> $GITHUB_PATH
-          echo "FLUTTER_ROOT=$FLUTTER_DIR" >> $GITHUB_ENV
+          tar xf flutter_linux_$FLUTTER_VERSION-stable.tar.xz -C ~
+          
+          # Permanent PATH configuration
+          echo "$HOME/flutter/bin" | tee -a $GITHUB_PATH
+          echo "FLUTTER_ROOT=$HOME/flutter" >> $GITHUB_ENV
+          
+          # Immediate verification
+          ~/flutter/bin/flutter --version
 
-      - name: Force Dart Version Verification
+      - name: Setup Android SDK
         run: |
-          # Explicit version check
+          mkdir -p ~/.android
+          touch ~/.android/repositories.cfg
+          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null
+
+      - name: Verify Environment
+        run: |
+          echo "PATH: $PATH"
+          which flutter
+          which dart
+          flutter --version
           dart --version
-          if ! dart --version 2>&1 | grep -q 'version: 3.10.0'; then
-            echo "❌ Critical Error: Dart 3.10.0 not found!"
-            exit 1
-          fi
 
       - name: Build APK
         working-directory: ./aurore_frontend
-        env:
-          ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
         run: |
-          # Configure environment
           flutter config --no-analytics
           flutter config --no-cli-animations
-          
-          # Android setup
-          mkdir -p ~/.android
-          yes | sdkmanager --licenses >/dev/null
-          
-          # Build process
           flutter clean
           flutter pub get
           flutter build apk --release --verbose
