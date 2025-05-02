@@ -8,10 +8,23 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
+      FLUTTER_VERSION: '3.30.0'  # Contains Dart 3.10.0
       FLUTTER_SUPPRESS_ANALYTICS: true
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Flutter (Manual)
+        run: |
+          # Install specific Flutter version
+          wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_$FLUTTER_VERSION-stable.tar.xz
+          tar xf flutter_linux_$FLUTTER_VERSION-stable.tar.xz -C ~
+          echo "$HOME/flutter/bin" >> $GITHUB_PATH
+
+      - name: Verify Installation
+        run: |
+          flutter --version
+          dart --version
 
       - name: Setup Java 17
         uses: actions/setup-java@v3
@@ -21,36 +34,13 @@ jobs:
 
       - name: Setup Android SDK
         run: |
-          # Install specific command-line tools version
-          wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-          unzip commandlinetools-linux-9477386_latest.zip -d cmdline-tools
-          mv cmdline-tools/cmdline-tools $ANDROID_SDK_ROOT/cmdline-tools/latest
-          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.22.2'  # Contains Dart 3.8.0
-          channel: stable
-          architecture: x64
+          yes | sdkmanager --licenses >/dev/null
+          flutter doctor --android-licenses
 
       - name: Build APK
         working-directory: ./aurore_frontend
         run: |
-          # Configure environment
           flutter config --no-cli-animations
-          
-          # Accept licenses safely
-          mkdir -p ~/.android
-          touch ~/.android/repositories.cfg
-          printf "y\ny\ny\ny\ny\ny\ny\ny\n" | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses
-          flutter doctor --android-licenses
-          
-          # Verify versions
-          echo "Flutter: $(flutter --version)"
-          echo "Dart: $(dart --version)"
-          
-          # Build process
           flutter clean
           flutter pub get
           flutter build apk --release --verbose
