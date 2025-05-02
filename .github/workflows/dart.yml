@@ -16,24 +16,30 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Install FVM (Flutter Version Management)
-        run: |
-          # Install FVM to manage exact Flutter version
-          dart pub global activate fvm
-          echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
+      - name: Install Flutter (with built-in Dart)
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.2'  # Contains Dart 3.8.0
+          channel: stable
+          architecture: x64
 
-      - name: Install & Use Flutter 3.22.2 (Dart 3.8.0)
+      - name: Install FVM using Flutter's Dart
+        run: |
+          # Use Flutter's bundled Dart
+          echo "$FLUTTER_HOME/.pub-cache/bin" >> $GITHUB_PATH
+          dart pub global activate fvm
+          fvm --version
+
+      - name: Pin Flutter Version
         working-directory: ./aurore_frontend
         run: |
           fvm install 3.22.2 --force
           fvm use 3.22.2 --force
           fvm flutter --version
-          fvm dart --version
 
       - name: Update Dependencies
         working-directory: ./aurore_frontend
         run: |
-          # Security updates for vulnerable packages
           sed -i 's/firebase_core: ^3.13.0/firebase_core: ^4.3.0/' pubspec.yaml
           sed -i 's/firebase_auth: ^5.5.3/firebase_auth: ^6.3.0/' pubspec.yaml
           sed -i 's/http: ^1.3.0/http: ^2.0.0/' pubspec.yaml
@@ -50,7 +56,7 @@ jobs:
               --split-debug-info=/debug-info \
               --no-tree-shake-icons
 
-      - name: Upload APK Artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release
