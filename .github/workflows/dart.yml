@@ -8,27 +8,32 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
+      FLUTTER_VERSION: '3.19.5'  # Contains Dart 3.7.2
       FLUTTER_SUPPRESS_ANALYTICS: true
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Java 17
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '17'
+      - name: Install Specific Flutter Version
+        run: |
+          # Download and install exact Flutter version
+          wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_$FLUTTER_VERSION-stable.tar.xz
+          tar xf flutter_linux_$FLUTTER_VERSION-stable.tar.xz -C ~
+          echo "$HOME/flutter/bin" >> $GITHUB_PATH
+
+      - name: Verify Versions
+        run: |
+          echo "Flutter path: $(which flutter)"
+          flutter --version
+          dart --version
+          if ! dart --version 2>&1 | grep -q '3.7.2'; then
+            echo "❌ Wrong Dart version installed!"
+            exit 1
+          fi
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
           jdk-version: '17'
-
-      - name: Setup Flutter (Verified Version)
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.22.2'  # Contains Dart 3.8.0
-          channel: stable
-          architecture: x64
 
       - name: Build APK
         working-directory: ./aurore_frontend
@@ -36,11 +41,17 @@ jobs:
           # Configure environment
           flutter config --no-cli-animations
           
-          # Verify versions first
-          echo "Flutter: $(flutter --version)"
-          echo "Dart: $(dart --version)"
+          # Android license handling
+          yes | sdkmanager --licenses >/dev/null
+          flutter doctor --android-licenses
           
           # Build process
           flutter clean
           flutter pub get
           flutter build apk --release --verbose
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
