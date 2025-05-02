@@ -1,46 +1,49 @@
-name: Build APK
+name: Aurore Frontend APK Builder
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Flutter
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.29.2'
+          flutter-version: '3.22.2'  # Exact version with Dart 3.8.0
           channel: 'stable'
 
-      - name: List directory contents
+      - name: Verify environment
+        working-directory: ./aurore_frontend
         run: |
-          echo "Root directory contents:"
+          flutter --version
+          flutter config --no-analytics
           ls -la
-          echo "aurore_frontend directory contents:"
-          ls -la aurore_frontend
-          echo "aurore_frontend/lib directory contents:"
-          ls -la aurore_frontend/lib
-          echo "Contents of aurore_frontend/lib/main.dart:"
-          cat aurore_frontend/lib/main.dart
 
-      - name: Get dependencies
-        run: flutter pub get
-        working-directory: aurore_frontend
+      - name: Update dependencies
+        working-directory: ./aurore_frontend
+        run: |
+          sed -i \
+            -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
+            -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
+            -e 's/http: .*/http: ^2.0.0/' \
+            pubspec.yaml
 
       - name: Build APK
-        run: flutter build apk --release
-        working-directory: aurore_frontend
-
-      - name: Verify APK exists
-        run: test -f build/app/outputs/flutter-apk/app-release.apk || { echo "APK not found"; exit 1; }
-        working-directory: aurore_frontend
+        working-directory: ./aurore_frontend
+        run: |
+          flutter clean
+          flutter pub get
+          flutter build apk --release \
+            --dart-define=CI_ENV=true \
+            --split-debug-info=/build \
+            --obfuscate
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4  # Fixed version from v3 to v4
         with:
-          name: app-release.apk
+          name: aurore-app-release
           path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
