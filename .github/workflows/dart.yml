@@ -12,16 +12,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Navigate to Flutter project
-        run: cd aurore_frontend
-
-      - name: Verify Flutter environment
+      - name: Verify project structure
         run: |
-          flutter --version
-          flutter doctor -v
+          echo "Current directory: $(pwd)"
+          ls -la
+          echo "Looking for pubspec.yaml..."
+          find . -name pubspec.yaml
+
+      - name: Navigate to Flutter project
+        run: cd aurore_frontend && ls -la
 
       - name: Update dependencies
         run: |
+          cd aurore_frontend
+          if [ ! -f "pubspec.yaml" ]; then
+            echo "Error: pubspec.yaml not found in aurore_frontend!"
+            exit 1
+          fi
           sed -i \
             -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
             -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
@@ -30,6 +37,7 @@ jobs:
 
       - name: Build APK
         run: |
+          cd aurore_frontend
           flutter clean
           flutter pub get
           flutter build apk --release \
