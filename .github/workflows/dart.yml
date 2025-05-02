@@ -7,36 +7,31 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      FLUTTER_VERSION: '3.22.2'  # Contains Dart 3.8.0
     steps:
       - uses: actions/checkout@v4
 
-      - name: Clean Install Flutter
+      - name: Install Flutter with Correct Dart
         run: |
-          # Remove all existing Flutter installations
+          # Clean environment
           sudo rm -rf /opt/hostedtoolcache/flutter
           sudo rm -rf ~/flutter
           
-          # Install from verified archive
-          wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_$FLUTTER_VERSION-stable.tar.xz
-          tar xf flutter_linux_$FLUTTER_VERSION-stable.tar.xz -C ~
-          echo "$HOME/flutter/bin" >> $GITHUB_PATH
+          # Clone exact version
+          git clone https://github.com/flutter/flutter.git -b 3.22.2 --depth 1
+          echo "$GITHUB_WORKSPACE/flutter/bin" >> $GITHUB_PATH
 
-      - name: Immediate Version Check
+      - name: Force Dart Version Check
         run: |
-          ~/flutter/bin/flutter --version
-          if ! ~/flutter/bin/dart --version | grep -q '3.8.0'; then
+          echo "Flutter path: $GITHUB_WORKSPACE/flutter"
+          $GITHUB_WORKSPACE/flutter/bin/flutter --version
+          if ! $GITHUB_WORKSPACE/flutter/bin/dart --version | grep -q '3.8.0'; then
             echo "❌ Critical Error: Dart 3.8.0 not found!"
             exit 1
           fi
 
       - name: Build APK
         working-directory: ./aurore_frontend
-        env:
-          FLUTTER_SUPPRESS_ANALYTICS: true
         run: |
-          flutter config --no-cli-animations
-          flutter clean
-          flutter pub get
-          flutter build apk --release --verbose
+          $GITHUB_WORKSPACE/flutter/bin/flutter clean
+          $GITHUB_WORKSPACE/flutter/bin/flutter pub get
+          $GITHUB_WORKSPACE/flutter/bin/flutter build apk --release --verbose
