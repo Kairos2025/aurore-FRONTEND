@@ -8,44 +8,40 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      FLUTTER_VERSION: '3.19.5'  # Contains Dart 3.7.2
-      FLUTTER_SUPPRESS_ANALYTICS: true
+      FLUTTER_VERSION: '3.22.2'  # Contains Dart 3.8.0
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Specific Flutter Version
+      - name: Install Flutter with Correct Dart
         run: |
-          # Download and install exact Flutter version
+          # Download verified Flutter archive
           wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_$FLUTTER_VERSION-stable.tar.xz
           tar xf flutter_linux_$FLUTTER_VERSION-stable.tar.xz -C ~
           echo "$HOME/flutter/bin" >> $GITHUB_PATH
+          
+          # Pre-configure environment
+          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          flutter config --no-analytics
 
       - name: Verify Versions
         run: |
-          echo "Flutter path: $(which flutter)"
           flutter --version
           dart --version
-          if ! dart --version 2>&1 | grep -q '3.7.2'; then
-            echo "❌ Wrong Dart version installed!"
+          if ! dart --version | grep -q '3.8.0'; then
+            echo "❌ Critical Error: Dart version mismatch!"
             exit 1
           fi
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          jdk-version: '17'
+      - name: Setup Android
+        run: |
+          mkdir -p ~/.android
+          touch ~/.android/repositories.cfg
+          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null
 
       - name: Build APK
         working-directory: ./aurore_frontend
         run: |
-          # Configure environment
-          flutter config --no-cli-animations
-          
-          # Android license handling
-          yes | sdkmanager --licenses >/dev/null
-          flutter doctor --android-licenses
-          
-          # Build process
           flutter clean
           flutter pub get
           flutter build apk --release --verbose
