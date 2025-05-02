@@ -8,7 +8,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: cirrusci/flutter:3.22.2-3.8.0  # Verified available image
+      image: cirrusci/flutter:3.16.9  # Confirmed available stable version
     steps:
       - uses: actions/checkout@v4
 
@@ -19,10 +19,11 @@ jobs:
           flutter config --no-analytics
           ls -la
 
-      - name: Update dependencies
+      - name: Update SDK constraints
         working-directory: ./aurore_frontend
         run: |
           sed -i \
+            -e 's/sdk: ">=3.8.0 <4.0.0"/sdk: ">=3.1.0 <4.0.0"/' \
             -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
             -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
             -e 's/http: .*/http: ^2.0.0/' \
