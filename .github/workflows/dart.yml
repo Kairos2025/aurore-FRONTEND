@@ -8,47 +8,37 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      FLUTTER_VERSION: '3.22.2'  # Verified stable release with Dart 3.8.0
+      FLUTTER_VERSION: '3.19.5'  # Contains Dart 3.7.2 (matches your requirement)
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Flutter
+      - name: Clean Install Flutter
         run: |
-          # Download from official release archive
+          # Remove conflicting installations
+          sudo rm -rf /opt/hostedtoolcache/flutter
+          
+          # Install from verified archive
           wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_$FLUTTER_VERSION-stable.tar.xz
           tar xf flutter_linux_$FLUTTER_VERSION-stable.tar.xz -C ~
           echo "$HOME/flutter/bin" >> $GITHUB_PATH
 
-      - name: Verify Installation
+      - name: Force Dart Version Check
         run: |
+          echo "Updated PATH: $PATH"
+          which flutter
+          which dart
           flutter --version
-          dart --version
-          if ! dart --version | grep -q '3.8.0'; then
-            echo "❌ Dart version mismatch!"
+          if ! dart --version | grep -q '3.7.2'; then
+            echo "❌ Critical Error: Dart 3.7.2 not found!"
             exit 1
           fi
 
-      - name: Setup Android
-        uses: android-actions/setup-android@v3
-        with:
-          jdk-version: '17'
-
-      - name: Configure Environment
-        run: |
-          flutter config --no-analytics
-          flutter config --no-cli-animations
-          yes | sdkmanager --licenses >/dev/null
-          flutter doctor --android-licenses
-
       - name: Build APK
         working-directory: ./aurore_frontend
+        env:
+          FLUTTER_SUPPRESS_ANALYTICS: true
         run: |
+          flutter config --no-cli-animations
           flutter clean
           flutter pub get
           flutter build apk --release --verbose
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release
-          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
