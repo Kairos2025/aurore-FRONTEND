@@ -8,43 +8,43 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      FLUTTER_VERSION: '3.22.2'  # Contains Dart 3.8.0
-      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+      FLUTTER_VERSION: '3.30.0'  # Contains Dart 3.10.0
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Flutter with Path Fix
+      - name: Install Flutter with Clean Setup
         run: |
-          # Download and extract Flutter
-          wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_$FLUTTER_VERSION-stable.tar.xz
-          tar xf flutter_linux_$FLUTTER_VERSION-stable.tar.xz -C ~
+          # Remove any pre-installed Flutter
+          sudo rm -rf /opt/hostedtoolcache/flutter
           
-          # Permanent PATH configuration
-          echo "$HOME/flutter/bin" | tee -a $GITHUB_PATH
-          echo "FLUTTER_ROOT=$HOME/flutter" >> $GITHUB_ENV
-          
-          # Immediate verification
-          ~/flutter/bin/flutter --version
+          # Install specific version
+          git clone https://github.com/flutter/flutter.git -b $FLUTTER_VERSION --depth 1
+          echo "$GITHUB_WORKSPACE/flutter/bin" >> $GITHUB_PATH
 
-      - name: Setup Android SDK
+      - name: Verify Installation
         run: |
-          mkdir -p ~/.android
-          touch ~/.android/repositories.cfg
-          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null
-
-      - name: Verify Environment
-        run: |
-          echo "PATH: $PATH"
-          which flutter
-          which dart
           flutter --version
           dart --version
+          if ! dart --version | grep -q '3.10.0'; then
+            echo "❌ Dart version mismatch!"
+            exit 1
+          fi
 
       - name: Build APK
         working-directory: ./aurore_frontend
+        env:
+          FLUTTER_SUPPRESS_ANALYTICS: true
         run: |
-          flutter config --no-analytics
+          # Configure environment
           flutter config --no-cli-animations
+          
+          # Clean build
           flutter clean
           flutter pub get
           flutter build apk --release --verbose
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
