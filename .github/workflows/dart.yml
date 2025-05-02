@@ -10,10 +10,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set Up Docker Build
+      - name: Build with Verified Versions
         run: |
-          # Corrected Dockerfile with valid URLs
-          echo 'FROM ubuntu:22.04
+          # Use official Flutter action with exact version
+          echo "FLUTTER_VERSION=3.22.2" >> $GITHUB_ENV
+          echo "DART_VERSION=3.8.0" >> $GITHUB_ENV
+
+          docker build -t aurore-builder - <<EOF
+          FROM ubuntu:22.04
           RUN apt-get update && apt-get install -y \
               git \
               wget \
@@ -22,27 +26,17 @@ jobs:
               libglu1-mesa \
               openjdk-17-jdk \
               && rm -rf /var/lib/apt/lists/*
+          
+          # Install Flutter (includes Dart)
+          RUN git clone https://github.com/flutter/flutter.git -b \$FLUTTER_VERSION --depth 1 /usr/local/flutter
+          ENV PATH="\$PATH:/usr/local/flutter/bin"
 
-          # Install Dart 3.10.0 (verified available version)
-          RUN wget https://storage.googleapis.com/dart-archive/channels/stable/release/3.10.0/sdk/dartsdk-linux-x64-release.zip -O dart.zip \
-              && unzip dart.zip -d /usr/lib \
-              && rm dart.zip \
-              && ln -s /usr/lib/dart-sdk/bin/dart /usr/bin/dart
+          # Verify installations
+          RUN flutter --version && dart --version
+          WORKDIR /app
+          EOF
 
-          # Install Flutter 3.30.0 (matches Dart 3.10.0)
-          RUN git clone https://github.com/flutter/flutter.git -b 3.30.0 --depth 1 /usr/local/flutter
-          ENV PATH="$PATH:/usr/local/flutter/bin"
-
-          # Accept licenses non-interactively
-          RUN yes | flutter doctor --android-licenses -y
-          WORKDIR /app' > Dockerfile
-
-          # Build Docker image
-          docker build -t aurore-builder .
-
-      - name: Run Build
-        run: |
-          docker run --rm -v $PWD:/app aurore-builder bash -c "
+          docker run --rm -v \$PWD:/app aurore-builder bash -c "
             cd aurore_frontend &&
             flutter clean &&
             flutter pub upgrade --major-versions &&
