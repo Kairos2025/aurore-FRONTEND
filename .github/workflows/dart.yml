@@ -16,38 +16,37 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Install Flutter with exact version
+      - name: Install Dart SDK 3.8.0 directly
+        run: |
+          wget https://storage.googleapis.com/dart-archive/channels/stable/release/3.8.0/sdk/dartsdk-linux-x64-release.zip
+          unzip dartsdk-linux-x64-release.zip -d $RUNNER_TEMP/dart
+          echo "$RUNNER_TEMP/dart/dart-sdk/bin" >> $GITHUB_PATH
+          dart --version
+
+      - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.2'  # This version includes Dart 3.8.0
+          flutter-version: '3.22.2'  # Matches Dart 3.8.0
           channel: 'stable'
           disable-analytics: true
 
-      - name: Force Dart version verification
+      - name: Force correct Dart version
         run: |
-          echo "Verifying Dart version..."
+          echo "Overriding Flutter's Dart with our installed version"
+          ln -sf $RUNNER_TEMP/dart/dart-sdk/bin/dart $(which dart)
           dart --version
           if ! dart --version 2>&1 | grep -q "3.8.0"; then
-            echo "ERROR: Wrong Dart version installed!"
+            echo "CRITICAL ERROR: Failed to set correct Dart version"
             exit 1
           fi
 
       - name: Prepare environment
         working-directory: ./aurore_frontend
         run: |
-          # Explicitly disable analytics first thing
-          flutter config --no-analytics >/dev/null 2>&1 || true
           flutter --version
           dart --version
-
-      - name: Update dependencies
-        working-directory: ./aurore_frontend
-        run: |
-          sed -i \
-            -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
-            -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
-            -e 's/http: .*/http: ^2.0.0/' \
-            pubspec.yaml
+          flutter config --no-analytics >/dev/null 2>&1
+          flutter pub upgrade
 
       - name: Build APK
         working-directory: ./aurore_frontend
