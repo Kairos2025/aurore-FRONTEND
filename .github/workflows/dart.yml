@@ -20,34 +20,37 @@ jobs:
           java-version: '17'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        run: |
+          # Install specific command-line tools version
+          wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+          unzip commandlinetools-linux-9477386_latest.zip -d cmdline-tools
+          mv cmdline-tools/cmdline-tools $ANDROID_SDK_ROOT/cmdline-tools/latest
+          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.2'
+          flutter-version: '3.22.2'  # Contains Dart 3.8.0
           channel: stable
           architecture: x64
-
-      - name: Configure Environment
-        run: |
-          # Set up Android SDK paths
-          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
-          echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
-          
-          # Verify installations
-          sdkmanager --list
-          flutter --version
 
       - name: Build APK
         working-directory: ./aurore_frontend
         run: |
-          # Accept licenses safely
-          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null
-          flutter doctor --android-licenses -y
-          
-          # Build commands
+          # Configure environment
           flutter config --no-cli-animations
+          
+          # Accept licenses safely
+          mkdir -p ~/.android
+          touch ~/.android/repositories.cfg
+          printf "y\ny\ny\ny\ny\ny\ny\ny\n" | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses
+          flutter doctor --android-licenses
+          
+          # Verify versions
+          echo "Flutter: $(flutter --version)"
+          echo "Dart: $(dart --version)"
+          
+          # Build process
           flutter clean
           flutter pub get
           flutter build apk --release --verbose
