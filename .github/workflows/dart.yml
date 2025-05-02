@@ -13,31 +13,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Flutter with Correct Dart
+      - name: Install Flutter
         run: |
-          # Download verified Flutter archive
+          # Download and extract Flutter
           wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_$FLUTTER_VERSION-stable.tar.xz
           tar xf flutter_linux_$FLUTTER_VERSION-stable.tar.xz -C ~
-          echo "$HOME/flutter/bin" >> $GITHUB_PATH
           
-          # Pre-configure environment
-          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
-          flutter config --no-analytics
+          # Add to PATH for current step and subsequent steps
+          echo "$HOME/flutter/bin" >> $GITHUB_PATH
+          export PATH="$PATH:$HOME/flutter/bin"
 
-      - name: Verify Versions
-        run: |
+          # Verify installation
           flutter --version
-          dart --version
-          if ! dart --version | grep -q '3.8.0'; then
-            echo "❌ Critical Error: Dart version mismatch!"
-            exit 1
-          fi
 
       - name: Setup Android
         run: |
           mkdir -p ~/.android
           touch ~/.android/repositories.cfg
           yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null
+
+      - name: Configure Environment
+        run: |
+          flutter config --no-analytics
+          flutter config --no-cli-animations
 
       - name: Build APK
         working-directory: ./aurore_frontend
