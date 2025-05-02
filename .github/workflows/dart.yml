@@ -8,12 +8,21 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: cirrusci/flutter:latest  # Uses latest stable Flutter
+      image: cirrusci/flutter:latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Verify Flutter Version
         run: flutter --version
+
+      - name: Change to project directory (if needed)
+        run: |
+          if [ -f "pubspec.yaml" ]; then
+            echo "Already in project root"
+          else
+            # Replace this with your actual project directory if different
+            cd your_project_directory
+          fi
 
       - name: Dependency Security Fix
         run: |
