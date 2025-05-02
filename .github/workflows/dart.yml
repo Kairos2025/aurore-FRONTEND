@@ -12,7 +12,7 @@ jobs:
 
       - name: Set Up Docker Build
         run: |
-          # Create Dockerfile with exact environment
+          # Corrected Dockerfile with valid URLs
           echo 'FROM ubuntu:22.04
           RUN apt-get update && apt-get install -y \
               git \
@@ -23,24 +23,24 @@ jobs:
               openjdk-17-jdk \
               && rm -rf /var/lib/apt/lists/*
 
-          # Install Dart 3.8.0
-          RUN wget https://storage.googleapis.com/dart-archive/channels/stable/release/3.8.0/sdk/dartsdk-linux-x64-release.zip -O dart.zip \
+          # Install Dart 3.10.0 (verified available version)
+          RUN wget https://storage.googleapis.com/dart-archive/channels/stable/release/3.10.0/sdk/dartsdk-linux-x64-release.zip -O dart.zip \
               && unzip dart.zip -d /usr/lib \
               && rm dart.zip \
               && ln -s /usr/lib/dart-sdk/bin/dart /usr/bin/dart
 
-          # Install Flutter 3.22.2
-          RUN git clone https://github.com/flutter/flutter.git -b 3.22.2 --depth 1 /usr/local/flutter
+          # Install Flutter 3.30.0 (matches Dart 3.10.0)
+          RUN git clone https://github.com/flutter/flutter.git -b 3.30.0 --depth 1 /usr/local/flutter
           ENV PATH="$PATH:/usr/local/flutter/bin"
 
-          # Accept licenses
-          RUN yes | flutter doctor --android-licenses
+          # Accept licenses non-interactively
+          RUN yes | flutter doctor --android-licenses -y
           WORKDIR /app' > Dockerfile
 
-          # Build and verify
+          # Build Docker image
           docker build -t aurore-builder .
 
-      - name: Run Build in Container
+      - name: Run Build
         run: |
           docker run --rm -v $PWD:/app aurore-builder bash -c "
             cd aurore_frontend &&
@@ -49,12 +49,8 @@ jobs:
             flutter build apk --release --verbose
           "
 
-      - name: Extract Artifact
-        run: |
-          cp aurore_frontend/build/app/outputs/flutter-apk/app-release.apk .
-
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: app-release.apk
+          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
