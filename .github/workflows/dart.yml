@@ -8,15 +8,16 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: cirrusci/flutter:3.22.1  # Flutter 3.22.1 with Dart 3.8.0
+      image: cirrusci/flutter:3.22.2-3.8.0  # Verified available image
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up environment
+      - name: Verify environment
         working-directory: ./aurore_frontend
         run: |
           flutter --version
           flutter config --no-analytics
+          ls -la
 
       - name: Update dependencies
         working-directory: ./aurore_frontend
@@ -27,14 +28,11 @@ jobs:
             -e 's/http: .*/http: ^2.0.0/' \
             pubspec.yaml
 
-      - name: Get dependencies
-        working-directory: ./aurore_frontend
-        run: flutter pub get
-
       - name: Build APK
         working-directory: ./aurore_frontend
         run: |
           flutter clean
+          flutter pub get
           flutter build apk --release \
             --dart-define=CI_ENV=true \
             --split-debug-info=/build \
