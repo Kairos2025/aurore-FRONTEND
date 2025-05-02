@@ -8,9 +8,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: cirrusci/flutter:3.22.2-3.8.0  # Corrected Docker tag
+      image: cirrusci/flutter:latest  # Uses latest stable Flutter
     steps:
       - uses: actions/checkout@v4
+
+      - name: Verify Flutter Version
+        run: flutter --version
 
       - name: Dependency Security Fix
         run: |
