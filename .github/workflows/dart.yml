@@ -7,52 +7,24 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    container:
+      image: cirrusci/flutter:3.22.2  # Verified Flutter 3.22.2 + Dart 3.8.0
     steps:
       - uses: actions/checkout@v4
 
-      - name: Obliterate Existing Installations
+      - name: Dependency Security Fix
         run: |
-          sudo rm -rf /opt/hostedtoolcache/flutter
-          sudo rm -rf ~/flutter
-          sudo rm -rf /usr/lib/dart
-          sudo rm -rf ~/.pub-cache
-
-      - name: Install Version-Locked Flutter
-        run: |
-          # Download Flutter 3.22.2 (Dart 3.8.0) from VERIFIED URL
-          wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.22.2-stable.tar.xz
-          tar xf flutter_linux_3.22.2-stable.tar.xz -C ~
-          echo "$HOME/flutter/bin" >> $GITHUB_PATH
-          echo "$HOME/flutter/bin/cache/dart-sdk/bin" >> $GITHUB_PATH
-
-          # Immediate version check
-          ~/flutter/bin/dart --version
-          if ! ~/flutter/bin/dart --version | grep -q '3.8.0'; then
-            echo "❌ Nuclear Failure: Dart 3.8.0 not found!"
-            exit 1
-          fi
-
-      - name: Configure Project
-        working-directory: ./aurore_frontend
-        run: |
-          # Force-update pubspec.yaml
           sed -i \
-            -e 's/sdk: .*/sdk: ">=3.8.0 <4.0.0"/' \
-            -e 's/flutter: .*/flutter: ">=3.22.2"/' \
             -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
             -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
+            -e 's/http: .*/http: ^2.0.0/' \
             pubspec.yaml
 
-          # Purge dependency artifacts
-          rm -rf pubspec.lock .dart_tool
-          ~/flutter/bin/flutter pub cache repair
-
       - name: Build APK
-        working-directory: ./aurore_frontend
         run: |
-          ~/flutter/bin/flutter clean
-          ~/flutter/bin/flutter pub get
-          ~/flutter/bin/flutter build apk --release \
+          flutter clean
+          flutter pub get
+          flutter build apk --release \
             --dart-define=CI_ENV=true \
             --split-debug-info=/build \
             --obfuscate
@@ -61,4 +33,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
+          path: ./build/app/outputs/flutter-apk/app-release.apk
