@@ -10,56 +10,65 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Clean Environment Setup
+      - name: Nuclear Environment Cleanup
         run: |
-          # Remove conflicting installations
+          # Remove ALL existing Flutter/Dart installations
           sudo rm -rf /opt/hostedtoolcache/flutter
           sudo rm -rf /usr/local/flutter
+          sudo rm -rf /usr/lib/dart
+          sudo rm -rf ~/flutter
+          sudo rm -rf ~/.pub-cache
 
       - name: Install Flutter 3.22.2 (Dart 3.8.0)
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.22.2'
-          channel: stable
-          architecture: x64
-        env:
-          FLUTTER_SUPPRESS_ANALYTICS: true
-
-      - name: Force Correct PATH
         run: |
-          echo "Flutter Path: $FLUTTER_HOME"
-          echo "Dart Path: $FLUTTER_HOME/bin/cache/dart-sdk/bin"
-          echo "$FLUTTER_HOME/bin" >> $GITHUB_PATH
-          echo "$FLUTTER_HOME/bin/cache/dart-sdk/bin" >> $GITHUB_PATH
+          # Download from official source
+          wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.22.2-stable.tar.xz
+          tar xf flutter_linux_3.22.2-stable.tar.xz -C ~
+          echo "FLUTTER_HOME=$HOME/flutter" >> $GITHUB_ENV
+          echo "$HOME/flutter/bin" >> $GITHUB_PATH
+          echo "$HOME/flutter/bin/cache/dart-sdk/bin" >> $GITHUB_PATH
 
-      - name: Verify Dart Version
+      - name: Brutal Version Enforcement
         run: |
-          echo "Current Dart: $(dart --version)"
+          echo "=== VERSION NUCLEAR VERIFICATION ==="
+          echo "Dart path: $(which dart)"
+          dart --version
           if ! dart --version | grep -q '3.8.0'; then
-            echo "❌ Critical Error: Dart 3.8.0 not found!"
+            echo "❌ FATAL ERROR: WRONG DART VERSION"
+            exit 1
+          fi
+          
+          echo "Flutter path: $(which flutter)"
+          flutter --version
+          if ! flutter --version | grep -q '3.22.2'; then
+            echo "❌ FATAL ERROR: WRONG FLUTTER VERSION"
             exit 1
           fi
 
-      - name: Update Security Dependencies
+      - name: Dependency Security Overhaul
         working-directory: ./aurore_frontend
         run: |
-          # Explicit security patches
-          sed -i 's/firebase_core: ^3.13.0/firebase_core: ^4.3.0/' pubspec.yaml
-          sed -i 's/firebase_auth: ^5.5.3/firebase_auth: ^6.3.0/' pubspec.yaml
-          sed -i 's/http: ^1.3.0/http: ^2.0.0/' pubspec.yaml
+          # Force-update vulnerable dependencies
+          sed -i \
+            -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
+            -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
+            -e 's/http: .*/http: ^2.0.0/' \
+            pubspec.yaml
 
-          # Clean environment
-          flutter clean
+          # Nuclear dependency reset
           rm -rf pubspec.lock .dart_tool
+          flutter pub cache repair
+          flutter clean
 
       - name: Build APK
         working-directory: ./aurore_frontend
         run: |
           flutter pub get
           flutter build apk --release \
-              --dart-define=CI_ENV=true \
-              --split-debug-info=/debug-info \
-              --no-tree-shake-icons
+            --dart-define=CI_ENV=true \
+            --split-debug-info=/build \
+            --obfuscate \
+            --shrink-resources
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
