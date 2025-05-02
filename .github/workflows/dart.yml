@@ -7,23 +7,36 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: cirrusci/flutter:3.16.9  # Confirmed available stable version
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify environment
-        working-directory: ./aurore_frontend
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '11'
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.2'  # Contains Dart 3.8.0
+          channel: 'stable'
+
+      - name: Verify versions
         run: |
           flutter --version
-          flutter config --no-analytics
-          ls -la
+          dart --version
 
-      - name: Update SDK constraints
+      - name: Prepare environment
+        working-directory: ./aurore_frontend
+        run: |
+          flutter config --no-analytics
+          flutter pub upgrade
+
+      - name: Update dependencies
         working-directory: ./aurore_frontend
         run: |
           sed -i \
-            -e 's/sdk: ">=3.8.0 <4.0.0"/sdk: ">=3.1.0 <4.0.0"/' \
             -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
             -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
             -e 's/http: .*/http: ^2.0.0/' \
@@ -39,7 +52,7 @@ jobs:
             --split-debug-info=/build \
             --obfuscate
 
-      - name: Upload APK artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: aurore-app-release
