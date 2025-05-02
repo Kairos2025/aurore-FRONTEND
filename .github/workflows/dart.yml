@@ -8,33 +8,33 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: cirrusci/flutter:stable
+      image: cirrusci/flutter:3.22.1  # Flutter 3.22.1 with Dart 3.8.0
     steps:
       - uses: actions/checkout@v4
 
-      - name: Debug directory structure
+      - name: Set up environment
+        working-directory: ./aurore_frontend
         run: |
-          echo "Current directory: $(pwd)"
-          ls -la
-          echo "aurore_frontend contents:"
-          ls -la aurore_frontend/
+          flutter --version
+          flutter config --no-analytics
 
       - name: Update dependencies
         working-directory: ./aurore_frontend
         run: |
-          pwd
-          ls -la
           sed -i \
             -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
             -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
             -e 's/http: .*/http: ^2.0.0/' \
             pubspec.yaml
 
+      - name: Get dependencies
+        working-directory: ./aurore_frontend
+        run: flutter pub get
+
       - name: Build APK
         working-directory: ./aurore_frontend
         run: |
           flutter clean
-          flutter pub get
           flutter build apk --release \
             --dart-define=CI_ENV=true \
             --split-debug-info=/build \
