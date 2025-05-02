@@ -1,4 +1,5 @@
-name: Production APK Builder
+name: Aurore School CI/CD
+
 on:
   push:
     branches: [main, master]
@@ -10,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate structure
+      - name: Validate Structure
         run: |
           if [ ! -f "aurore_frontend/pubspec.yaml" ]; then
             echo "❌ Missing pubspec.yaml in aurore_frontend directory"
@@ -18,30 +19,28 @@ jobs:
             exit 1
           fi
 
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.5'  # Contains Dart 3.7.2
+          flutter-version: '3.19.5'  # Exact version matching pubspec.yaml
           channel: stable
           architecture: x64
 
       - name: Build APK
         working-directory: ./aurore_frontend
         run: |
-          # Disable all interactive prompts
           flutter config --no-analytics
-          flutter config --no-cli-animations
-          
-          # Clean build environment
           flutter clean
-          
-          # Get dependencies
           flutter pub get
-          
-          # Build release APK
-          flutter build apk --release
+          flutter build apk --release --verbose
 
-      - name: Upload artifact
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release
