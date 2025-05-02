@@ -1,4 +1,4 @@
-name: Production APK Builder
+name: Aurore Frontend APK Builder
 on:
   push:
     branches: [main, master]
@@ -8,23 +8,19 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: cirrusci/flutter:latest
+      image: cirrusci/flutter:stable
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify Flutter Version
-        run: flutter --version
+      - name: Navigate to Flutter project
+        run: cd aurore_frontend
 
-      - name: Change to project directory (if needed)
+      - name: Verify Flutter environment
         run: |
-          if [ -f "pubspec.yaml" ]; then
-            echo "Already in project root"
-          else
-            # Replace this with your actual project directory if different
-            cd your_project_directory
-          fi
+          flutter --version
+          flutter doctor -v
 
-      - name: Dependency Security Fix
+      - name: Update dependencies
         run: |
           sed -i \
             -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
@@ -41,8 +37,8 @@ jobs:
             --split-debug-info=/build \
             --obfuscate
 
-      - name: Upload Artifact
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
-          path: ./build/app/outputs/flutter-apk/app-release.apk
+          name: aurore-app-release
+          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
