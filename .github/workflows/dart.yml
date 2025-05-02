@@ -8,7 +8,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: cirrusci/flutter:3.22.2  # Verified Flutter 3.22.2 + Dart 3.8.0
+      image: cirrusci/flutter:3.22.2-3.8.0  # Corrected Docker tag
     steps:
       - uses: actions/checkout@v4
 
