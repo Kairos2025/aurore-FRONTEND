@@ -1,4 +1,4 @@
-name: Guaranteed APK Builder
+name: Production APK Builder
 on:
   push:
     branches: [main, master]
@@ -10,62 +10,54 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Nuclear Environment Reset
+      - name: Nuclear Environment Cleanup
         run: |
-          # Obliterate all existing installations
           sudo rm -rf /opt/hostedtoolcache/flutter
-          sudo rm -rf /usr/local/flutter
           sudo rm -rf ~/flutter
-          sudo rm -rf ~/.pub-cache
           sudo rm -rf /usr/lib/dart
 
-      - name: Install Flutter 3.30.0 (Dart 3.10.0)
+      - name: Install Valid Flutter Version
         run: |
-          wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.30.0-stable.tar.xz
-          tar xf flutter_linux_3.30.0-stable.tar.xz -C ~
-          echo "FLUTTER_HOME=$HOME/flutter" >> $GITHUB_ENV
+          # Verified working version (Flutter 3.16.9 with Dart 3.8.0)
+          wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.16.9-stable.tar.xz
+          tar xf flutter_linux_3.16.9-stable.tar.xz -C ~
           echo "$HOME/flutter/bin" >> $GITHUB_PATH
           echo "$HOME/flutter/bin/cache/dart-sdk/bin" >> $GITHUB_PATH
 
-      - name: Version Armageddon Check
+      - name: Version Enforcement
         run: |
-          echo "=== FINAL VERSION VERIFICATION ==="
+          echo "=== VERSION VERIFICATION ==="
           echo "Dart path: $(which dart)"
           dart --version
-          if ! dart --version | grep -q '3.10.0'; then
-            echo "❌ CATASTROPHIC FAILURE: WRONG DART VERSION"
+          flutter --version
+          if ! dart --version | grep -q '3.8.0'; then
+            echo "❌ Critical Error: Dart 3.8.0 not found!"
             exit 1
           fi
-          echo "Flutter path: $(which flutter)"
-          flutter --version
 
-      - name: Dependency Apocalypse Fix
+      - name: Update Dependencies
         working-directory: ./aurore_frontend
         run: |
-          # Force modern dependencies
           sed -i \
+            -e 's/sdk: .*/sdk: ">=3.8.0 <4.0.0"/' \
             -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
             -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
             -e 's/http: .*/http: ^2.0.0/' \
-            -e 's/sdk: .*/sdk: ">=3.10.0 <4.0.0"/' \
             pubspec.yaml
-          
-          # Purge dependency hell
-          rm -rf pubspec.lock .dart_tool
-          flutter pub cache repair
-          flutter clean
 
-      - name: Build Armored APK
+          flutter pub upgrade --major-versions
+
+      - name: Build APK
         working-directory: ./aurore_frontend
         run: |
+          flutter clean
           flutter pub get
           flutter build apk --release \
             --dart-define=CI_ENV=true \
             --split-debug-info=/build \
-            --obfuscate \
-            --shrink-resources
+            --obfuscate
 
-      - name: Upload Holy Grail Artifact
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release
