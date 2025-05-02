@@ -11,13 +11,15 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build with Verified Versions
+        env:
+          FLUTTER_VERSION: "3.22.2"  # Verified tag from https://github.com/flutter/flutter/tags
         run: |
-          # Use official Flutter action with exact version
-          echo "FLUTTER_VERSION=3.22.2" >> $GITHUB_ENV
-          echo "DART_VERSION=3.8.0" >> $GITHUB_ENV
-
-          docker build -t aurore-builder - <<EOF
+          # Build Docker image with explicit tag reference
+          docker build -t aurore-builder \
+            --build-arg FLUTTER_VERSION=$FLUTTER_VERSION \
+            -f - . <<EOF
           FROM ubuntu:22.04
+          ARG FLUTTER_VERSION
           RUN apt-get update && apt-get install -y \
               git \
               wget \
@@ -26,16 +28,19 @@ jobs:
               libglu1-mesa \
               openjdk-17-jdk \
               && rm -rf /var/lib/apt/lists/*
-          
-          # Install Flutter (includes Dart)
-          RUN git clone https://github.com/flutter/flutter.git -b \$FLUTTER_VERSION --depth 1 /usr/local/flutter
-          ENV PATH="\$PATH:/usr/local/flutter/bin"
 
-          # Verify installations
-          RUN flutter --version && dart --version
+          # Clone Flutter using official release TAG
+          RUN git clone https://github.com/flutter/flutter.git \
+              -b tags/\$FLUTTER_VERSION \  # Critical fix: use tags/ prefix
+              --depth 1 \
+              /usr/local/flutter
+
+          ENV PATH="\$PATH:/usr/local/flutter/bin"
+          RUN flutter doctor -v  # Verify installation
           WORKDIR /app
           EOF
 
+          # Run build in container
           docker run --rm -v \$PWD:/app aurore-builder bash -c "
             cd aurore_frontend &&
             flutter clean &&
