@@ -1,5 +1,4 @@
 name: Aurore School CI/CD
-
 on:
   push:
     branches: [main, master]
@@ -8,40 +7,26 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      FLUTTER_SUPPRESS_ANALYTICS: true
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate Structure
-        run: |
-          if [ ! -f "aurore_frontend/pubspec.yaml" ]; then
-            echo "❌ Missing pubspec.yaml in aurore_frontend directory"
-            ls -la
-            exit 1
-          fi
-
-      - name: Setup Java
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Setup Flutter
+      - name: Setup Flutter (Exact Version)
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.5'  # Exact version matching pubspec.yaml
+          flutter-version: '3.19.5'  # Contains Dart 3.7.2
           channel: stable
           architecture: x64
+
+      - name: Verify Versions
+        run: |
+          echo "Flutter version: $(flutter --version)"
+          echo "Dart version: $(dart --version)"
 
       - name: Build APK
         working-directory: ./aurore_frontend
         run: |
-          flutter config --no-analytics
           flutter clean
           flutter pub get
           flutter build apk --release --verbose
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release
-          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
