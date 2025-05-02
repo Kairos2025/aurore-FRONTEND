@@ -7,25 +7,35 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      FLUTTER_SUPPRESS_ANALYTICS: true
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Flutter (Dart 3.7.2+)
+      - name: Setup Flutter (Dart 3.8.0)
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.2'  # Contains Dart 3.8.0
+          flutter-version: '3.22.2'
           channel: stable
           architecture: x64
 
       - name: Verify Versions
         run: |
-          echo "Flutter: $(flutter --version)"
-          echo "Dart: $(dart --version)"
+          flutter --version
+          dart --version
 
       - name: Build APK
         working-directory: ./aurore_frontend
         run: |
-          flutter config --no-analytics
+          # Configure environment
+          flutter config --no-cli-animations
+          
+          # Android license handling
+          mkdir -p ~/.android
+          touch ~/.android/repositories.cfg
+          yes | sdkmanager --licenses >/dev/null
+          
+          # Build process
           flutter clean
           flutter pub get
           flutter build apk --release --verbose
