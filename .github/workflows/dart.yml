@@ -9,33 +9,45 @@ jobs:
     runs-on: ubuntu-latest
     env:
       FLUTTER_SUPPRESS_ANALYTICS: true
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Flutter (Dart 3.8.0)
+      - name: Setup Java 17
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.22.2'
           channel: stable
           architecture: x64
 
-      - name: Verify Versions
+      - name: Configure Environment
         run: |
+          # Set up Android SDK paths
+          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
+          
+          # Verify installations
+          sdkmanager --list
           flutter --version
-          dart --version
 
       - name: Build APK
         working-directory: ./aurore_frontend
         run: |
-          # Configure environment
+          # Accept licenses safely
+          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null
+          flutter doctor --android-licenses -y
+          
+          # Build commands
           flutter config --no-cli-animations
-          
-          # Android license handling
-          mkdir -p ~/.android
-          touch ~/.android/repositories.cfg
-          yes | sdkmanager --licenses >/dev/null
-          
-          # Build process
           flutter clean
           flutter pub get
           flutter build apk --release --verbose
