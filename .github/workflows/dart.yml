@@ -10,32 +10,51 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup FVM (Flutter Version Management)
+      - name: Set Up Docker Build
         run: |
-          # Install FVM
-          dart pub global activate fvm
-          echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
+          # Create Dockerfile with exact environment
+          echo 'FROM ubuntu:22.04
+          RUN apt-get update && apt-get install -y \
+              git \
+              wget \
+              unzip \
+              xz-utils \
+              libglu1-mesa \
+              openjdk-17-jdk \
+              && rm -rf /var/lib/apt/lists/*
 
-      - name: Install Exact Flutter Version
-        working-directory: ./aurore_frontend
-        run: |
-          # Pin Flutter version with FVM
-          fvm install 3.22.2 --force
-          fvm use 3.22.2 --force
-          fvm flutter --version
+          # Install Dart 3.8.0
+          RUN wget https://storage.googleapis.com/dart-archive/channels/stable/release/3.8.0/sdk/dartsdk-linux-x64-release.zip -O dart.zip \
+              && unzip dart.zip -d /usr/lib \
+              && rm dart.zip \
+              && ln -s /usr/lib/dart-sdk/bin/dart /usr/bin/dart
 
-      - name: Verify Dart Version
-        working-directory: ./aurore_frontend
-        run: |
-          echo "Dart Version: $(fvm dart --version)"
-          if ! fvm dart --version | grep -q '3.8.0'; then
-            echo "❌ Critical Error: Dart 3.8.0 not found!"
-            exit 1
-          fi
+          # Install Flutter 3.22.2
+          RUN git clone https://github.com/flutter/flutter.git -b 3.22.2 --depth 1 /usr/local/flutter
+          ENV PATH="$PATH:/usr/local/flutter/bin"
 
-      - name: Build APK
-        working-directory: ./aurore_frontend
+          # Accept licenses
+          RUN yes | flutter doctor --android-licenses
+          WORKDIR /app' > Dockerfile
+
+          # Build and verify
+          docker build -t aurore-builder .
+
+      - name: Run Build in Container
         run: |
-          fvm flutter clean
-          fvm flutter pub get
-          fvm flutter build apk --release --verbose
+          docker run --rm -v $PWD:/app aurore-builder bash -c "
+            cd aurore_frontend &&
+            flutter clean &&
+            flutter pub upgrade --major-versions &&
+            flutter build apk --release --verbose
+          "
+
+      - name: Extract Artifact
+        run: |
+          cp aurore_frontend/build/app/outputs/flutter-apk/app-release.apk .
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: app-release.apk
