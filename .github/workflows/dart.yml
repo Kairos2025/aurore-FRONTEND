@@ -16,25 +16,25 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Install Flutter (with built-in Dart)
+      - name: Install Flutter (with Dart SDK)
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.22.2'  # Contains Dart 3.8.0
           channel: stable
           architecture: x64
 
-      - name: Install FVM using Flutter's Dart
+      - name: Install FVM
         run: |
-          # Use Flutter's bundled Dart
           echo "$FLUTTER_HOME/.pub-cache/bin" >> $GITHUB_PATH
           dart pub global activate fvm
           fvm --version
 
-      - name: Pin Flutter Version
+      - name: Ensure Flutter Version
         working-directory: ./aurore_frontend
         run: |
-          fvm install 3.22.2 --force
-          fvm use 3.22.2 --force
+          # Clean install without --force flag
+          fvm install 3.22.2
+          fvm use 3.22.2
           fvm flutter --version
 
       - name: Update Dependencies
