@@ -8,7 +8,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      FLUTTER_SUPPRESS_ANALYTICS: true  # Prevent first-run messages
+      FLUTTER_SUPPRESS_ANALYTICS: true
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
     steps:
       - uses: actions/checkout@v4
 
@@ -28,43 +29,34 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          jdk-version: '17'
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.5'  # Verified stable with Dart 3.7.2
+          flutter-version: '3.22.2'  # Contains Dart 3.8.0
           channel: stable
           architecture: x64
 
       - name: Build APK
         working-directory: ./aurore_frontend
         run: |
-          # Configure environment
+          # Configure environment first
           flutter config --no-analytics
           flutter config --no-cli-animations
           
-          # Accept Android licenses
-          yes | sdkmanager --licenses >/dev/null
-          flutter doctor --android-licenses -y
+          # Handle Android licenses properly
+          mkdir -p ~/.android
+          touch ~/.android/repositories.cfg
+          echo -e "y\ny\ny\ny\ny\ny\ny\ny" | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses
+          flutter doctor --android-licenses
           
           # Build process
           flutter clean
           flutter pub get
-          flutter build apk --release --shrink-resources
+          flutter build apk --release --verbose
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
-
-      - name: Cache Flutter dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            aurore_frontend/.dart_tool
-            aurore_frontend/build
-            $HOME/.pub-cache
-          key: ${{ runner.os }}-flutter-${{ hashFiles('aurore_frontend/pubspec.yaml') }}
