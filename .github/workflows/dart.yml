@@ -10,33 +10,52 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Java
+      - name: Setup Java 11
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Install Flutter with Correct Dart Version
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.22.2'  # This version includes Dart 3.8.0
-          channel: 'stable'
-          disable-analytics: true
-
-      - name: Verify Versions
+      - name: Install Dart 3.8.0 (Standalone)
         run: |
-          echo "Flutter version:"
-          flutter --version
-          echo "Dart version:"
-          dart --version
-          if ! dart --version 2>&1 | grep -q "3.8.0"; then
-            echo "::error::Wrong Dart version installed!"
+          # Download Dart SDK directly from Google
+          wget https://storage.googleapis.com/dart-archive/channels/stable/release/3.8.0/sdk/dartsdk-linux-x64-release.zip -O dart-sdk.zip
+          unzip dart-sdk.zip -d ~/dart-sdk
+          echo "$HOME/dart-sdk/dart-sdk/bin" >> $GITHUB_PATH
+          
+          # Verify installation
+          ~/dart-sdk/dart-sdk/bin/dart --version
+          if ! ~/dart-sdk/dart-sdk/bin/dart --version 2>&1 | grep -q "3.8.0"; then
+            echo "::error::Failed to install Dart 3.8.0"
             exit 1
           fi
+
+      - name: Install Flutter (Without Dart)
+        run: |
+          # Clone Flutter without its bundled Dart
+          git clone --depth 1 --branch 3.22.2 https://github.com/flutter/flutter.git ~/flutter
+          echo "$HOME/flutter/bin" >> $GITHUB_PATH
+          
+          # Verify Flutter version
+          ~/flutter/bin/flutter --version
+          if ! ~/flutter/bin/flutter --version 2>&1 | grep -q "3.22.2"; then
+            echo "::error::Failed to install Flutter 3.22.2"
+            exit 1
+          fi
+
+      - name: Configure Environment
+        working-directory: ./aurore_frontend
+        run: |
+          # Force Flutter to use our Dart installation
+          export PATH="$HOME/dart-sdk/dart-sdk/bin:$PATH"
+          flutter config --no-analytics
+          flutter doctor -v
+          dart --version
 
       - name: Build APK
         working-directory: ./aurore_frontend
         run: |
+          export PATH="$HOME/dart-sdk/dart-sdk/bin:$PATH"
           flutter clean
           flutter pub get
           flutter build apk --release \
