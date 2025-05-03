@@ -18,42 +18,38 @@ jobs:
 
       - name: Install Dart SDK 3.8.0
         run: |
-          # Remove any existing Dart installation
-          sudo rm -f $(which dart) || true
+          # Safe removal of existing Dart (no sudo needed)
+          rm -f $(which dart) 2>/dev/null || true
           
-          # Download and install specific Dart version
+          # Download specific Dart version
           wget -q https://storage.googleapis.com/dart-archive/channels/stable/release/3.8.0/sdk/dartsdk-linux-x64-release.zip
-          unzip -q dartsdk-linux-x64-release.zip -d $RUNNER_TEMP/dart
-          echo "$RUNNER_TEMP/dart/dart-sdk/bin" >> $GITHUB_PATH
+          unzip -q dartsdk-linux-x64-release.zip -d ~/dart
+          echo "$HOME/dart/dart-sdk/bin" >> $GITHUB_PATH
           
           # Verify installation
-          dart --version
-          if ! dart --version 2>&1 | grep -q "3.8.0"; then
-            echo "::error::Failed to install Dart 3.8.0"
+          if ! ~/dart/dart-sdk/bin/dart --version 2>&1 | grep -q "3.8.0"; then
+            echo "::error::Dart 3.8.0 installation failed"
             exit 1
           fi
 
-      - name: Install Flutter without Dart
+      - name: Install Flutter 3.22.2
         run: |
           # Download Flutter without Dart
-          git clone --depth 1 --branch 3.22.2 https://github.com/flutter/flutter.git $RUNNER_TEMP/flutter
-          echo "$RUNNER_TEMP/flutter/bin" >> $GITHUB_PATH
+          git clone --depth 1 --branch 3.22.2 https://github.com/flutter/flutter.git ~/flutter
+          echo "$HOME/flutter/bin" >> $GITHUB_PATH
           
           # Verify Flutter version
-          flutter --version
-          if ! flutter --version 2>&1 | grep -q "3.22.2"; then
-            echo "::error::Failed to install Flutter 3.22.2"
+          if ! ~/flutter/bin/flutter --version 2>&1 | grep -q "3.22.2"; then
+            echo "::error::Flutter 3.22.2 installation failed"
             exit 1
           fi
 
       - name: Configure environment
         working-directory: ./aurore_frontend
         run: |
-          # Force Flutter to use our Dart installation
           flutter config --no-analytics
-          flutter config --enable-web
-          flutter config --enable-linux-desktop
-          flutter doctor
+          flutter doctor -v
+          dart --version
 
       - name: Build APK
         working-directory: ./aurore_frontend
