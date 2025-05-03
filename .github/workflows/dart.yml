@@ -16,30 +16,45 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Install Flutter with Correct Dart Version
+      - name: Install Dart 3.8.0
         run: |
-          # Download and extract Flutter
-          wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.22.2-stable.tar.xz
-          tar xf flutter_linux_3.22.2-stable.tar.xz
-          
-          # Add to PATH (correct method)
-          echo "$GITHUB_WORKSPACE/flutter/bin" >> $GITHUB_PATH
-          export PATH="$GITHUB_WORKSPACE/flutter/bin:$PATH"
+          # Download Dart SDK 3.8.0 from archive
+          wget https://storage.googleapis.com/dart-archive/channels/stable/release/3.8.0/sdk/dartsdk-linux-x64-release.zip
+          unzip dartsdk-linux-x64-release.zip -d ~/dart-sdk
+          echo "$HOME/dart-sdk/dart-sdk/bin" >> $GITHUB_PATH
+          export PATH="$HOME/dart-sdk/dart-sdk/bin:$PATH"
           
           # Verify installation
-          flutter --version
           dart --version
           if ! dart --version 2>&1 | grep -q "3.8.0"; then
-            echo "::error::Incorrect Dart version installed!"
+            echo "::error::Failed to install Dart 3.8.0"
             exit 1
           fi
 
-      - name: Disable Analytics
-        run: flutter config --no-analytics
+      - name: Install Flutter Without Dart
+        run: |
+          # Clone Flutter without its bundled Dart
+          git clone --depth 1 --branch 3.22.2 https://github.com/flutter/flutter.git ~/flutter
+          echo "$HOME/flutter/bin" >> $GITHUB_PATH
+          export PATH="$HOME/flutter/bin:$PATH"
+          
+          # Verify Flutter version
+          flutter --version
+          if ! flutter --version 2>&1 | grep -q "3.22.2"; then
+            echo "::error::Failed to install Flutter 3.22.2"
+            exit 1
+          fi
+
+      - name: Configure Environment
+        run: |
+          flutter config --no-analytics
+          flutter doctor -v
+          dart --version
 
       - name: Build APK
         working-directory: ./aurore_frontend
         run: |
+          export PATH="$HOME/dart-sdk/dart-sdk/bin:$PATH"
           flutter clean
           flutter pub get
           flutter build apk --release \
