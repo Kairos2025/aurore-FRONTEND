@@ -10,52 +10,40 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Java 11
+      - name: Setup Java
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Install Dart 3.8.0 First
+      - name: Install Required Tools
         run: |
-          # Download and extract Dart SDK
-          wget -q https://storage.googleapis.com/dart-archive/channels/stable/release/3.8.0/sdk/dartsdk-linux-x64-release.zip
-          unzip -q dartsdk-linux-x64-release.zip -d dart-sdk
-          echo "$GITHUB_WORKSPACE/dart-sdk/dart-sdk/bin" >> $GITHUB_PATH
+          # Install unzip if not present
+          sudo apt-get update
+          sudo apt-get install -y unzip
           
-          # Verify Dart installation
-          $GITHUB_WORKSPACE/dart-sdk/dart-sdk/bin/dart --version
-          if ! $GITHUB_WORKSPACE/dart-sdk/dart-sdk/bin/dart --version 2>&1 | grep -q "3.8.0"; then
-            echo "::error::Dart 3.8.0 installation failed"
-            exit 1
-          fi
-
-      - name: Install Flutter Without Dart
-        run: |
-          # Clone Flutter without its Dart SDK
-          git clone --depth 1 --branch 3.22.2 https://github.com/flutter/flutter.git flutter-sdk
-          echo "$GITHUB_WORKSPACE/flutter-sdk/bin" >> $GITHUB_PATH
+          # Install Dart 3.8.0
+          wget https://storage.googleapis.com/dart-archive/channels/stable/release/3.8.0/sdk/dartsdk-linux-x64-release.zip
+          unzip dartsdk-linux-x64-release.zip -d ~/dart-sdk
+          echo "$HOME/dart-sdk/dart-sdk/bin" >> $GITHUB_PATH
           
-          # Verify Flutter installation
-          $GITHUB_WORKSPACE/flutter-sdk/bin/flutter --version
-          if ! $GITHUB_WORKSPACE/flutter-sdk/bin/flutter --version 2>&1 | grep -q "3.22.2"; then
-            echo "::error::Flutter 3.22.2 installation failed"
-            exit 1
-          fi
+          # Install Flutter
+          git clone https://github.com/flutter/flutter.git -b 3.22.2 --depth 1 ~/flutter
+          echo "$HOME/flutter/bin" >> $GITHUB_PATH
 
-      - name: Configure Environment
-        working-directory: ./aurore_frontend
+      - name: Verify Installations
         run: |
-          # Force Flutter to use our Dart installation
-          export PATH="$GITHUB_WORKSPACE/dart-sdk/dart-sdk/bin:$PATH"
-          flutter config --no-analytics
-          flutter doctor -v
           dart --version
+          flutter --version
+          if ! dart --version 2>&1 | grep -q "3.8.0"; then
+            echo "::error::Dart version mismatch"
+            exit 1
+          fi
 
       - name: Build APK
         working-directory: ./aurore_frontend
         run: |
-          export PATH="$GITHUB_WORKSPACE/dart-sdk/dart-sdk/bin:$PATH"
+          flutter config --no-analytics
           flutter clean
           flutter pub get
           flutter build apk --release \
