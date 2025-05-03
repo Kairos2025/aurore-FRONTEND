@@ -10,54 +10,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Java 11
+      - name: Setup Java
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Install Dart 3.8.0 (Alternative Method)
-        run: |
-          # Download Dart directly to workspace
-          cd $GITHUB_WORKSPACE
-          wget -q https://storage.googleapis.com/dart-archive/channels/stable/release/3.8.0/sdk/dartsdk-linux-x64-release.zip
-          unzip -q dartsdk-linux-x64-release.zip
-          echo "$GITHUB_WORKSPACE/dart-sdk/bin" >> $GITHUB_PATH
-          
-          # Verify Dart version
-          $GITHUB_WORKSPACE/dart-sdk/bin/dart --version
-          if ! $GITHUB_WORKSPACE/dart-sdk/bin/dart --version 2>&1 | grep -q "3.8.0"; then
-            echo "::error::Failed to install Dart 3.8.0"
-            exit 1
-          fi
+      - name: Install Flutter with Correct Dart Version
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.2'  # This version includes Dart 3.8.0
+          channel: 'stable'
+          disable-analytics: true
 
-      - name: Install Flutter (Without Bundled Dart)
+      - name: Verify Versions
         run: |
-          # Download Flutter to workspace
-          cd $GITHUB_WORKSPACE
-          git clone --depth 1 --branch 3.22.2 https://github.com/flutter/flutter.git flutter-sdk
-          echo "$GITHUB_WORKSPACE/flutter-sdk/bin" >> $GITHUB_PATH
-          
-          # Verify Flutter version
-          $GITHUB_WORKSPACE/flutter-sdk/bin/flutter --version
-          if ! $GITHUB_WORKSPACE/flutter-sdk/bin/flutter --version 2>&1 | grep -q "3.22.2"; then
-            echo "::error::Failed to install Flutter 3.22.2"
-            exit 1
-          fi
-
-      - name: Configure Environment
-        working-directory: ./aurore_frontend
-        run: |
-          # Force Flutter to use our Dart installation
-          export PATH="$GITHUB_WORKSPACE/dart-sdk/bin:$PATH"
-          flutter config --no-analytics
-          flutter doctor -v
+          echo "Flutter version:"
+          flutter --version
+          echo "Dart version:"
           dart --version
+          if ! dart --version 2>&1 | grep -q "3.8.0"; then
+            echo "::error::Wrong Dart version installed!"
+            exit 1
+          fi
 
       - name: Build APK
         working-directory: ./aurore_frontend
         run: |
-          export PATH="$GITHUB_WORKSPACE/dart-sdk/bin:$PATH"
           flutter clean
           flutter pub get
           flutter build apk --release \
