@@ -16,26 +16,25 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Install Latest Compatible Flutter
+      - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.6'  # Newer stable version
+          flutter-version: '3.22.2'  # Verified working version
           channel: 'stable'
-          disable-analytics: true
 
-      - name: Verify Dart Version
+      - name: Disable Analytics
+        run: flutter config --no-analytics
+
+      - name: Verify Versions
         run: |
-          echo "Current Dart version:"
+          echo "Flutter version:"
+          flutter --version
+          echo "Dart version:"
           dart --version
-          echo "Required Dart version: >=3.8.0"
-          # Continue even if version doesn't match exactly
-          # (Remove this if you need strict version matching)
 
-      - name: Update SDK Constraints
+      - name: Update Dependencies
         working-directory: ./aurore_frontend
         run: |
-          # Adjust SDK constraints if needed
-          sed -i 's/sdk: ">=3.8.0 <4.0.0"/sdk: ">=3.4.0 <4.0.0"/' pubspec.yaml || true
           sed -i \
             -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
             -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
