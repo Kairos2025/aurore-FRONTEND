@@ -16,30 +16,41 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Install Dart SDK 3.8.0
+      - name: Install Dart 3.8.0
         run: |
-          # Safe removal of existing Dart (no sudo needed)
-          rm -f $(which dart) 2>/dev/null || true
+          # Create local directory for Dart
+          mkdir -p ~/dart-sdk
+          cd ~/dart-sdk
           
-          # Download specific Dart version
+          # Download and extract Dart
           wget -q https://storage.googleapis.com/dart-archive/channels/stable/release/3.8.0/sdk/dartsdk-linux-x64-release.zip
-          unzip -q dartsdk-linux-x64-release.zip -d ~/dart
-          echo "$HOME/dart/dart-sdk/bin" >> $GITHUB_PATH
+          unzip -q dartsdk-linux-x64-release.zip
+          
+          # Add to PATH
+          echo "$HOME/dart-sdk/dart-sdk/bin" >> $GITHUB_PATH
           
           # Verify installation
-          if ! ~/dart/dart-sdk/bin/dart --version 2>&1 | grep -q "3.8.0"; then
+          $HOME/dart-sdk/dart-sdk/bin/dart --version
+          if ! $HOME/dart-sdk/dart-sdk/bin/dart --version 2>&1 | grep -q "3.8.0"; then
             echo "::error::Dart 3.8.0 installation failed"
             exit 1
           fi
 
       - name: Install Flutter 3.22.2
         run: |
-          # Download Flutter without Dart
-          git clone --depth 1 --branch 3.22.2 https://github.com/flutter/flutter.git ~/flutter
-          echo "$HOME/flutter/bin" >> $GITHUB_PATH
+          # Create local directory for Flutter
+          mkdir -p ~/flutter-sdk
+          cd ~/flutter-sdk
           
-          # Verify Flutter version
-          if ! ~/flutter/bin/flutter --version 2>&1 | grep -q "3.22.2"; then
+          # Download Flutter
+          git clone --depth 1 --branch 3.22.2 https://github.com/flutter/flutter.git .
+          
+          # Add to PATH
+          echo "$HOME/flutter-sdk/bin" >> $GITHUB_PATH
+          
+          # Verify installation
+          $HOME/flutter-sdk/bin/flutter --version
+          if ! $HOME/flutter-sdk/bin/flutter --version 2>&1 | grep -q "3.22.2"; then
             echo "::error::Flutter 3.22.2 installation failed"
             exit 1
           fi
