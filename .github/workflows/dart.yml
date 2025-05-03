@@ -16,34 +16,27 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Install Required Tools
-        run: |
-          # Install unzip if not present
-          sudo apt-get update
-          sudo apt-get install -y unzip
-          
-          # Install Dart 3.8.0
-          wget https://storage.googleapis.com/dart-archive/channels/stable/release/3.8.0/sdk/dartsdk-linux-x64-release.zip
-          unzip dartsdk-linux-x64-release.zip -d ~/dart-sdk
-          echo "$HOME/dart-sdk/dart-sdk/bin" >> $GITHUB_PATH
-          
-          # Install Flutter
-          git clone https://github.com/flutter/flutter.git -b 3.22.2 --depth 1 ~/flutter
-          echo "$HOME/flutter/bin" >> $GITHUB_PATH
+      - name: Install Flutter with Correct Dart Version
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.2'  # This version includes Dart 3.8.0
+          channel: 'stable'
+          disable-analytics: true
 
-      - name: Verify Installations
+      - name: Verify Versions
         run: |
-          dart --version
+          echo "Flutter version:"
           flutter --version
+          echo "Dart version:"
+          dart --version
           if ! dart --version 2>&1 | grep -q "3.8.0"; then
-            echo "::error::Dart version mismatch"
+            echo "::error::Wrong Dart version installed!"
             exit 1
           fi
 
       - name: Build APK
         working-directory: ./aurore_frontend
         run: |
-          flutter config --no-analytics
           flutter clean
           flutter pub get
           flutter build apk --release \
