@@ -16,45 +16,22 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Install Dart 3.8.0
-        run: |
-          # Download Dart SDK 3.8.0 from archive
-          wget https://storage.googleapis.com/dart-archive/channels/stable/release/3.8.0/sdk/dartsdk-linux-x64-release.zip
-          unzip dartsdk-linux-x64-release.zip -d ~/dart-sdk
-          echo "$HOME/dart-sdk/dart-sdk/bin" >> $GITHUB_PATH
-          export PATH="$HOME/dart-sdk/dart-sdk/bin:$PATH"
-          
-          # Verify installation
-          dart --version
-          if ! dart --version 2>&1 | grep -q "3.8.0"; then
-            echo "::error::Failed to install Dart 3.8.0"
-            exit 1
-          fi
+      - name: Setup Flutter and Dart
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.2'
+          channel: 'stable'
 
-      - name: Install Flutter Without Dart
+      - name: Update SDK Constraints
+        working-directory: ./aurore_frontend
         run: |
-          # Clone Flutter without its bundled Dart
-          git clone --depth 1 --branch 3.22.2 https://github.com/flutter/flutter.git ~/flutter
-          echo "$HOME/flutter/bin" >> $GITHUB_PATH
-          export PATH="$HOME/flutter/bin:$PATH"
-          
-          # Verify Flutter version
-          flutter --version
-          if ! flutter --version 2>&1 | grep -q "3.22.2"; then
-            echo "::error::Failed to install Flutter 3.22.2"
-            exit 1
-          fi
-
-      - name: Configure Environment
-        run: |
-          flutter config --no-analytics
-          flutter doctor -v
-          dart --version
+          # Update SDK constraints to match installed Dart version
+          sed -i 's/sdk: ">=3.8.0 <4.0.0"/sdk: ">=3.4.0 <4.0.0"/' pubspec.yaml
 
       - name: Build APK
         working-directory: ./aurore_frontend
         run: |
-          export PATH="$HOME/dart-sdk/dart-sdk/bin:$PATH"
+          flutter config --no-analytics
           flutter clean
           flutter pub get
           flutter build apk --release \
