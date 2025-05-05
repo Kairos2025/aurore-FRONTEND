@@ -23,28 +23,25 @@ jobs:
           channel: 'stable'
 
       - name: Resolve All Dependencies
-        working-directory: ./aurore_frontend  # Fix typo: "working-directory"
+        working-directory: ./aurore_frontend
         run: |
-          sed -i 's/sdk: ">=3.8.0 <4.0.0"/sdk: ">=3.7.0 <4.0.0"/' pubspec.yaml
+          # Update http to version compatible with flutter_svg
+          sed -i 's/http: ^0.13.5/http: ^1.0.0/' pubspec.yaml
+          
+          # Ensure other dependencies are correct
           sed -i \
-            -e 's/material_color_utilities: .*/material_color_utilities: 0.11.1/' \
-            -e 's/firebase_core: .*/firebase_core: ^1.24.0/' \
-            -e 's/firebase_auth: .*/firebase_auth: ^3.11.2/' \
-            -e 's/firebase_analytics: .*/firebase_analytics: ^9.3.2/' \
-            -e 's/http: .*/http: ^0.13.5/' \
-            -e 's/test: .*/test: ^1.24.3/' \
-            -e 's/google_sign_in: .*/google_sign_in: ^5.4.0/' \
+            -e 's/sdk: ">=3.7.0 <4.0.0"/sdk: ">=3.8.0 <4.0.0"/' \
+            -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
+            -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
+            -e 's/firebase_analytics: .*/firebase_analytics: ^11.4.5/' \
+            -e 's/google_sign_in: .*/google_sign_in: ^6.3.0/' \
+            -e 's/test: .*/test: ^1.25.15/' \
+            -e 's/material_color_utilities: .*/material_color_utilities: ^0.12.0/' \
+            -e 's/async: ^2.13.0/async: 2.12.0/' \
             pubspec.yaml
 
-          if ! grep -q "dependency_overrides:" pubspec.yaml; then
-            echo -e "\ndependency_overrides:" >> pubspec.yaml
-          fi
-          if ! grep -q "material_color_utilities:" pubspec.yaml; then
-            echo "  material_color_utilities: 0.11.1" >> pubspec.yaml
-          fi
-
       - name: Verify Dependencies
-        working-directory: ./aurore_frontend  # Fix typo: "working-directory"
+        working-directory: ./aurore_frontend
         run: |
           echo "Final dependencies:"
           cat pubspec.yaml
@@ -65,4 +62,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: aurore-app-release
-          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk  # Remove "aurore_frontend/" prefix
+          path: build/app/outputs/flutter-apk/app-release.apk
