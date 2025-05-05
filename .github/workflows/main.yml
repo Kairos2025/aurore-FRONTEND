@@ -16,23 +16,23 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Install Flutter with Dart 3.8.0
+      - name: Update SDK Constraints
+        working-directory: ./aurore_frontend
         run: |
-          # Download and extract Flutter
-          wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.29.0-stable.tar.xz
-          tar xf flutter_linux_3.29.0-stable.tar.xz
+          # Update SDK constraints to match available Dart version (3.7.0)
+          sed -i 's/sdk: ">=3.8.0 <4.0.0"/sdk: ">=3.7.0 <4.0.0"/' pubspec.yaml
           
-          # Add to PATH (correct method)
-          echo "$GITHUB_WORKSPACE/flutter/bin" >> $GITHUB_PATH
-          export PATH="$GITHUB_WORKSPACE/flutter/bin:$PATH"
-          
-          # Verify installation
-          flutter --version
-          dart --version
-          if ! dart --version 2>&1 | grep -q "3.8.0"; then
-            echo "::error::Incorrect Dart version installed!"
-            exit 1
-          fi
+          # Update other dependencies to versions compatible with Dart 3.7.0
+          sed -i \
+            -e 's/http: .*/http: ^0.13.5/' \
+            -e 's/test: .*/test: ^1.24.3/' \
+            pubspec.yaml
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.0'
+          channel: 'stable'
 
       - name: Build APK
         working-directory: ./aurore_frontend
