@@ -17,26 +17,20 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Fix Pubspec Formatting
-        working-directory: ./aurore_frontend
+      # Added step to create flutter version file
+      - name: Create Flutter Version File
         run: |
-          # Fix SDK constraint formatting
-          sed -i 's/sdk:  >=/sdk: ">=/' pubspec.yaml
-          sed -i 's/ <4.0.0/ <4.0.0"/' pubspec.yaml
-          
-          # Maintain other dependencies
-          sed -i \
-            -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
-            -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
-            -e 's/http: .*/http: ^2.0.0/' \
-            pubspec.yaml
+          echo "3.19.3" > .fvm/fvm_config.json
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.25.0'  # Updated to version supporting Dart SDK >=3.8.0
-          channel: 'beta'  # Switched to beta channel for newer Dart SDK support
+          flutter-version: '3.19.3'  # Using specific stable version
+          channel: 'stable'          # Using stable channel instead of beta
           cache: true
+          cache-key: 'flutter-:os:-:channel:-:version:-:arch:-:hash:'
+          cache-path: ${{ runner.tool_cache }}/flutter/:channel:-:version:-:arch:
+          architecture: x64
 
       - name: Show Flutter and Dart Versions
         run: |
@@ -46,12 +40,23 @@ jobs:
       - name: Update Flutter
         run: |
           flutter upgrade
-          flutter channel beta
-          flutter upgrade
+
+      - name: Fix Pubspec Formatting
+        working-directory: ./aurore_frontend
+        run: |
+          # Fix SDK constraint formatting
+          sed -i 's/sdk:  >=/sdk: ">=/' pubspec.yaml
+          sed -i 's/ <4.0.0/ <4.0.0"/' pubspec.yaml
+          
+          # Update dependencies if needed
+          sed -i \
+            -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
+            -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
+            -e 's/http: .*/http: ^2.0.0/' \
+            pubspec.yaml
 
       - name: Silent Analytics Disable
         run: |
-          # Disable analytics without showing message
           flutter config --no-analytics >/dev/null 2>&1 || true
           flutter config --no-cli-animations >/dev/null 2>&1 || true
 
