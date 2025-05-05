@@ -19,37 +19,23 @@ jobs:
       - name: Fix Pubspec Formatting
         working-directory: ./aurore_frontend
         run: |
-          # Fix all YAML formatting issues
+          # Ensure proper YAML formatting
           sed -i \
-            -e 's/sdk:  >=3.8.0 <4.0.0/sdk: ">=3.4.0 <4.0.0"/' \
-            -e 's/flutter_lints: 5.0.0/flutter_lints: ^5.0.0/' \
-            -e 's/^  flutter_lints:/  flutter_lints: /' \
+            -e 's/sdk:  >=3.8.0 <4.0.0/sdk: ">=3.8.0 <4.0.0"/' \
+            -e 's/flutter_lints: [0-9.]*/flutter_lints: ^5.0.0/' \
+            -e 's/lints: [0-9.]*/lints: ^5.0.0/' \
             pubspec.yaml
-
-          # Update other dependencies to compatible versions
-          sed -i \
-            -e 's/firebase_core: .*/firebase_core: ^1.24.0/' \
-            -e 's/firebase_auth: .*/firebase_auth: ^3.11.2/' \
-            -e 's/http: .*/http: ^0.13.5/' \
-            pubspec.yaml
-
-          # Remove test dependency if causing conflicts
-          sed -i '/test:/d' pubspec.yaml
-
-          # Verify changes
-          echo "Formatted pubspec.yaml:"
-          head -50 pubspec.yaml
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.2'
+          flutter-version: '3.29.0'  # Matches your SDK requirement
           channel: 'stable'
 
       - name: Build APK
         working-directory: ./aurore_frontend
         run: |
-          flutter config --no-analytics >/dev/null 2>&1 || true
+          flutter config --no-analytics >/dev/null 2>&1
           flutter clean
           flutter pub get
           flutter build apk --release \
