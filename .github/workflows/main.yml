@@ -10,6 +10,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Fix Package Name
+        working-directory: ./aurore_frontend
+        run: |
+          # Correct the package name to be valid Dart identifier
+          sed -i 's/name: .*/name: aurore_frontend/' pubspec.yaml
+
       - name: Setup Java
         uses: actions/setup-java@v3
         with:
@@ -25,23 +31,14 @@ jobs:
       - name: Resolve All Dependencies
         working-directory: ./aurore_frontend
         run: |
-          # Ensure proper SDK constraints
-          sed -i 's/sdk: ">=3.8.0 <4.0.0"/sdk: ">=3.8.0 <4.0.0"/' pubspec.yaml
-          
-          # Add SDK constraint if missing
-          if ! grep -q "environment:" pubspec.yaml; then
-            echo -e "\nenvironment:\n  sdk: '>=3.8.0 <4.0.0'\n  flutter: '>=3.19.5'" >> pubspec.yaml
-          fi
-          
-          # Update http to compatible version
-          sed -i 's/http: ^0.13.5/http: ^1.0.0/' pubspec.yaml
-          
-          # Update other dependencies
+          # Update SDK and dependencies
           sed -i \
+            -e 's/sdk: ">=3.7.0 <4.0.0"/sdk: ">=3.8.0 <4.0.0"/' \
             -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
             -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
             -e 's/firebase_analytics: .*/firebase_analytics: ^11.4.5/' \
             -e 's/google_sign_in: .*/google_sign_in: ^6.3.0/' \
+            -e 's/http: .*/http: ^2.0.0/' \
             -e 's/test: .*/test: ^1.25.15/' \
             -e 's/material_color_utilities: .*/material_color_utilities: ^0.12.0/' \
             -e 's/async: ^2.13.0/async: 2.12.0/' \
