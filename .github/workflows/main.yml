@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: '3.22.0'  # Known stable version for these dependencies
+  FLUTTER_VERSION: '3.36.0'  # Contains Dart 3.8.0
   WORKING_DIR: './aurore_frontend'
 
 jobs:
@@ -28,17 +28,28 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Enforce Compatible Versions
+      - name: Verify Versions
+        run: |
+          echo "Flutter version:"
+          flutter --version
+          echo "Dart version:" 
+          dart --version
+
+      - name: Prepare Dependencies
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          # Update dependencies to known-working versions
+          # Update to compatible versions
           sed -i \
             -e 's/flutter_svg: .*/flutter_svg: ^2.1.0/' \
             -e 's/http: .*/http: ^1.1.0/' \
-            -e 's/firebase_core: .*/firebase_core: ^2.24.0/' \
-            -e 's/firebase_auth: .*/firebase_auth: ^4.11.0/' \
-            -e 's/firebase_analytics: .*/firebase_analytics: ^10.4.0/' \
+            -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
+            -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
+            -e 's/firebase_analytics: .*/firebase_analytics: ^11.4.5/' \
             pubspec.yaml
+
+          # Ensure SDK constraint matches installed Dart
+          DART_VERSION=$(dart --version | awk '{print $4}')
+          sed -i "s/sdk: \">=.*\"/sdk: \">=$DART_VERSION <4.0.0\"/" pubspec.yaml
 
       - name: Resolve Dependencies
         working-directory: ${{ env.WORKING_DIR }}
