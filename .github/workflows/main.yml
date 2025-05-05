@@ -16,16 +16,16 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Fix Pubspec Formatting
+      - name: Fix All Dependencies
         working-directory: ./aurore_frontend
         run: |
-          # Fix SDK constraint formatting (add quotes and proper spacing)
-          sed -i 's/sdk:  >=3.8.0 <4.0.0/sdk: ">=3.4.0 <4.0.0"/' pubspec.yaml
+          # Fix SDK constraint and test package version
+          sed -i \
+            -e 's/sdk:  >=3.8.0 <4.0.0/sdk: ">=3.4.0 <4.0.0"/' \
+            -e 's/test: >=1.25.9/test: ^1.24.3/' \
+            pubspec.yaml
           
-          # Ensure proper YAML formatting
-          sed -i 's/^  sdk:/  sdk: /' pubspec.yaml
-          
-          # Update dependencies to compatible versions
+          # Update other dependencies to compatible versions
           sed -i \
             -e 's/firebase_core: .*/firebase_core: ^1.24.0/' \
             -e 's/firebase_auth: .*/firebase_auth: ^3.11.2/' \
@@ -38,13 +38,12 @@ jobs:
           flutter-version: '3.22.2'
           channel: 'stable'
 
-      - name: Verify Pubspec
+      - name: Verify Dependencies
         working-directory: ./aurore_frontend
         run: |
-          echo "Updated SDK constraint:"
-          grep "sdk:" pubspec.yaml
-          echo "Dependencies:"
-          grep -E 'firebase|http' pubspec.yaml
+          echo "Current dependencies:"
+          grep -E 'sdk|test|firebase|http' pubspec.yaml
+          flutter pub outdated
 
       - name: Build APK
         working-directory: ./aurore_frontend
