@@ -5,44 +5,53 @@ on:
     branches: [main, master]
   workflow_dispatch:
 
+env:
+  FLUTTER_CHANNEL: 'stable'
+  WORKING_DIR: './aurore_frontend'
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      FLUTTER_VERSION: '3.30.0'  # Or use '3.30.0' if you specifically need this version
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Java
+      - name: Setup Java
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Install Flutter
+      - name: Install Flutter (Latest Stable)
+        id: install-flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.30.0'  # Explicit version
-          channel: 'stable'
+          channel: ${{ env.FLUTTER_CHANNEL }}
           cache: true
+          cache-key: ${{ runner.os }}-flutter-${{ env.FLUTTER_CHANNEL }}
 
-      - name: Verify Flutter installation
+      - name: Verify Flutter Installation
         run: |
           flutter --version
           flutter doctor -v
 
-      - name: Get dependencies
-        working-directory: ./aurore_frontend
+      - name: Resolve Dependencies
+        working-directory: ${{ env.WORKING_DIR }}
         run: |
+          # Adjust SDK version to match installed Flutter
+          FLUTTER_VERSION=$(flutter --version | grep -oE 'Flutter [0-9.]+' | cut -d' ' -f2)
+          DART_VERSION=$(flutter --version | grep -oE 'Dart [0-9.]+' | cut -d' ' -f2)
+          echo "Detected Flutter $FLUTTER_VERSION with Dart $DART_VERSION"
+          
+          # Update pubspec.yaml to match
+          sed -i "s/sdk: \">=.*\"/sdk: \">=$DART_VERSION <4.0.0\"/" pubspec.yaml
           flutter pub get
 
-      - name: Run tests
-        working-directory: ./aurore_frontend
+      - name: Run Tests
+        working-directory: ${{ env.WORKING_DIR }}
         run: flutter test
 
-      - name: Build APK
-        working-directory: ./aurore_frontend
+      - name: Build Release APK
+        working-directory: ${{ env.WORKING_DIR }}
         run: |
           flutter clean
           flutter build apk --release \
@@ -50,8 +59,9 @@ jobs:
             --split-debug-info=build/symbols/ \
             --obfuscate
 
-      - name: Upload APK
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: aurore-app-release
-          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
+          path: ${{ env.WORKING_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
