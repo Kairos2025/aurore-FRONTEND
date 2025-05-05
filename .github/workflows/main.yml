@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: '3.36.0'  # Contains Dart 3.8.0
+  FLUTTER_VERSION: '3.36.0'  # Contains Dart 3.8.0+
   WORKING_DIR: './aurore_frontend'
 
 jobs:
@@ -21,24 +21,34 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Install Flutter
+      - name: Install Correct Flutter Version
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
           cache: true
 
-      - name: Verify Versions
+      - name: Verify Installation
         run: |
-          echo "Flutter version:"
+          echo "=== Flutter Version ==="
           flutter --version
-          echo "Dart version:" 
+          echo "=== Dart Version ==="
           dart --version
+          echo "=== Doctor ==="
+          flutter doctor -v
 
-      - name: Prepare Dependencies
+      - name: Prepare Environment
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          # Update to compatible versions
+          # 1. Ensure valid package name
+          sed -i 's/name: .*/name: aurore_frontend/' pubspec.yaml
+          
+          # 2. Auto-adjust SDK version if needed
+          DART_VERSION=$(dart --version | awk '{print $4}')
+          echo "Adjusting SDK constraint to Dart $DART_VERSION"
+          sed -i "s/sdk: \">=.*\"/sdk: \">=$DART_VERSION <4.0.0\"/" pubspec.yaml
+          
+          # 3. Enforce compatible dependency versions
           sed -i \
             -e 's/flutter_svg: .*/flutter_svg: ^2.1.0/' \
             -e 's/http: .*/http: ^1.1.0/' \
@@ -46,10 +56,6 @@ jobs:
             -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
             -e 's/firebase_analytics: .*/firebase_analytics: ^11.4.5/' \
             pubspec.yaml
-
-          # Ensure SDK constraint matches installed Dart
-          DART_VERSION=$(dart --version | awk '{print $4}')
-          sed -i "s/sdk: \">=.*\"/sdk: \">=$DART_VERSION <4.0.0\"/" pubspec.yaml
 
       - name: Resolve Dependencies
         working-directory: ${{ env.WORKING_DIR }}
