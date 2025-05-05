@@ -18,13 +18,17 @@ jobs:
 
       - name: Install Flutter with Dart 3.8.0
         run: |
-          # Download specific Flutter version that includes Dart 3.8.0
+          # Download and extract Flutter
           wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.29.0-stable.tar.xz
           tar xf flutter_linux_3.29.0-stable.tar.xz
+          
+          # Add to PATH (correct method)
           echo "$GITHUB_WORKSPACE/flutter/bin" >> $GITHUB_PATH
+          export PATH="$GITHUB_WORKSPACE/flutter/bin:$PATH"
           
           # Verify installation
           flutter --version
+          dart --version
           if ! dart --version 2>&1 | grep -q "3.8.0"; then
             echo "::error::Incorrect Dart version installed!"
             exit 1
