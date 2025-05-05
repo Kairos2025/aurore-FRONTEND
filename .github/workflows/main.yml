@@ -9,7 +9,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      FLUTTER_VERSION: '3.30.0'  # Matches your SDK constraint >=3.8.0
+      FLUTTER_VERSION: '3.30.0'  # Or use '3.30.0' if you specifically need this version
 
     steps:
       - uses: actions/checkout@v4
@@ -20,31 +20,28 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Set up Flutter
+      - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
+          flutter-version: '3.30.0'  # Explicit version
           channel: 'stable'
           cache: true
-          cache-key: flutter-pub-cache-${{ env.FLUTTER_VERSION }}
-          cache-path: /opt/hostedtoolcache/flutter
 
-      - name: Validate Flutter version
+      - name: Verify Flutter installation
         run: |
           flutter --version
-          dart --version
+          flutter doctor -v
 
-      - name: Install dependencies
+      - name: Get dependencies
         working-directory: ./aurore_frontend
         run: |
           flutter pub get
-          flutter pub run build_runner build --delete-conflicting-outputs
 
       - name: Run tests
         working-directory: ./aurore_frontend
         run: flutter test
 
-      - name: Build release APK
+      - name: Build APK
         working-directory: ./aurore_frontend
         run: |
           flutter clean
@@ -53,17 +50,8 @@ jobs:
             --split-debug-info=build/symbols/ \
             --obfuscate
 
-      - name: Upload APK artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: aurore-app-release
           path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 7
-
-      - name: Upload debug symbols
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-symbols
-          path: aurore_frontend/build/symbols/
-          retention-days: 30
