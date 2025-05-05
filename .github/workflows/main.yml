@@ -16,13 +16,16 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.0'
+          channel: 'stable'
+
       - name: Resolve All Dependencies
-        working-directory: ./aurore_frontend
+        working-directory: ./aurore_frontend  # Fix typo: "working-directory"
         run: |
-          # Update SDK constraints to match Dart 3.7.0
           sed -i 's/sdk: ">=3.8.0 <4.0.0"/sdk: ">=3.7.0 <4.0.0"/' pubspec.yaml
-          
-          # Align all dependencies with Flutter 3.29.0 (Dart 3.7.0)
           sed -i \
             -e 's/material_color_utilities: .*/material_color_utilities: 0.11.1/' \
             -e 's/firebase_core: .*/firebase_core: ^1.24.0/' \
@@ -33,7 +36,6 @@ jobs:
             -e 's/google_sign_in: .*/google_sign_in: ^5.4.0/' \
             pubspec.yaml
 
-          # Add dependency override if needed
           if ! grep -q "dependency_overrides:" pubspec.yaml; then
             echo -e "\ndependency_overrides:" >> pubspec.yaml
           fi
@@ -41,22 +43,17 @@ jobs:
             echo "  material_color_utilities: 0.11.1" >> pubspec.yaml
           fi
 
-      - name: Install Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.29.0'
-          channel: 'stable'
-
       - name: Verify Dependencies
+        working-directory: ./aurore_frontend  # Fix typo: "working-directory"
         run: |
           echo "Final dependencies:"
-          cat aurore_frontend/pubspec.yaml
+          cat pubspec.yaml
           flutter pub get
 
       - name: Build APK
         working-directory: ./aurore_frontend
         run: |
-          flutter config --no-analytics >/dev/null 2>&1
+          flutter config --no-analytics
           flutter clean
           flutter pub get
           flutter build apk --release \
@@ -68,4 +65,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: aurore-app-release
-          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
+          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk  # Remove "aurore_frontend/" prefix
