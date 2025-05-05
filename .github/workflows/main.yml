@@ -28,10 +28,28 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Upgrade Gradle Project
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          # Backup current project
+          mv android android_backup
+          
+          # Create new Flutter project
+          flutter create -t app --project-name aurore_frontend --org com.example temp_project
+          
+          # Restore code and configuration
+          mv temp_project/android .
+          rm -rf temp_project
+          cp -r android_backup/src/main/ android/app/src/main/
+          cp android_backup/build.gradle android/
+          cp android_backup/app/build.gradle android/app/
+          cp android_backup/gradle.properties android/
+          rm -rf android_backup
+
       - name: Prepare Dependencies
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          # Update constraints to match installed Flutter
+          # Update to compatible versions
           sed -i \
             -e 's/sdk: ">=.*\"/sdk: ">=3.7.0 <4.0.0"/' \
             -e 's/flutter: ">=.*\"/flutter: ">=3.29.0"/' \
@@ -47,6 +65,7 @@ jobs:
         working-directory: ${{ env.WORKING_DIR }}
         run: |
           flutter pub get
+          flutter pub upgrade --major-versions
 
       - name: Build APK
         working-directory: ${{ env.WORKING_DIR }}
