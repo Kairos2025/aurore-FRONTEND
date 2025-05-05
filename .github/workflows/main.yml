@@ -16,22 +16,22 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Fix Pubspec Formatting
-        working-directory: ./aurore_frontend
-        run: |
-          # Fix flutter_lints version constraint
-          sed -i 's/flutter_lints: .*/flutter_lints: ^5.0.0/' pubspec.yaml
-          # Fix lints version constraint
-          sed -i 's/lints: .*/lints: ^5.0.0/' pubspec.yaml
-          # Verify changes
-          echo "Updated dev_dependencies:"
-          grep -A3 "dev_dependencies:" pubspec.yaml
-
-      - name: Install Flutter
+      - name: Install Flutter with Dart 3.8.0
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.29.0'  # Matches your SDK requirement
+          flutter-version: '3.33.0'  # This version includes Dart 3.8.0
           channel: 'stable'
+
+      - name: Verify Versions
+        run: |
+          echo "Flutter version:"
+          flutter --version
+          echo "Dart version:"
+          dart --version
+          if ! dart --version 2>&1 | grep -q "3.8.0"; then
+            echo "::error::Incorrect Dart version installed!"
+            exit 1
+          fi
 
       - name: Build APK
         working-directory: ./aurore_frontend
