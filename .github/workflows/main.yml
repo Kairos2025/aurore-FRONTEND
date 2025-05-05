@@ -16,19 +16,15 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Fix Pubspec and Dependencies
+      - name: Fix Dependencies
         working-directory: ./aurore_frontend
         run: |
-          # Fix SDK constraint formatting
-          sed -i 's/sdk:  >=3.8.0 <4.0.0/sdk: ">=3.4.0 <4.0.0"/' pubspec.yaml
-          
-          # Ensure http package version is compatible
-          sed -i 's/http: .*/http: ^0.13.5/' pubspec.yaml
-          
-          # Maintain other critical dependencies
+          # Update all dependencies to compatible versions
           sed -i \
-            -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
-            -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
+            -e 's/sdk: ">=3.8.0 <4.0.0"/sdk: ">=3.4.0 <4.0.0"/' \
+            -e 's/firebase_core: .*/firebase_core: ^1.24.0/' \
+            -e 's/firebase_auth: .*/firebase_auth: ^3.11.2/' \
+            -e 's/http: .*/http: ^0.13.5/' \
             pubspec.yaml
 
       - name: Install Flutter
@@ -37,16 +33,14 @@ jobs:
           flutter-version: '3.22.2'
           channel: 'stable'
 
-      - name: Silent Configuration
+      - name: Configure Environment
         run: |
-          # Disable analytics without showing message
           flutter config --no-analytics >/dev/null 2>&1
           flutter config --no-cli-animations >/dev/null 2>&1
 
       - name: Get Dependencies
         working-directory: ./aurore_frontend
-        run: |
-          flutter pub get
+        run: flutter pub get
 
       - name: Build APK
         working-directory: ./aurore_frontend
