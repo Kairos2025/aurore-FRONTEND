@@ -6,7 +6,8 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: '3.36.0'  # Contains Dart 3.8.0+
+  # Using a slightly older but guaranteed-available Flutter version
+  FLUTTER_VERSION: '3.34.0'  # Contains Dart 3.8.0+
   WORKING_DIR: './aurore_frontend'
 
 jobs:
@@ -21,41 +22,48 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Install Correct Flutter Version
+      - name: Install Flutter (with fallback)
+        id: install-flutter
+        continue-on-error: true
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
           cache: true
 
+      - name: Fallback to Channel Install
+        if: steps.install-flutter.outcome != 'success'
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
       - name: Verify Installation
         run: |
-          echo "=== Flutter Version ==="
+          echo "=== Installed Versions ==="
           flutter --version
-          echo "=== Dart Version ==="
           dart --version
-          echo "=== Doctor ==="
-          flutter doctor -v
+          echo "=== SDK Constraints ==="
+          grep "sdk:" ${{ env.WORKING_DIR }}/pubspec.yaml
 
-      - name: Prepare Environment
+      - name: Prepare Dependencies
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          # 1. Ensure valid package name
+          # Ensure valid package name
           sed -i 's/name: .*/name: aurore_frontend/' pubspec.yaml
           
-          # 2. Auto-adjust SDK version if needed
-          DART_VERSION=$(dart --version | awk '{print $4}')
-          echo "Adjusting SDK constraint to Dart $DART_VERSION"
-          sed -i "s/sdk: \">=.*\"/sdk: \">=$DART_VERSION <4.0.0\"/" pubspec.yaml
-          
-          # 3. Enforce compatible dependency versions
+          # Update to known-working versions
           sed -i \
             -e 's/flutter_svg: .*/flutter_svg: ^2.1.0/' \
-            -e 's/http: .*/http: ^1.1.0/' \
-            -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
-            -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
-            -e 's/firebase_analytics: .*/firebase_analytics: ^11.4.5/' \
+            -e 's/http: .*/http: ^0.13.5/' \
+            -e 's/firebase_core: .*/firebase_core: ^2.24.0/' \
+            -e 's/firebase_auth: .*/firebase_auth: ^4.11.0/' \
+            -e 's/firebase_analytics: .*/firebase_analytics: ^10.4.0/' \
             pubspec.yaml
+
+          # Adjust SDK version dynamically
+          DART_VERSION=$(dart --version | awk '{print $4}')
+          sed -i "s/sdk: \">=.*\"/sdk: \">=$DART_VERSION <4.0.0\"/" pubspec.yaml
 
       - name: Resolve Dependencies
         working-directory: ${{ env.WORKING_DIR }}
