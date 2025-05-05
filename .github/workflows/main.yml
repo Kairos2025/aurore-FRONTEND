@@ -16,16 +16,24 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Update SDK Constraints
+      - name: Update All Dependencies
         working-directory: ./aurore_frontend
         run: |
-          # Update SDK constraints to match available Dart version (3.7.0)
+          # Update SDK constraints to match Dart 3.7.0
           sed -i 's/sdk: ">=3.8.0 <4.0.0"/sdk: ">=3.7.0 <4.0.0"/' pubspec.yaml
           
-          # Update other dependencies to versions compatible with Dart 3.7.0
+          # Update Firebase dependencies to compatible versions
+          sed -i \
+            -e 's/firebase_core: .*/firebase_core: ^1.24.0/' \
+            -e 's/firebase_auth: .*/firebase_auth: ^3.11.2/' \
+            -e 's/firebase_analytics: .*/firebase_analytics: ^9.3.2/' \
+            pubspec.yaml
+          
+          # Update other dependencies
           sed -i \
             -e 's/http: .*/http: ^0.13.5/' \
             -e 's/test: .*/test: ^1.24.3/' \
+            -e 's/google_sign_in: .*/google_sign_in: ^5.4.0/' \
             pubspec.yaml
 
       - name: Install Flutter
@@ -33,6 +41,11 @@ jobs:
         with:
           flutter-version: '3.29.0'
           channel: 'stable'
+
+      - name: Verify Dependencies
+        run: |
+          echo "Updated dependencies:"
+          grep -E 'sdk|firebase|http|test|google' aurore_frontend/pubspec.yaml
 
       - name: Build APK
         working-directory: ./aurore_frontend
