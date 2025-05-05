@@ -10,27 +10,43 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - name: Setup Java
+        uses: actions/setup-java@v3
         with:
-          flutter-version: '3.22.2'  # Exact version with Dart 3.8.0
-          channel: 'stable'
+          distribution: 'zulu'
+          java-version: '11'
 
-      - name: Verify environment
+      - name: Fix Pubspec Formatting
         working-directory: ./aurore_frontend
         run: |
-          flutter --version
-          flutter config --no-analytics
-          ls -la
-
-      - name: Update dependencies
-        working-directory: ./aurore_frontend
-        run: |
+          # Fix SDK constraint formatting (add quotes)
+          sed -i 's/sdk:  >=3.8.0 <4.0.0/sdk: ">=3.8.0 <4.0.0"/' pubspec.yaml
+          
+          # Maintain other dependency versions
           sed -i \
             -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
             -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
             -e 's/http: .*/http: ^2.0.0/' \
             pubspec.yaml
+
+      - name: Install Flutter with Correct Dart Version
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.2'
+          channel: 'stable'
+
+      - name: Silent Analytics Disable
+        run: |
+          # Disable analytics without showing message
+          flutter config --no-analytics >/dev/null 2>&1 || true
+          flutter config --no-cli-animations >/dev/null 2>&1 || true
+
+      - name: Verify Versions
+        run: |
+          echo "Flutter version:"
+          flutter --version
+          echo "Dart version:"
+          dart --version
 
       - name: Build APK
         working-directory: ./aurore_frontend
@@ -42,8 +58,8 @@ jobs:
             --split-debug-info=/build \
             --obfuscate
 
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4  # Fixed version from v3 to v4
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
           name: aurore-app-release
           path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
