@@ -16,37 +16,30 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Fix Pubspec Formatting
+      - name: Prepare Environment
         working-directory: ./aurore_frontend
         run: |
-          # Fix SDK constraint formatting (add quotes)
-          sed -i 's/sdk:  >=3.8.0 <4.0.0/sdk: ">=3.8.0 <4.0.0"/' pubspec.yaml
+          # Update SDK constraints to match available Dart version (3.4.3)
+          sed -i 's/sdk: ">=3.8.0 <4.0.0"/sdk: ">=3.4.0 <4.0.0"/' pubspec.yaml
           
-          # Maintain other dependency versions
+          # Maintain other critical dependency versions
           sed -i \
             -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
             -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
             -e 's/http: .*/http: ^2.0.0/' \
             pubspec.yaml
 
-      - name: Install Flutter with Correct Dart Version
+      - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.22.2'
           channel: 'stable'
 
-      - name: Silent Analytics Disable
+      - name: Configure Environment
         run: |
-          # Disable analytics without showing message
-          flutter config --no-analytics >/dev/null 2>&1 || true
-          flutter config --no-cli-animations >/dev/null 2>&1 || true
-
-      - name: Verify Versions
-        run: |
-          echo "Flutter version:"
-          flutter --version
-          echo "Dart version:"
-          dart --version
+          # Silent configuration
+          flutter config --no-analytics >/dev/null 2>&1
+          flutter config --no-cli-animations >/dev/null 2>&1
 
       - name: Build APK
         working-directory: ./aurore_frontend
