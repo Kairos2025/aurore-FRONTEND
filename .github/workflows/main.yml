@@ -25,12 +25,19 @@ jobs:
       - name: Resolve All Dependencies
         working-directory: ./aurore_frontend
         run: |
-          # Update http to version compatible with flutter_svg
+          # Ensure proper SDK constraints
+          sed -i 's/sdk: ">=3.8.0 <4.0.0"/sdk: ">=3.8.0 <4.0.0"/' pubspec.yaml
+          
+          # Add SDK constraint if missing
+          if ! grep -q "environment:" pubspec.yaml; then
+            echo -e "\nenvironment:\n  sdk: '>=3.8.0 <4.0.0'\n  flutter: '>=3.19.5'" >> pubspec.yaml
+          fi
+          
+          # Update http to compatible version
           sed -i 's/http: ^0.13.5/http: ^1.0.0/' pubspec.yaml
           
-          # Ensure other dependencies are correct
+          # Update other dependencies
           sed -i \
-            -e 's/sdk: ">=3.7.0 <4.0.0"/sdk: ">=3.8.0 <4.0.0"/' \
             -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
             -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
             -e 's/firebase_analytics: .*/firebase_analytics: ^11.4.5/' \
