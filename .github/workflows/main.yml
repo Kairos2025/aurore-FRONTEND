@@ -16,16 +16,13 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Force Dependency Resolution
+      - name: Resolve Dependencies
         working-directory: ./aurore_frontend
         run: |
-          # First, completely remove the test dependency if not critical
-          if grep -q "test:" pubspec.yaml; then
-            sed -i '/test:/d' pubspec.yaml
-            echo "Removed test dependency as it's causing conflicts"
-          fi
-
-          # Ensure all other dependencies are compatible
+          # Remove test dependency if present (comment out if you need it)
+          sed -i '/test:/d' pubspec.yaml
+          
+          # Set compatible versions
           sed -i \
             -e 's/sdk:  >=3.8.0 <4.0.0/sdk: ">=3.4.0 <4.0.0"/' \
             -e 's/firebase_core: .*/firebase_core: ^1.24.0/' \
@@ -33,23 +30,22 @@ jobs:
             -e 's/http: .*/http: ^0.13.5/' \
             pubspec.yaml
 
-          # Verify changes
-          echo "Final pubspec.yaml content:"
-          cat pubspec.yaml
-
       - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.22.2'
           channel: 'stable'
 
+      - name: Configure Environment
+        run: |
+          # Handle analytics configuration safely
+          flutter --version >/dev/null  # Initialize flutter first
+          flutter config --no-analytics || true
+          flutter config --no-cli-animations || true
+
       - name: Build APK
         working-directory: ./aurore_frontend
         run: |
-          # Silent configuration
-          flutter config --no-analytics >/dev/null 2>&1
-          flutter config --no-cli-animations >/dev/null 2>&1
-          
           flutter clean
           flutter pub get
           flutter build apk --release \
