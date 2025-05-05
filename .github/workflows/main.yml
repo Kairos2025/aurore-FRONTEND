@@ -16,34 +16,27 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Fix All Dependencies
+      - name: Update All Dependencies
         working-directory: ./aurore_frontend
         run: |
-          # Fix SDK constraint and test package version
+          # Update SDK constraints and all problematic dependencies
           sed -i \
             -e 's/sdk:  >=3.8.0 <4.0.0/sdk: ">=3.4.0 <4.0.0"/' \
             -e 's/test: >=1.25.9/test: ^1.24.3/' \
-            pubspec.yaml
-          
-          # Update other dependencies to compatible versions
-          sed -i \
             -e 's/firebase_core: .*/firebase_core: ^1.24.0/' \
             -e 's/firebase_auth: .*/firebase_auth: ^3.11.2/' \
             -e 's/http: .*/http: ^0.13.5/' \
             pubspec.yaml
+
+          # Verify changes
+          echo "Updated dependencies:"
+          grep -E 'sdk|test|firebase|http' pubspec.yaml
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.22.2'
           channel: 'stable'
-
-      - name: Verify Dependencies
-        working-directory: ./aurore_frontend
-        run: |
-          echo "Current dependencies:"
-          grep -E 'sdk|test|firebase|http' pubspec.yaml
-          flutter pub outdated
 
       - name: Build APK
         working-directory: ./aurore_frontend
