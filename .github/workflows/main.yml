@@ -16,22 +16,26 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Resolve All Dependencies
+      - name: Force Dependency Resolution
         working-directory: ./aurore_frontend
         run: |
-          # Update all dependencies to versions compatible with Dart 3.4.3
+          # First, completely remove the test dependency if not critical
+          if grep -q "test:" pubspec.yaml; then
+            sed -i '/test:/d' pubspec.yaml
+            echo "Removed test dependency as it's causing conflicts"
+          fi
+
+          # Ensure all other dependencies are compatible
           sed -i \
             -e 's/sdk:  >=3.8.0 <4.0.0/sdk: ">=3.4.0 <4.0.0"/' \
-            -e 's/test: >=1.25.9/test: ^1.24.3/' \
             -e 's/firebase_core: .*/firebase_core: ^1.24.0/' \
             -e 's/firebase_auth: .*/firebase_auth: ^3.11.2/' \
             -e 's/http: .*/http: ^0.13.5/' \
-            -e 's/flutter_localizations: .*/flutter_localizations: ^0.1.1/' \
             pubspec.yaml
 
-          # Verify all changes
-          echo "Updated dependencies:"
-          grep -E 'sdk|test|firebase|http|flutter_localizations' pubspec.yaml
+          # Verify changes
+          echo "Final pubspec.yaml content:"
+          cat pubspec.yaml
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
@@ -39,16 +43,13 @@ jobs:
           flutter-version: '3.22.2'
           channel: 'stable'
 
-      - name: Force Dependency Resolution
-        working-directory: ./aurore_frontend
-        run: |
-          flutter pub upgrade --major-versions
-          flutter pub outdated
-
       - name: Build APK
         working-directory: ./aurore_frontend
         run: |
+          # Silent configuration
           flutter config --no-analytics >/dev/null 2>&1
+          flutter config --no-cli-animations >/dev/null 2>&1
+          
           flutter clean
           flutter pub get
           flutter build apk --release \
