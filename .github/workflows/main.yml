@@ -16,27 +16,34 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Update All Dependencies
+      - name: Resolve All Dependencies
         working-directory: ./aurore_frontend
         run: |
-          # Update SDK constraints and all problematic dependencies
+          # Update all dependencies to versions compatible with Dart 3.4.3
           sed -i \
             -e 's/sdk:  >=3.8.0 <4.0.0/sdk: ">=3.4.0 <4.0.0"/' \
             -e 's/test: >=1.25.9/test: ^1.24.3/' \
             -e 's/firebase_core: .*/firebase_core: ^1.24.0/' \
             -e 's/firebase_auth: .*/firebase_auth: ^3.11.2/' \
             -e 's/http: .*/http: ^0.13.5/' \
+            -e 's/flutter_localizations: .*/flutter_localizations: ^0.1.1/' \
             pubspec.yaml
 
-          # Verify changes
+          # Verify all changes
           echo "Updated dependencies:"
-          grep -E 'sdk|test|firebase|http' pubspec.yaml
+          grep -E 'sdk|test|firebase|http|flutter_localizations' pubspec.yaml
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.22.2'
           channel: 'stable'
+
+      - name: Force Dependency Resolution
+        working-directory: ./aurore_frontend
+        run: |
+          flutter pub upgrade --major-versions
+          flutter pub outdated
 
       - name: Build APK
         working-directory: ./aurore_frontend
