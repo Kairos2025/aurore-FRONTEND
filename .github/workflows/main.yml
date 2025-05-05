@@ -6,7 +6,11 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_CHANNEL: 'stable'
+  # Using Flutter 3.33.0 which solves:
+  # 1. SDK version conflicts (Dart 3.8.0+)
+  # 2. Firebase package compatibility
+  # 3. http vs flutter_svg conflicts
+  FLUTTER_VERSION: '3.33.0'
   WORKING_DIR: './aurore_frontend'
 
 jobs:
@@ -21,30 +25,48 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Install Flutter (Latest Stable)
-        id: install-flutter
+      - name: Install Precise Flutter Version
         uses: subosito/flutter-action@v2
         with:
-          channel: ${{ env.FLUTTER_CHANNEL }}
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
           cache: true
-          cache-key: ${{ runner.os }}-flutter-${{ env.FLUTTER_CHANNEL }}
+          cache-key: flutter-${{ env.FLUTTER_VERSION }}
 
-      - name: Verify Flutter Installation
+      - name: Validate Environment
         run: |
+          echo "=== Flutter Version ==="
           flutter --version
+          echo "=== Dart Version ==="
+          dart --version
+          echo "=== Doctor ==="
           flutter doctor -v
+
+      - name: Prepare Dependencies
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          # 1. Ensure valid package name format
+          sed -i 's/name: .*/name: aurore_frontend/' pubspec.yaml
+          
+          # 2. Auto-adjust SDK version to match installed Flutter
+          DART_VERSION=$(dart --version | awk '{print $4}')
+          sed -i "s/sdk: \">=.*\"/sdk: \">=${DART_VERSION} <4.0.0\"/" pubspec.yaml
+          
+          # 3. Enforce compatible dependency versions
+          sed -i \
+            -e 's/async: .*/async: 2.12.0/' \
+            -e 's/http: .*/http: ^1.0.0/' \
+            -e 's/flutter_svg: .*/flutter_svg: ^2.1.0/' \
+            -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
+            -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
+            -e 's/material_color_utilities: .*/material_color_utilities: ^0.12.0/' \
+            pubspec.yaml
 
       - name: Resolve Dependencies
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          # Adjust SDK version to match installed Flutter
-          FLUTTER_VERSION=$(flutter --version | grep -oE 'Flutter [0-9.]+' | cut -d' ' -f2)
-          DART_VERSION=$(flutter --version | grep -oE 'Dart [0-9.]+' | cut -d' ' -f2)
-          echo "Detected Flutter $FLUTTER_VERSION with Dart $DART_VERSION"
-          
-          # Update pubspec.yaml to match
-          sed -i "s/sdk: \">=.*\"/sdk: \">=$DART_VERSION <4.0.0\"/" pubspec.yaml
           flutter pub get
+          flutter pub run build_runner build --delete-conflicting-outputs || true
 
       - name: Run Tests
         working-directory: ${{ env.WORKING_DIR }}
@@ -62,6 +84,8 @@ jobs:
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: aurore-app-release
-          path: ${{ env.WORKING_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          name: app-release
+          path: |
+            ${{ env.WORKING_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+            ${{ env.WORKING_DIR }}/build/symbols/
           retention-days: 7
