@@ -34,14 +34,20 @@ jobs:
       - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0'  # Updated to latest stable version supporting Dart SDK >=3.8.0
-          channel: 'stable'
-          cache: true  # Added cache for faster builds
+          flutter-version: '3.25.0'  # Updated to version supporting Dart SDK >=3.8.0
+          channel: 'beta'  # Switched to beta channel for newer Dart SDK support
+          cache: true
 
       - name: Show Flutter and Dart Versions
         run: |
           flutter --version
           dart --version
+
+      - name: Update Flutter
+        run: |
+          flutter upgrade
+          flutter channel beta
+          flutter upgrade
 
       - name: Silent Analytics Disable
         run: |
