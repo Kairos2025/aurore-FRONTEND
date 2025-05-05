@@ -16,19 +16,29 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Resolve Dependencies
+      - name: Fix Pubspec Formatting
         working-directory: ./aurore_frontend
         run: |
-          # Remove test dependency if present (comment out if you need it)
-          sed -i '/test:/d' pubspec.yaml
-          
-          # Set compatible versions
+          # Fix all YAML formatting issues
           sed -i \
             -e 's/sdk:  >=3.8.0 <4.0.0/sdk: ">=3.4.0 <4.0.0"/' \
+            -e 's/flutter_lints: 5.0.0/flutter_lints: ^5.0.0/' \
+            -e 's/^  flutter_lints:/  flutter_lints: /' \
+            pubspec.yaml
+
+          # Update other dependencies to compatible versions
+          sed -i \
             -e 's/firebase_core: .*/firebase_core: ^1.24.0/' \
             -e 's/firebase_auth: .*/firebase_auth: ^3.11.2/' \
             -e 's/http: .*/http: ^0.13.5/' \
             pubspec.yaml
+
+          # Remove test dependency if causing conflicts
+          sed -i '/test:/d' pubspec.yaml
+
+          # Verify changes
+          echo "Formatted pubspec.yaml:"
+          head -50 pubspec.yaml
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
@@ -36,16 +46,10 @@ jobs:
           flutter-version: '3.22.2'
           channel: 'stable'
 
-      - name: Configure Environment
-        run: |
-          # Handle analytics configuration safely
-          flutter --version >/dev/null  # Initialize flutter first
-          flutter config --no-analytics || true
-          flutter config --no-cli-animations || true
-
       - name: Build APK
         working-directory: ./aurore_frontend
         run: |
+          flutter config --no-analytics >/dev/null 2>&1 || true
           flutter clean
           flutter pub get
           flutter build apk --release \
