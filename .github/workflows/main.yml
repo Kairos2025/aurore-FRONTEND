@@ -16,25 +16,30 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Update All Dependencies
+      - name: Resolve All Dependencies
         working-directory: ./aurore_frontend
         run: |
           # Update SDK constraints to match Dart 3.7.0
           sed -i 's/sdk: ">=3.8.0 <4.0.0"/sdk: ">=3.7.0 <4.0.0"/' pubspec.yaml
           
-          # Update Firebase dependencies to compatible versions
+          # Align all dependencies with Flutter 3.29.0 (Dart 3.7.0)
           sed -i \
+            -e 's/material_color_utilities: .*/material_color_utilities: 0.11.1/' \
             -e 's/firebase_core: .*/firebase_core: ^1.24.0/' \
             -e 's/firebase_auth: .*/firebase_auth: ^3.11.2/' \
             -e 's/firebase_analytics: .*/firebase_analytics: ^9.3.2/' \
-            pubspec.yaml
-          
-          # Update other dependencies
-          sed -i \
             -e 's/http: .*/http: ^0.13.5/' \
             -e 's/test: .*/test: ^1.24.3/' \
             -e 's/google_sign_in: .*/google_sign_in: ^5.4.0/' \
             pubspec.yaml
+
+          # Add dependency override if needed
+          if ! grep -q "dependency_overrides:" pubspec.yaml; then
+            echo -e "\ndependency_overrides:" >> pubspec.yaml
+          fi
+          if ! grep -q "material_color_utilities:" pubspec.yaml; then
+            echo "  material_color_utilities: 0.11.1" >> pubspec.yaml
+          fi
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
@@ -44,8 +49,9 @@ jobs:
 
       - name: Verify Dependencies
         run: |
-          echo "Updated dependencies:"
-          grep -E 'sdk|firebase|http|test|google' aurore_frontend/pubspec.yaml
+          echo "Final dependencies:"
+          cat aurore_frontend/pubspec.yaml
+          flutter pub get
 
       - name: Build APK
         working-directory: ./aurore_frontend
