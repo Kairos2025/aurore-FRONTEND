@@ -1,4 +1,4 @@
-name: Aurore Frontend CI/CD
+name: Flutter APK Build Pipeline
 
 on:
   push:
@@ -6,8 +6,9 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: '3.22.0'  # Latest stable with Dart 3.4.0
+  FLUTTER_VERSION: '3.22.0'
   WORKING_DIR: './aurore_frontend'
+  FLUTTER_HOME: '${{ github.workspace }}/flutter'
 
 jobs:
   build:
@@ -26,17 +27,33 @@ jobs:
 
       - name: Install Flutter
         run: |
-          FLUTTER_HOME="${{ github.workspace }}/flutter"
-          echo "FLUTTER_HOME=$FLUTTER_HOME" >> $GITHUB_ENV
+          # Create Flutter directory first
+          mkdir -p "${{ env.FLUTTER_HOME }}"
           
-          wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz
-          tar xf flutter_linux_${FLUTTER_VERSION}-stable.tar.xz -C "$FLUTTER_HOME" --strip-components=1
-          echo "$FLUTTER_HOME/bin" >> $GITHUB_PATH
+          # Download Flutter
+          echo "Downloading Flutter ${{ env.FLUTTER_VERSION }}..."
+          wget -q --show-progress --progress=bar:force:noscroll \
+            https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz
+          
+          # Verify and extract
+          echo "Extracting to ${{ env.FLUTTER_HOME }}..."
+          tar xf flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz \
+            -C "${{ env.FLUTTER_HOME }}" \
+            --strip-components=1
+          
+          # Add to PATH
+          echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
+          echo "FLUTTER_HOME=${{ env.FLUTTER_HOME }}" >> $GITHUB_ENV
+
+      - name: Verify Installation
+        run: |
+          echo "Flutter path: ${{ env.FLUTTER_HOME }}"
+          ls -la ${{ env.FLUTTER_HOME }}/bin
+          flutter --version
 
       - name: Adjust SDK Constraints
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          # Update both Dart and Flutter SDK constraints
           sed -i \
             -e 's/sdk: ">=3.8.0 <4.0.0"/sdk: ">=3.4.0 <4.0.0"/' \
             -e 's/flutter: ">=3.36.0"/flutter: ">=3.22.0"/' \
