@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: '3.22.0'
+  FLUTTER_VERSION: '3.25.0'  # Contains Dart 3.5.0+
   WORKING_DIR: './aurore_frontend'
   FLUTTER_HOME: '${{ github.workspace }}/flutter'
 
@@ -32,22 +32,22 @@ jobs:
           tar xf flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz -C "${{ env.FLUTTER_HOME }}" --strip-components=1
           echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
 
-      - name: Configure Firebase Dependencies
+      - name: Configure Dependencies
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          # Update Firebase packages to compatible versions
+          # Update dependencies to compatible versions
           sed -i \
+            -e 's/sdk: ">=3.8.0 <4.0.0"/sdk: ">=3.5.0 <4.0.0"/' \
+            -e 's/test: .*/test: ^1.24.7/' \
             -e 's/firebase_core: .*/firebase_core: ^2.24.0/' \
             -e 's/firebase_auth: .*/firebase_auth: ^4.11.0/' \
-            -e 's/sdk: ">=3.8.0 <4.0.0"/sdk: ">=3.4.0 <4.0.0"/' \
-            -e 's/flutter: ">=3.36.0"/flutter: ">=3.22.0"/' \
             pubspec.yaml
 
       - name: Resolve Dependencies
         working-directory: ${{ env.WORKING_DIR }}
         run: |
           flutter pub get
-          flutter pub cache repair
+          flutter pub upgrade
 
       - name: Build APK
         working-directory: ${{ env.WORKING_DIR }}
