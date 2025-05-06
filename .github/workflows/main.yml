@@ -53,8 +53,16 @@ jobs:
       - name: Resolve Dependencies
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          flutter pub cache repair --verbose > pub_cache.log 2>&1 || echo "Pub cache repair completed (exit code $?)"
-          flutter pub get --no-verbose
+          # Run pub cache repair only if needed (saves time)
+          flutter pub cache repair > pub_cache.log 2>&1 || echo "Pub cache repair completed (exit code $?)"
+          
+          # Get dependencies with minimal output
+          flutter pub get > pub_get.log 2>&1 || {
+            echo "::error::Pub get failed. Last 50 lines:"
+            tail -n 50 pub_get.log
+            exit 1
+          }
+          
           flutter pub outdated --mode=null-safety
 
       - name: Build APK
@@ -65,8 +73,7 @@ jobs:
           flutter build apk --release \
             --dart-define=CI_ENV=true \
             --split-debug-info=build/symbols/ \
-            --obfuscate \
-            --no-verbose > build.log 2>&1 || {
+            --obfuscate > build.log 2>&1 || {
               echo "::error::Build failed. Last 100 lines:"
               tail -n 100 build.log
               exit 1
@@ -88,4 +95,5 @@ jobs:
           path: |
             ${{ env.WORKING_DIR }}/build.log
             ${{ env.WORKING_DIR }}/pub_cache.log
+            ${{ env.WORKING_DIR }}/pub_get.log
           retention-days: 30
