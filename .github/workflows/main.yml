@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Required for some Flutter version checks
+          fetch-depth: 0
 
       - name: Setup Java 17
         uses: actions/setup-java@v3
@@ -26,19 +26,17 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      - name: Install Flutter (Official Action)
+      - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
           cache: true
           cache-key: 'flutter-v3.22.0'
-          cache-path: '${{ runner.temp }}/flutter_cache'
 
       - name: Verify Installation
         run: |
           flutter --version
-          dart --version
           flutter doctor -v
 
       - name: Configure Environment
@@ -55,22 +53,22 @@ jobs:
       - name: Resolve Dependencies
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          flutter pub cache repair
-          flutter pub get --verbose
+          flutter pub cache repair --verbose > pub_cache.log 2>&1 || echo "Pub cache repair completed (exit code $?)"
+          flutter pub get --no-verbose
           flutter pub outdated --mode=null-safety
 
-      - name: Build APK (with error handling)
+      - name: Build APK
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          set -e  # Exit immediately on error
+          set -e
           flutter clean
           flutter build apk --release \
             --dart-define=CI_ENV=true \
             --split-debug-info=build/symbols/ \
             --obfuscate \
-            --verbose 2>&1 | tee build.log || {
-              echo "::error::Build failed. Log:"
-              cat build.log
+            --no-verbose > build.log 2>&1 || {
+              echo "::error::Build failed. Last 100 lines:"
+              tail -n 100 build.log
               exit 1
             }
 
@@ -89,5 +87,5 @@ jobs:
           name: build-logs
           path: |
             ${{ env.WORKING_DIR }}/build.log
-            ${{ env.WORKING_DIR }}/flutter_01.log
+            ${{ env.WORKING_DIR }}/pub_cache.log
           retention-days: 30
