@@ -61,6 +61,7 @@ jobs:
             -e 's/http: .*/http: ^0.13.5/' \
             -e 's/material_color_utilities: .*/material_color_utilities: ^0.11.1/' \
             -e 's/intl: .*/intl: ^0.18.1/' \
+            -e 's/coverage: .*/coverage: ^1.6.3/' \
             pubspec.yaml
 
       - name: Resolve Dependencies
