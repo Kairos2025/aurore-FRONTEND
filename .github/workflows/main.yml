@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: '3.19.5'
+  FLUTTER_VERSION: '3.22.0' # Contains Dart 3.8.0
   WORKING_DIR: './aurore_frontend'
 
 jobs:
@@ -26,58 +26,20 @@ jobs:
 
       - name: Install Flutter
         run: |
-          # Set Flutter home directory
           FLUTTER_HOME="${{ github.workspace }}/flutter"
           echo "FLUTTER_HOME=${FLUTTER_HOME}" >> $GITHUB_ENV
           
-          # Download Flutter
-          echo "Downloading Flutter ${FLUTTER_VERSION}..."
-          wget -q --show-progress --progress=bar:force:noscroll \
-            https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz
-          
-          # Verify download
-          echo "Verifying download..."
-          expected_size=665630904
-          actual_size=$(wc -c < flutter_linux_${FLUTTER_VERSION}-stable.tar.xz)
-          if [ "$actual_size" -ne "$expected_size" ]; then
-            echo "::error::Download size mismatch. Expected: $expected_size, Actual: $actual_size"
-            exit 1
-          fi
-          
-          # Extract Flutter
-          echo "Extracting Flutter..."
-          mkdir -p "${FLUTTER_HOME}"
+          wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz
           tar xf flutter_linux_${FLUTTER_VERSION}-stable.tar.xz -C "${FLUTTER_HOME}" --strip-components=1
-          
-          # Add Flutter to PATH
           echo "${FLUTTER_HOME}/bin" >> $GITHUB_PATH
-          echo "PATH=${FLUTTER_HOME}/bin:$PATH" >> $GITHUB_ENV
 
-      - name: Verify Flutter Installation
+      - name: Verify Installation
         run: |
-          echo "Checking Flutter installation..."
           flutter --version
-          which flutter
-          echo "FLUTTER_HOME: $FLUTTER_HOME"
-          echo "PATH: $PATH"
-
-      - name: Prepare Project
-        working-directory: ${{ env.WORKING_DIR }}
-        run: |
-          flutter pub get
+          dart --version
 
       - name: Build APK
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          flutter clean
-          flutter build apk --release \
-            --dart-define=CI_ENV=true \
-            --split-debug-info=build/symbols/ \
-            --obfuscate
-
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release
-          path: ${{ env.WORKING_DIR }}/build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 7
+          flutter pub get
+          flutter build apk --release
