@@ -39,30 +39,25 @@ jobs:
           flutter --version
           flutter doctor -v
 
-      - name: Configure Environment
+      - name: Configure Firebase Dependencies
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          # Adjust constraints to match Flutter 3.22.0 (Dart 3.4.0)
+          # Update Firebase packages to versions compatible with Flutter 3.22.0
           sed -i \
+            -e 's/firebase_core: ^[0-9.]*/firebase_core: ^2.24.0/' \
+            -e 's/firebase_auth: ^[0-9.]*/firebase_auth: ^4.11.0/' \
+            -e 's/firebase_messaging: ^[0-9.]*/firebase_messaging: ^14.7.0/' \
+            -e 's/cloud_firestore: ^[0-9.]*/cloud_firestore: ^4.15.0/' \
             -e 's/sdk: ">=3.8.0 <4.0.0"/sdk: ">=3.4.0 <4.0.0"/' \
-            -e 's/test: >=1.25.9/test: ^1.24.7/' \
-            -e 's/firebase_auth: ^6.3.0/firebase_auth: ^4.11.0/' \
-            -e 's/flutter: ">=3.36.0"/flutter: ">=3.22.0"/' \
             pubspec.yaml
 
       - name: Resolve Dependencies
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          # Run pub cache repair only if needed (saves time)
-          flutter pub cache repair > pub_cache.log 2>&1 || echo "Pub cache repair completed (exit code $?)"
+          echo "Running pub get..."
+          flutter pub get
           
-          # Get dependencies with minimal output
-          flutter pub get > pub_get.log 2>&1 || {
-            echo "::error::Pub get failed. Last 50 lines:"
-            tail -n 50 pub_get.log
-            exit 1
-          }
-          
+          echo "Checking for outdated packages..."
           flutter pub outdated --mode=null-safety
 
       - name: Build APK
@@ -73,11 +68,7 @@ jobs:
           flutter build apk --release \
             --dart-define=CI_ENV=true \
             --split-debug-info=build/symbols/ \
-            --obfuscate > build.log 2>&1 || {
-              echo "::error::Build failed. Last 100 lines:"
-              tail -n 100 build.log
-              exit 1
-            }
+            --obfuscate
 
       - name: Upload Artifact
         if: success()
@@ -86,14 +77,3 @@ jobs:
           name: app-release
           path: ${{ env.WORKING_DIR }}/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 7
-
-      - name: Upload Build Logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-logs
-          path: |
-            ${{ env.WORKING_DIR }}/build.log
-            ${{ env.WORKING_DIR }}/pub_cache.log
-            ${{ env.WORKING_DIR }}/pub_get.log
-          retention-days: 30
