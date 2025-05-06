@@ -6,7 +6,6 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: '3.36.0'  # Must use this version for Firebase compatibility
   WORKING_DIR: './aurore_frontend'
 
 jobs:
@@ -21,38 +20,42 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install Exact Flutter Version
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.36.0'  # Must be exact version string
-          channel: 'stable'
-          cache: true
+      - name: Install Flutter (Manual Installation)
+        run: |
+          # Install specific Flutter version manually
+          FLUTTER_VERSION="3.36.0"
+          wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz
+          tar xf flutter_linux_${FLUTTER_VERSION}-stable.tar.xz
+          echo "$GITHUB_WORKSPACE/flutter/bin" >> $GITHUB_PATH
+          flutter --version
 
       - name: Verify Installation
         run: |
           flutter --version
           dart --version
-          if [[ ! $(flutter --version) == *"3.36.0"* ]]; then
-            echo "::error::Wrong Flutter version installed"
+          if [[ ! $(flutter --version) =~ "3.36.0" ]]; then
+            echo "::error::Incorrect Flutter version installed"
             exit 1
           fi
 
       - name: Prepare Dependencies
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          # Set compatible Firebase versions for Flutter 3.36.0
+          # Set known-working dependency versions
           sed -i \
-            -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
-            -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
-            -e 's/firebase_analytics: .*/firebase_analytics: ^11.4.5/' \
-            -e 's/flutter_svg: .*/flutter_svg: ^2.1.0/' \
-            -e 's/http: .*/http: ^1.1.0/' \
+            -e 's/firebase_core: .*/firebase_core: 4.3.0/' \
+            -e 's/firebase_auth: .*/firebase_auth: 6.3.0/' \
+            -e 's/firebase_analytics: .*/firebase_analytics: 11.4.5/' \
+            -e 's/flutter_svg: .*/flutter_svg: 2.1.0/' \
+            -e 's/http: .*/http: 1.1.0/' \
             -e 's/material_color_utilities: .*/material_color_utilities: 0.11.1/' \
             pubspec.yaml
 
-          # Ensure SDK constraints match
-          sed -i 's/sdk: ">=.*\"/sdk: ">=3.8.0 <4.0.0"/' pubspec.yaml
-          sed -i 's/flutter: ">=.*\"/flutter: ">=3.36.0"/' pubspec.yaml
+          # Set exact SDK constraints
+          sed -i \
+            -e 's/sdk: ">=.*"/sdk: ">=3.8.0 <4.0.0"/' \
+            -e 's/flutter: ">=.*"/flutter: ">=3.36.0"/' \
+            pubspec.yaml
 
       - name: Resolve Dependencies
         working-directory: ${{ env.WORKING_DIR }}
@@ -60,7 +63,10 @@ jobs:
           flutter pub get --verbose || {
             echo "::warning::First attempt failed, retrying with clean cache..."
             flutter pub cache repair
-            flutter pub get --verbose
+            flutter pub get --verbose || {
+              echo "::error::Dependency resolution failed"
+              exit 1
+            }
           }
 
       - name: Build APK
