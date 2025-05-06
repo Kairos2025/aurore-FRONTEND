@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: '3.29.3'  # Matches your current environment
+  FLUTTER_VERSION: '3.29.3'
   WORKING_DIR: './aurore_frontend'
 
 jobs:
@@ -15,11 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Java
+      - name: Setup Java 17
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
-          java-version: '11'
+          java-version: '17'
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
@@ -31,37 +31,14 @@ jobs:
       - name: Upgrade Gradle Project
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          # Backup current project
-          mv android android_backup
+          # Set up new project structure
+          flutter create --platforms android --project-name aurore_frontend --org com.example .
           
-          # Create new Flutter project
-          flutter create -t app --project-name aurore_frontend --org com.example temp_project
-          
-          # Restore code and configuration
-          mv temp_project/android .
-          rm -rf temp_project
-          cp -r android_backup/src/main/ android/app/src/main/
-          cp android_backup/build.gradle android/
-          cp android_backup/app/build.gradle android/app/
-          cp android_backup/gradle.properties android/
-          rm -rf android_backup
+          # Update Gradle files if needed
+          sed -i "s/agp:.*/agp:7.4.2/" android/build.gradle
+          sed -i "s/gradle:.*/gradle:7.5/" android/gradle/wrapper/gradle-wrapper.properties
 
       - name: Prepare Dependencies
-        working-directory: ${{ env.WORKING_DIR }}
-        run: |
-          # Update to compatible versions
-          sed -i \
-            -e 's/sdk: ">=.*\"/sdk: ">=3.7.0 <4.0.0"/' \
-            -e 's/flutter: ">=.*\"/flutter: ">=3.29.0"/' \
-            -e 's/material_color_utilities: .*/material_color_utilities: 0.11.1/' \
-            -e 's/flutter_svg: .*/flutter_svg: ^2.1.0/' \
-            -e 's/http: .*/http: ^1.1.0/' \
-            -e 's/firebase_core: .*/firebase_core: ^2.24.0/' \
-            -e 's/firebase_auth: .*/firebase_auth: ^4.11.0/' \
-            -e 's/firebase_analytics: .*/firebase_analytics: ^10.4.0/' \
-            pubspec.yaml
-
-      - name: Resolve Dependencies
         working-directory: ${{ env.WORKING_DIR }}
         run: |
           flutter pub get
