@@ -20,57 +20,54 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install Flutter (Latest Stable)
+      - name: Install Flutter (with specific version)
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.16.9'  # Version that includes Dart 3.8.0
           channel: 'stable'
           cache: true
 
-      - name: Upgrade Project Structure
-        working-directory: ${{ env.WORKING_DIR }}
+      - name: Verify Installation
         run: |
-          # Backup existing files
-          mkdir -p backup
-          cp -r android backup/
-          cp pubspec.yaml backup/
-          
-          # Create fresh project structure
-          flutter create --platforms android --project-name aurore_frontend .
-          
-          # Restore original files
-          cp backup/pubspec.yaml .
-          rm -rf android
-          cp -r backup/android .
-          rm -rf backup
-          
-          # Update Gradle versions
-          sed -i \
-            -e 's/agp:.*/agp:8.3.0/' \
-            -e 's/gradle:.*/gradle:8.3/' \
-            android/build.gradle
-          sed -i \
-            -e 's/distributionUrl=.*/distributionUrl=https\:\/\/services.gradle.org\/distributions\/gradle-8.3-bin.zip/' \
-            android/gradle/wrapper/gradle-wrapper.properties
+          echo "=== Installed Versions ==="
+          flutter --version
+          dart --version
+          if [[ ! $(dart --version) =~ "3.8.0" ]]; then
+            echo "::error::Wrong Dart version installed"
+            exit 1
+          fi
 
-      - name: Update Dependencies
+      - name: Prepare Project
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          # Set exact versions for all dependencies
+          # Update SDK constraints to match exactly what we installed
           sed -i \
-            -e 's/async: .*/async: 2.12.0/' \
-            -e 's/flutter_secure_storage: .*/flutter_secure_storage: ^9.0.0/' \
-            -e 's/material_color_utilities: .*/material_color_utilities: 0.11.1/' \
-            -e 's/vector_math: .*/vector_math: 2.1.4/' \
-            -e 's/lints: .*/lints: ^6.0.0/' \
+            -e 's/sdk: ">=.*"/sdk: ">=3.8.0 <4.0.0"/' \
+            -e 's/flutter: ">=.*"/flutter: ">=3.16.0"/' \
+            pubspec.yaml
+
+          # Set compatible dependency versions
+          sed -i \
             -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
             -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
+            -e 's/flutter_svg: .*/flutter_svg: ^2.1.0/' \
+            -e 's/http: .*/http: ^1.1.0/' \
+            -e 's/material_color_utilities: .*/material_color_utilities: 0.11.1/' \
             pubspec.yaml
+
+          # Update Gradle files directly (no project recreation)
+          sed -i \
+            -e 's/agp:.*/agp:7.4.2/' \
+            -e 's/gradle:.*/gradle:7.5/' \
+            android/build.gradle android/app/build.gradle
 
       - name: Resolve Dependencies
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          flutter pub upgrade --major-versions
-          flutter pub get
+          flutter pub get --verbose || {
+            echo "::warning::First attempt failed, running pub upgrade..."
+            flutter pub upgrade --major-versions
+          }
 
       - name: Build APK
         working-directory: ${{ env.WORKING_DIR }}
