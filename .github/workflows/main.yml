@@ -1,4 +1,4 @@
-name: Flutter APK Build Pipeline
+name: Aurore Frontend CI/CD
 
 on:
   push:
@@ -6,13 +6,14 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: '3.22.0' # Contains Dart 3.8.0
+  FLUTTER_VERSION: '3.22.0'  # Contains Dart 3.8.0
   WORKING_DIR: './aurore_frontend'
+  FLUTTER_HOME: '${{ github.workspace }}/flutter'
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 25
 
     steps:
       - uses: actions/checkout@v4
@@ -26,20 +27,45 @@ jobs:
 
       - name: Install Flutter
         run: |
+          # Download and extract Flutter
           FLUTTER_HOME="${{ github.workspace }}/flutter"
-          echo "FLUTTER_HOME=${FLUTTER_HOME}" >> $GITHUB_ENV
+          echo "FLUTTER_HOME=$FLUTTER_HOME" >> $GITHUB_ENV
           
-          wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz
-          tar xf flutter_linux_${FLUTTER_VERSION}-stable.tar.xz -C "${FLUTTER_HOME}" --strip-components=1
-          echo "${FLUTTER_HOME}/bin" >> $GITHUB_PATH
+          wget -q --show-progress --progress=bar:force:noscroll \
+            https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz
+          
+          # Verify and extract
+          mkdir -p "$FLUTTER_HOME"
+          tar xf flutter_linux_${FLUTTER_VERSION}-stable.tar.xz -C "$FLUTTER_HOME" --strip-components=1
+          echo "$FLUTTER_HOME/bin" >> $GITHUB_PATH
 
-      - name: Verify Installation
+      - name: Verify Environment
         run: |
+          echo "=== Flutter ==="
           flutter --version
+          echo "=== Dart ==="
           dart --version
+          echo "=== Java ==="
+          java -version
+
+      - name: Resolve Dependencies
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          flutter pub cache repair
+          flutter pub get --verbose
 
       - name: Build APK
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          flutter pub get
-          flutter build apk --release
+          flutter clean
+          flutter build apk --release \
+            --dart-define=CI_ENV=true \
+            --split-debug-info=build/symbols/ \
+            --obfuscate
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: ${{ env.WORKING_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
