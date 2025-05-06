@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: '3.29.3'
+  FLUTTER_VERSION: '3.36.0'  # Contains Dart 3.8.0+
   WORKING_DIR: './aurore_frontend'
 
 jobs:
@@ -28,21 +28,33 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Upgrade Gradle Project
+      - name: Verify Environment
+        run: |
+          flutter --version
+          dart --version
+          java -version
+
+      - name: Prepare Project
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          # Set up new project structure
-          flutter create --platforms android --project-name aurore_frontend --org com.example .
+          # Update SDK constraints to match installed Dart
+          DART_VERSION=$(dart --version | awk '{print $4}')
+          sed -i "s/sdk: \">=.*\"/sdk: \">=$DART_VERSION <4.0.0\"/" pubspec.yaml
           
-          # Update Gradle files if needed
-          sed -i "s/agp:.*/agp:7.4.2/" android/build.gradle
-          sed -i "s/gradle:.*/gradle:7.5/" android/gradle/wrapper/gradle-wrapper.properties
+          # Ensure compatible dependency versions
+          sed -i \
+            -e 's/material_color_utilities: .*/material_color_utilities: 0.11.1/' \
+            -e 's/flutter_svg: .*/flutter_svg: ^2.1.0/' \
+            -e 's/http: .*/http: ^1.1.0/' \
+            -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
+            -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
+            -e 's/firebase_analytics: .*/firebase_analytics: ^11.4.5/' \
+            pubspec.yaml
 
-      - name: Prepare Dependencies
+      - name: Resolve Dependencies
         working-directory: ${{ env.WORKING_DIR }}
         run: |
           flutter pub get
-          flutter pub upgrade --major-versions
 
       - name: Build APK
         working-directory: ${{ env.WORKING_DIR }}
