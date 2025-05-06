@@ -1,4 +1,4 @@
-name: Aurore Frontend CI/CD
+name: Flutter APK Build and Deploy
 
 on:
   push:
@@ -6,16 +6,21 @@ on:
   workflow_dispatch:
 
 env:
+  FLUTTER_VERSION: '3.19.5'
   WORKING_DIR: './aurore_frontend'
   FLUTTER_HOME: '${{ github.workspace }}/flutter'
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Setup Java 17
+      - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
@@ -24,7 +29,6 @@ jobs:
       - name: Install Flutter
         run: |
           # Download and extract Flutter
-          FLUTTER_VERSION="3.19.5"
           wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz
           tar xf flutter_linux_${FLUTTER_VERSION}-stable.tar.xz -C ${{ github.workspace }}
           
@@ -33,38 +37,41 @@ jobs:
           echo "FLUTTER_HOME=${{ env.FLUTTER_HOME }}" >> $GITHUB_ENV
           
           # Verify installation
-          ${{ env.FLUTTER_HOME }}/bin/flutter --version
+          flutter --version
 
-      - name: Verify Installation
+      - name: Verify Environment
         run: |
           echo "=== Flutter ==="
           flutter --version
           echo "=== Dart ==="
           dart --version
+          echo "=== Java ==="
+          java -version
           echo "=== PATH ==="
           echo $PATH
 
       - name: Prepare Project
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          # Update SDK constraints to match Flutter 3.19.5's Dart version (3.3.3)
+          # Update SDK constraints to match Flutter 3.19.5
           sed -i \
             -e 's/sdk: ">=.*"/sdk: ">=3.3.0 <4.0.0"/' \
             -e 's/flutter: ">=.*"/flutter: ">=3.19.0"/' \
             pubspec.yaml
 
-          # Set compatible dependencies
+          # Set compatible versions for common problematic packages
           sed -i \
+            -e 's/boolean_selector: .*/boolean_selector: ^2.1.2/' \
+            -e 's/matcher: .*/matcher: ^0.12.16/' \
+            -e 's/test: .*/test: ^1.24.7/' \
+            -e 's/test_api: .*/test_api: ^0.7.0/' \
+            -e 's/coverage: .*/coverage: ^1.6.3/' \
             -e 's/firebase_core: .*/firebase_core: ^2.24.0/' \
             -e 's/firebase_auth: .*/firebase_auth: ^4.11.0/' \
             -e 's/flutter_svg: .*/flutter_svg: ^2.1.0/' \
             -e 's/http: .*/http: ^0.13.5/' \
-            -e 's/material_color_utilities: .*/material_color_utilities: ^0.11.1/' \
             -e 's/intl: .*/intl: ^0.18.1/' \
-            -e 's/coverage: .*/coverage: ^1.6.3/' \
-            -e 's/matcher: .*/matcher: ^0.12.16/' \
-            -e 's/test: .*/test: ^1.24.7/' \
-            -e 's/test_api: .*/test_api: ^0.7.0/' \
+            -e 's/material_color_utilities: .*/material_color_utilities: ^0.11.1/' \
             pubspec.yaml
 
       - name: Resolve Dependencies
@@ -72,6 +79,10 @@ jobs:
         run: |
           flutter pub cache repair
           flutter pub get --verbose
+          flutter pub upgrade --major-versions
+
+      - name: Run Flutter Doctor
+        run: flutter doctor -v
 
       - name: Build APK
         working-directory: ${{ env.WORKING_DIR }}
@@ -80,10 +91,29 @@ jobs:
           flutter build apk --release \
             --dart-define=CI_ENV=true \
             --split-debug-info=build/symbols/ \
-            --obfuscate
+            --obfuscate \
+            --no-sound-null-safety
 
-      - name: Upload Artifact
+      - name: Verify APK
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
+            echo "::error::APK file not found!"
+            exit 1
+          fi
+          ls -la build/app/outputs/flutter-apk/
+
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: ${{ env.WORKING_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
+
+      - name: Upload Symbols (optional)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-symbols
+          path: ${{ env.WORKING_DIR }}/build/symbols/
+          retention-days: 30
