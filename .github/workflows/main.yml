@@ -32,7 +32,7 @@ jobs:
           wget -q --show-progress --progress=bar:force:noscroll \
             https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz
           
-          # Verify download size
+          # Verify download
           echo "Verifying download..."
           expected_size=665630904
           actual_size=$(wc -c < flutter_linux_${FLUTTER_VERSION}-stable.tar.xz)
@@ -43,29 +43,22 @@ jobs:
           
           # Extract Flutter
           echo "Extracting Flutter..."
-          tar xf flutter_linux_${FLUTTER_VERSION}-stable.tar.xz -C ${{ github.workspace }}
+          mkdir -p ${{ env.FLUTTER_HOME }}
+          tar xf flutter_linux_${FLUTTER_VERSION}-stable.tar.xz -C ${{ github.workspace }} --strip-components=1
           
-          # Add Flutter to PATH
+          # Add Flutter to PATH (two methods for redundancy)
           echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
-          echo "FLUTTER_HOME=${{ env.FLUTTER_HOME }}" >> $GITHUB_ENV
+          echo "PATH=${{ env.FLUTTER_HOME }}/bin:$PATH" >> $GITHUB_ENV
           
           # Verify installation
           echo "Verifying Flutter installation..."
-          source $HOME/.bashrc
-          which flutter || echo "::error::Flutter not found in PATH"
-          flutter --version || exit 1
+          ${{ env.FLUTTER_HOME }}/bin/flutter --version || exit 1
 
-      - name: Verify Environment
+      - name: Verify PATH
         run: |
-          echo "=== Flutter ==="
+          echo "Current PATH: $PATH"
+          which flutter || echo "::error::Flutter still not found in PATH"
           flutter --version
-          echo "=== Dart ==="
-          dart --version
-          echo "=== Java ==="
-          java -version
-          echo "=== Environment Variables ==="
-          echo "PATH=$PATH"
-          echo "FLUTTER_HOME=$FLUTTER_HOME"
 
       - name: Prepare Project
         working-directory: ${{ env.WORKING_DIR }}
