@@ -1,4 +1,4 @@
-name: Flutter APK Build Pipeline
+name: Aurore Frontend CI/CD
 
 on:
   push:
@@ -13,7 +13,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
@@ -27,42 +27,32 @@ jobs:
 
       - name: Install Flutter
         run: |
-          # Create Flutter directory first
           mkdir -p "${{ env.FLUTTER_HOME }}"
-          
-          # Download Flutter
-          echo "Downloading Flutter ${{ env.FLUTTER_VERSION }}..."
-          wget -q --show-progress --progress=bar:force:noscroll \
-            https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz
-          
-          # Verify and extract
-          echo "Extracting to ${{ env.FLUTTER_HOME }}..."
-          tar xf flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz \
-            -C "${{ env.FLUTTER_HOME }}" \
-            --strip-components=1
-          
-          # Add to PATH
+          wget -q https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz
+          tar xf flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz -C "${{ env.FLUTTER_HOME }}" --strip-components=1
           echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
-          echo "FLUTTER_HOME=${{ env.FLUTTER_HOME }}" >> $GITHUB_ENV
 
-      - name: Verify Installation
-        run: |
-          echo "Flutter path: ${{ env.FLUTTER_HOME }}"
-          ls -la ${{ env.FLUTTER_HOME }}/bin
-          flutter --version
-
-      - name: Adjust SDK Constraints
+      - name: Configure Firebase Dependencies
         working-directory: ${{ env.WORKING_DIR }}
         run: |
+          # Update Firebase packages to compatible versions
           sed -i \
+            -e 's/firebase_core: .*/firebase_core: ^2.24.0/' \
+            -e 's/firebase_auth: .*/firebase_auth: ^4.11.0/' \
             -e 's/sdk: ">=3.8.0 <4.0.0"/sdk: ">=3.4.0 <4.0.0"/' \
             -e 's/flutter: ">=3.36.0"/flutter: ">=3.22.0"/' \
             pubspec.yaml
 
-      - name: Build APK
+      - name: Resolve Dependencies
         working-directory: ${{ env.WORKING_DIR }}
         run: |
           flutter pub get
+          flutter pub cache repair
+
+      - name: Build APK
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          flutter clean
           flutter build apk --release \
             --dart-define=CI_ENV=true \
             --split-debug-info=build/symbols/ \
@@ -73,3 +63,4 @@ jobs:
         with:
           name: app-release
           path: ${{ env.WORKING_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
