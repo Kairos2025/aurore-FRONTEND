@@ -26,51 +26,51 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Verify Installation
-        run: |
-          flutter --version
-          dart --version
-          if [[ ! $(flutter --version) =~ "3." ]]; then
-            echo "::error::Flutter installation failed"
-            exit 1
-          fi
-
-      - name: Prepare Project
+      - name: Upgrade Project Structure
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          # Get actual installed versions
-          FLUTTER_VER=$(flutter --version | grep -oE 'Flutter [0-9.]+' | cut -d' ' -f2)
-          DART_VER=$(dart --version | awk '{print $4}')
+          # Backup existing files
+          mkdir -p backup
+          cp -r android backup/
+          cp pubspec.yaml backup/
           
-          # Update constraints to match installed versions
+          # Create fresh project structure
+          flutter create --platforms android --project-name aurore_frontend .
+          
+          # Restore original files
+          cp backup/pubspec.yaml .
+          rm -rf android
+          cp -r backup/android .
+          rm -rf backup
+          
+          # Update Gradle versions
           sed -i \
-            -e "s/sdk: \">=.*\"/sdk: \">=$DART_VER <4.0.0\"/" \
-            -e "s/flutter: \">=.*\"/flutter: \">=$FLUTTER_VER\"/" \
-            pubspec.yaml
+            -e 's/agp:.*/agp:8.3.0/' \
+            -e 's/gradle:.*/gradle:8.3/' \
+            android/build.gradle
+          sed -i \
+            -e 's/distributionUrl=.*/distributionUrl=https\:\/\/services.gradle.org\/distributions\/gradle-8.3-bin.zip/' \
+            android/gradle/wrapper/gradle-wrapper.properties
 
-          # Set compatible dependency versions
+      - name: Update Dependencies
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          # Set exact versions for all dependencies
           sed -i \
-            -e 's/path_provider: .*/path_provider: ^2.0.11/' \
-            -e 's/firebase_core: .*/firebase_core: ^2.24.0/' \
-            -e 's/firebase_auth: .*/firebase_auth: ^4.11.0/' \
-            -e 's/flutter_svg: .*/flutter_svg: ^2.1.0/' \
-            -e 's/http: .*/http: ^1.1.0/' \
+            -e 's/async: .*/async: 2.12.0/' \
+            -e 's/flutter_secure_storage: .*/flutter_secure_storage: ^9.0.0/' \
             -e 's/material_color_utilities: .*/material_color_utilities: 0.11.1/' \
+            -e 's/vector_math: .*/vector_math: 2.1.4/' \
+            -e 's/lints: .*/lints: ^6.0.0/' \
+            -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
+            -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
             pubspec.yaml
-
-          # Update Gradle files without recreating project
-          sed -i \
-            -e 's/agp:.*/agp:7.4.2/' \
-            -e 's/gradle:.*/gradle:7.5/' \
-            android/build.gradle android/app/build.gradle
 
       - name: Resolve Dependencies
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          flutter pub get --verbose || {
-            echo "::warning::First attempt failed, running pub upgrade..."
-            flutter pub upgrade --major-versions
-          }
+          flutter pub upgrade --major-versions
+          flutter pub get
 
       - name: Build APK
         working-directory: ${{ env.WORKING_DIR }}
