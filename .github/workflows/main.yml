@@ -8,7 +8,6 @@ on:
 env:
   FLUTTER_VERSION: '3.25.0'  # Contains Dart 3.8.0+
   WORKING_DIR: './aurore_frontend'
-  FLUTTER_HOME: '${{ github.workspace }}/flutter'
 
 jobs:
   build:
@@ -27,25 +26,33 @@ jobs:
 
       - name: Install Flutter
         run: |
-          mkdir -p "${{ env.FLUTTER_HOME }}"
+          # Set installation path in home directory instead
+          FLUTTER_HOME="$HOME/flutter"
+          echo "FLUTTER_HOME=$FLUTTER_HOME" >> $GITHUB_ENV
+          
+          # Create directory and set permissions
+          mkdir -p "$FLUTTER_HOME"
+          chmod 755 "$FLUTTER_HOME"
+          
+          # Download and extract Flutter
           wget -q https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz
-          tar xf flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz -C "${{ env.FLUTTER_HOME }}" --strip-components=1
-          echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
+          tar xf flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz -C "$FLUTTER_HOME" --strip-components=1
+          
+          # Add to PATH
+          echo "$FLUTTER_HOME/bin" >> $GITHUB_PATH
+          echo "PATH=$FLUTTER_HOME/bin:$PATH" >> $GITHUB_ENV
 
-      - name: Verify Environment
+      - name: Verify Installation
         run: |
+          echo "Flutter path: $FLUTTER_HOME"
+          ls -la "$FLUTTER_HOME/bin"
           flutter --version
           dart --version
-
-      - name: Resolve Dependencies
-        working-directory: ${{ env.WORKING_DIR }}
-        run: |
-          flutter pub get
-          flutter pub upgrade
 
       - name: Build APK
         working-directory: ${{ env.WORKING_DIR }}
         run: |
+          flutter pub get
           flutter clean
           flutter build apk --release \
             --dart-define=CI_ENV=true \
