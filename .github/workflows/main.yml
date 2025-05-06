@@ -20,25 +20,35 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install Flutter (Manual Installation)
+      - name: Install Flutter (Manual)
         run: |
-          # Install Flutter 3.19.5 which includes Dart 3.7.2
+          # Install Flutter 3.19.5
           FLUTTER_VERSION="3.19.5"
           wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz
-          tar xf flutter_linux_${FLUTTER_VERSION}-stable.tar.xz
-          echo "$GITHUB_WORKSPACE/flutter/bin" >> $GITHUB_PATH
+          tar xf flutter_linux_${FLUTTER_VERSION}-stable.tar.xz -C $HOME
+          echo "$HOME/flutter/bin" >> $GITHUB_PATH
+          echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
           flutter --version
 
-      - name: Adjust Project Settings
+      - name: Verify Installation
+        run: |
+          flutter --version
+          dart --version
+          if ! command -v flutter &> /dev/null; then
+            echo "::error::Flutter installation failed"
+            exit 1
+          fi
+
+      - name: Prepare Project
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          # Update SDK constraints to match installed version
+          # Update SDK constraints
           sed -i \
             -e 's/sdk: ">=.*"/sdk: ">=3.7.0 <4.0.0"/' \
             -e 's/flutter: ">=.*"/flutter: ">=3.19.0"/' \
             pubspec.yaml
 
-          # Set compatible dependency versions
+          # Set compatible dependencies
           sed -i \
             -e 's/firebase_core: .*/firebase_core: ^2.24.0/' \
             -e 's/firebase_auth: .*/firebase_auth: ^4.11.0/' \
@@ -47,18 +57,18 @@ jobs:
             -e 's/material_color_utilities: .*/material_color_utilities: 0.11.1/' \
             pubspec.yaml
 
-          # Update Gradle configuration
+          # Update Gradle
           sed -i \
             -e 's/agp:.*/agp:7.4.2/' \
             -e 's/gradle:.*/gradle:7.5/' \
-            android/build.gradle android/app/build.gradle
+            android/build.gradle
 
       - name: Resolve Dependencies
         working-directory: ${{ env.WORKING_DIR }}
         run: |
           flutter pub get --verbose || {
-            echo "::warning::First attempt failed, running pub upgrade..."
-            flutter pub upgrade --major-versions
+            flutter pub cache repair
+            flutter pub get --verbose
           }
 
       - name: Build APK
