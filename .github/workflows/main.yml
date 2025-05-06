@@ -6,8 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  # Using version that matches your pubspec requirements
-  FLUTTER_VERSION: '3.36.0'
+  FLUTTER_VERSION: '3.36.0'  # Must use this version for Firebase compatibility
   WORKING_DIR: './aurore_frontend'
 
 jobs:
@@ -22,75 +21,46 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install Flutter (with multiple fallbacks)
-        id: install-flutter
-        continue-on-error: true
+      - name: Install Exact Flutter Version
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: 'stable'
-          cache: true
-
-      - name: Fallback to Slightly Older Version
-        if: steps.install-flutter.outcome != 'success'
-        id: fallback-flutter
-        continue-on-error: true
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.34.0'
-          channel: 'stable'
-          cache: true
-
-      - name: Fallback to Channel Install
-        if: steps.fallback-flutter.outcome != 'success'
-        uses: subosito/flutter-action@v2
-        with:
+          flutter-version: '3.36.0'  # Must be exact version string
           channel: 'stable'
           cache: true
 
       - name: Verify Installation
         run: |
-          echo "=== Installed Versions ==="
           flutter --version
           dart --version
-          echo "=== SDK Constraints ==="
-          grep "sdk:" ${{ env.WORKING_DIR }}/pubspec.yaml
-          echo "=== Flutter Constraint ==="
-          grep "flutter:" ${{ env.WORKING_DIR }}/pubspec.yaml
+          if [[ ! $(flutter --version) == *"3.36.0"* ]]; then
+            echo "::error::Wrong Flutter version installed"
+            exit 1
+          fi
 
-      - name: Adjust SDK Constraints
+      - name: Prepare Dependencies
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          # Get actual installed versions
-          FLUTTER_VER=$(flutter --version | grep -oE 'Flutter [0-9.]+' | cut -d' ' -f2)
-          DART_VER=$(dart --version | awk '{print $4}')
-          
-          # Update constraints to match installed versions
+          # Set compatible Firebase versions for Flutter 3.36.0
           sed -i \
-            -e "s/flutter: \">=.*\"/flutter: \">=$FLUTTER_VER\"/" \
-            -e "s/sdk: \">=.*\"/sdk: \">=$DART_VER <4.0.0\"/" \
-            pubspec.yaml
-
-          # Set compatible dependency versions
-          sed -i \
-            -e 's/material_color_utilities: .*/material_color_utilities: 0.11.1/' \
-            -e 's/flutter_svg: .*/flutter_svg: ^2.1.0/' \
-            -e 's/http: .*/http: ^1.1.0/' \
             -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
             -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
             -e 's/firebase_analytics: .*/firebase_analytics: ^11.4.5/' \
+            -e 's/flutter_svg: .*/flutter_svg: ^2.1.0/' \
+            -e 's/http: .*/http: ^1.1.0/' \
+            -e 's/material_color_utilities: .*/material_color_utilities: 0.11.1/' \
             pubspec.yaml
+
+          # Ensure SDK constraints match
+          sed -i 's/sdk: ">=.*\"/sdk: ">=3.8.0 <4.0.0"/' pubspec.yaml
+          sed -i 's/flutter: ">=.*\"/flutter: ">=3.36.0"/' pubspec.yaml
 
       - name: Resolve Dependencies
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          flutter pub get || {
-            echo "::error::Dependency resolution failed - trying with --no-analytics"
-            flutter config --no-analytics
-            flutter pub get || {
-              echo "::error::Dependency resolution failed even with --no-analytics"
-              exit 1
-            }
+          flutter pub get --verbose || {
+            echo "::warning::First attempt failed, retrying with clean cache..."
+            flutter pub cache repair
+            flutter pub get --verbose
           }
 
       - name: Build APK
@@ -100,21 +70,10 @@ jobs:
           flutter build apk --release \
             --dart-define=CI_ENV=true \
             --split-debug-info=build/symbols/ \
-            --obfuscate || {
-            echo "::error::Build failed - trying with --no-sound-null-safety"
-            flutter build apk --release \
-              --dart-define=CI_ENV=true \
-              --split-debug-info=build/symbols/ \
-              --obfuscate \
-              --no-sound-null-safety || {
-              echo "::error::Build failed completely"
-              exit 1
-            }
-          }
+            --obfuscate
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: ${{ env.WORKING_DIR }}/build/app/outputs/flutter-apk/app-release.apk
-          if-no-files-found: error
