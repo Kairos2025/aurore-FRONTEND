@@ -8,7 +8,6 @@ on:
 env:
   FLUTTER_VERSION: '3.19.5'
   WORKING_DIR: './aurore_frontend'
-  FLUTTER_HOME: '${{ github.workspace }}/flutter'
 
 jobs:
   build:
@@ -27,6 +26,10 @@ jobs:
 
       - name: Install Flutter
         run: |
+          # Set Flutter home directory
+          FLUTTER_HOME="${{ github.workspace }}/flutter"
+          echo "FLUTTER_HOME=${FLUTTER_HOME}" >> $GITHUB_ENV
+          
           # Download Flutter
           echo "Downloading Flutter ${FLUTTER_VERSION}..."
           wget -q --show-progress --progress=bar:force:noscroll \
@@ -43,22 +46,20 @@ jobs:
           
           # Extract Flutter
           echo "Extracting Flutter..."
-          mkdir -p ${{ env.FLUTTER_HOME }}
-          tar xf flutter_linux_${FLUTTER_VERSION}-stable.tar.xz -C ${{ github.workspace }} --strip-components=1
+          mkdir -p "${FLUTTER_HOME}"
+          tar xf flutter_linux_${FLUTTER_VERSION}-stable.tar.xz -C "${FLUTTER_HOME}" --strip-components=1
           
-          # Add Flutter to PATH (two methods for redundancy)
-          echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
-          echo "PATH=${{ env.FLUTTER_HOME }}/bin:$PATH" >> $GITHUB_ENV
-          
-          # Verify installation
-          echo "Verifying Flutter installation..."
-          ${{ env.FLUTTER_HOME }}/bin/flutter --version || exit 1
+          # Add Flutter to PATH
+          echo "${FLUTTER_HOME}/bin" >> $GITHUB_PATH
+          echo "PATH=${FLUTTER_HOME}/bin:$PATH" >> $GITHUB_ENV
 
-      - name: Verify PATH
+      - name: Verify Flutter Installation
         run: |
-          echo "Current PATH: $PATH"
-          which flutter || echo "::error::Flutter still not found in PATH"
+          echo "Checking Flutter installation..."
           flutter --version
+          which flutter
+          echo "FLUTTER_HOME: $FLUTTER_HOME"
+          echo "PATH: $PATH"
 
       - name: Prepare Project
         working-directory: ${{ env.WORKING_DIR }}
