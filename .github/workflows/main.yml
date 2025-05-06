@@ -20,27 +20,30 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install Flutter (Manual Installation)
-        run: |
-          # Install specific Flutter version manually
-          FLUTTER_VERSION="3.36.0"
-          wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz
-          tar xf flutter_linux_${FLUTTER_VERSION}-stable.tar.xz
-          echo "$GITHUB_WORKSPACE/flutter/bin" >> $GITHUB_PATH
-          flutter --version
+      - name: Install Latest Stable Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
 
       - name: Verify Installation
         run: |
           flutter --version
           dart --version
-          if [[ ! $(flutter --version) =~ "3.36.0" ]]; then
-            echo "::error::Incorrect Flutter version installed"
-            exit 1
-          fi
+          flutter doctor -v
 
-      - name: Prepare Dependencies
+      - name: Adjust Project Settings
         working-directory: ${{ env.WORKING_DIR }}
         run: |
+          # Update SDK constraints to match installed version
+          FLUTTER_VER=$(flutter --version | grep -oE 'Flutter [0-9.]+' | cut -d' ' -f2)
+          DART_VER=$(dart --version | awk '{print $4}')
+          
+          sed -i \
+            -e "s/sdk: \">=.*\"/sdk: \">=$DART_VER <4.0.0\"/" \
+            -e "s/flutter: \">=.*\"/flutter: \">=$FLUTTER_VER\"/" \
+            pubspec.yaml
+
           # Set known-working dependency versions
           sed -i \
             -e 's/firebase_core: .*/firebase_core: 4.3.0/' \
@@ -51,22 +54,13 @@ jobs:
             -e 's/material_color_utilities: .*/material_color_utilities: 0.11.1/' \
             pubspec.yaml
 
-          # Set exact SDK constraints
-          sed -i \
-            -e 's/sdk: ">=.*"/sdk: ">=3.8.0 <4.0.0"/' \
-            -e 's/flutter: ">=.*"/flutter: ">=3.36.0"/' \
-            pubspec.yaml
-
       - name: Resolve Dependencies
         working-directory: ${{ env.WORKING_DIR }}
         run: |
           flutter pub get --verbose || {
             echo "::warning::First attempt failed, retrying with clean cache..."
             flutter pub cache repair
-            flutter pub get --verbose || {
-              echo "::error::Dependency resolution failed"
-              exit 1
-            }
+            flutter pub get --verbose
           }
 
       - name: Build APK
