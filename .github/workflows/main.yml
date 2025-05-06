@@ -7,6 +7,7 @@ on:
 
 env:
   WORKING_DIR: './aurore_frontend'
+  FLUTTER_HOME: '${{ github.workspace }}/flutter'
 
 jobs:
   build:
@@ -20,24 +21,28 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install Flutter (Manual)
+      - name: Install Flutter
         run: |
-          # Install Flutter 3.19.5
+          # Download and extract Flutter
           FLUTTER_VERSION="3.19.5"
           wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz
-          tar xf flutter_linux_${FLUTTER_VERSION}-stable.tar.xz -C $HOME
-          echo "$HOME/flutter/bin" >> $GITHUB_PATH
-          echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
-          flutter --version
+          tar xf flutter_linux_${FLUTTER_VERSION}-stable.tar.xz -C ${{ github.workspace }}
+          
+          # Configure PATH
+          echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
+          echo "FLUTTER_HOME=${{ env.FLUTTER_HOME }}" >> $GITHUB_ENV
+          
+          # Verify installation
+          ${{ env.FLUTTER_HOME }}/bin/flutter --version
 
       - name: Verify Installation
         run: |
+          echo "=== Flutter ==="
           flutter --version
+          echo "=== Dart ==="
           dart --version
-          if ! command -v flutter &> /dev/null; then
-            echo "::error::Flutter installation failed"
-            exit 1
-          fi
+          echo "=== PATH ==="
+          echo $PATH
 
       - name: Prepare Project
         working-directory: ${{ env.WORKING_DIR }}
@@ -56,12 +61,6 @@ jobs:
             -e 's/http: .*/http: ^0.13.5/' \
             -e 's/material_color_utilities: .*/material_color_utilities: 0.11.1/' \
             pubspec.yaml
-
-          # Update Gradle
-          sed -i \
-            -e 's/agp:.*/agp:7.4.2/' \
-            -e 's/gradle:.*/gradle:7.5/' \
-            android/build.gradle
 
       - name: Resolve Dependencies
         working-directory: ${{ env.WORKING_DIR }}
