@@ -20,30 +20,41 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install Flutter
+      - name: Install Flutter (Latest Stable)
+        id: install-flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.36.0'
           channel: 'stable'
           cache: true
 
-      - name: Prepare Environment
+      - name: Verify Installation
+        run: |
+          echo "=== Installed Versions ==="
+          flutter --version
+          dart --version
+          flutter doctor -v
+
+      - name: Prepare Project
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          # Set exact versions for all critical dependencies
+          # Get actual installed versions
+          FLUTTER_VER=$(flutter --version | grep -oE 'Flutter [0-9.]+' | cut -d' ' -f2)
+          DART_VER=$(dart --version | awk '{print $4}')
+          
+          # Update constraints to match installed versions
           sed -i \
-            -e 's/path_provider: .*/path_provider: 2.0.17/' \
-            -e 's/firebase_core: .*/firebase_core: 4.3.0/' \
-            -e 's/firebase_auth: .*/firebase_auth: 6.3.0/' \
-            -e 's/flutter_svg: .*/flutter_svg: 2.1.0/' \
-            -e 's/http: .*/http: 1.1.0/' \
-            -e 's/material_color_utilities: .*/material_color_utilities: 0.11.1/' \
+            -e "s/sdk: \">=.*\"/sdk: \">=$DART_VER <4.0.0\"/" \
+            -e "s/flutter: \">=.*\"/flutter: \">=$FLUTTER_VER\"/" \
             pubspec.yaml
 
-          # Set SDK constraints to match Flutter 3.36.0
+          # Set compatible dependency versions
           sed -i \
-            -e 's/sdk: ">=.*"/sdk: ">=3.8.0 <4.0.0"/' \
-            -e 's/flutter: ">=.*"/flutter: ">=3.36.0"/' \
+            -e 's/path_provider: .*/path_provider: ^2.0.11/' \
+            -e 's/firebase_core: .*/firebase_core: ^2.24.0/' \
+            -e 's/firebase_auth: .*/firebase_auth: ^4.11.0/' \
+            -e 's/flutter_svg: .*/flutter_svg: ^2.1.0/' \
+            -e 's/http: .*/http: ^1.1.0/' \
+            -e 's/material_color_utilities: .*/material_color_utilities: 0.11.1/' \
             pubspec.yaml
 
       - name: Resolve Dependencies
