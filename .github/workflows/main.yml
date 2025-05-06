@@ -59,12 +59,14 @@ jobs:
             -e 's/firebase_auth: .*/firebase_auth: ^4.11.0/' \
             -e 's/flutter_svg: .*/flutter_svg: ^2.1.0/' \
             -e 's/http: .*/http: ^0.13.5/' \
-            -e 's/material_color_utilities: .*/material_color_utilities: 0.11.1/' \
+            -e 's/material_color_utilities: .*/material_color_utilities: ^0.11.1/' \
+            -e 's/intl: .*/intl: ^0.18.1/' \
             pubspec.yaml
 
       - name: Resolve Dependencies
         working-directory: ${{ env.WORKING_DIR }}
         run: |
+          flutter pub upgrade --major-versions
           flutter pub get --verbose || {
             flutter pub cache repair
             flutter pub get --verbose
