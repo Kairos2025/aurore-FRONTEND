@@ -47,9 +47,9 @@ jobs:
       - name: Prepare Project
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          # Update SDK constraints
+          # Update SDK constraints to match Flutter 3.19.5's Dart version (3.3.3)
           sed -i \
-            -e 's/sdk: ">=.*"/sdk: ">=3.7.0 <4.0.0"/' \
+            -e 's/sdk: ">=.*"/sdk: ">=3.3.0 <4.0.0"/' \
             -e 's/flutter: ">=.*"/flutter: ">=3.19.0"/' \
             pubspec.yaml
 
@@ -66,11 +66,8 @@ jobs:
       - name: Resolve Dependencies
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          flutter pub upgrade --major-versions
-          flutter pub get --verbose || {
-            flutter pub cache repair
-            flutter pub get --verbose
-          }
+          flutter pub cache repair
+          flutter pub get --verbose
 
       - name: Build APK
         working-directory: ${{ env.WORKING_DIR }}
