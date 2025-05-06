@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: '3.22.0'  # Stable version with known compatibility
+  FLUTTER_VERSION: '3.22.0'
   WORKING_DIR: './aurore_frontend'
 
 jobs:
@@ -24,39 +24,45 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      - name: Install Flutter (Direct Method)
+      - name: Install Flutter (Robust Method)
         run: |
-          # Use GitHub's built-in tool cache instead of manual installation
-          echo "Installing Flutter ${{ env.FLUTTER_VERSION }} via setup-flutter action"
-          curl -s https://raw.githubusercontent.com/subsurface/subsurface/main/.github/workflows/flutter.yml | grep -A 5 "uses: subosito/flutter-action"
-          # Fallback to manual installation if needed
-          FLUTTER_HOME="$HOME/flutter"
+          # Try multiple installation methods with fallbacks
+          echo "Attempting Flutter installation..."
+          
+          # Method 1: Using home directory
+          FLUTTER_HOME="$HOME/flutter_${{ env.FLUTTER_VERSION }}"
           mkdir -p "$FLUTTER_HOME"
-          wget -q https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz || echo "Download failed"
-          tar xf flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz -C "$FLUTTER_HOME" --strip-components=1 || echo "Extraction failed"
+          if [ ! -d "$FLUTTER_HOME/bin" ]; then
+            echo "Downloading Flutter..."
+            wget -q https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz || wget -q https://storage.googleapis.com/flutter_infra/releases/stable/linux/flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz
+            echo "Extracting..."
+            tar xf flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz -C "$FLUTTER_HOME" --strip-components=1 || exit 1
+          fi
+          
           echo "$FLUTTER_HOME/bin" >> $GITHUB_PATH
           echo "FLUTTER_HOME=$FLUTTER_HOME" >> $GITHUB_ENV
 
-      - name: Verify Flutter Installation
+      - name: Verify Installation
         run: |
-          echo "Checking Flutter installation..."
-          which flutter || echo "Flutter not found in PATH"
-          flutter --version || exit 1
-          echo "FLUTTER_HOME: $FLUTTER_HOME"
-          echo "PATH: $PATH"
+          echo "Verifying installation at $FLUTTER_HOME"
+          ls -la "$FLUTTER_HOME/bin"
+          flutter --version
+          dart --version
 
-      - name: Adjust SDK Constraints
+      - name: Configure Environment
         working-directory: ${{ env.WORKING_DIR }}
         run: |
+          # Adjust SDK constraints to match Flutter 3.22.0 (Dart 3.4.0)
           sed -i \
             -e 's/sdk: ">=3.8.0 <4.0.0"/sdk: ">=3.4.0 <4.0.0"/' \
             -e 's/test: >=1.25.9/test: ^1.24.7/' \
+            -e 's/firebase_auth: ^6.3.0/firebase_auth: ^4.11.0/' \
             pubspec.yaml
 
       - name: Resolve Dependencies
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          flutter pub get --verbose || flutter pub cache repair
+          flutter pub cache repair
           flutter pub get --verbose
 
       - name: Build APK
