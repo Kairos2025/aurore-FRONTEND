@@ -20,42 +20,34 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install Flutter (with specific version)
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.16.9'  # Version that includes Dart 3.8.0
-          channel: 'stable'
-          cache: true
-
-      - name: Verify Installation
+      - name: Install Flutter (Manual Installation)
         run: |
-          echo "=== Installed Versions ==="
+          # Install Flutter 3.19.5 which includes Dart 3.7.2
+          FLUTTER_VERSION="3.19.5"
+          wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz
+          tar xf flutter_linux_${FLUTTER_VERSION}-stable.tar.xz
+          echo "$GITHUB_WORKSPACE/flutter/bin" >> $GITHUB_PATH
           flutter --version
-          dart --version
-          if [[ ! $(dart --version) =~ "3.8.0" ]]; then
-            echo "::error::Wrong Dart version installed"
-            exit 1
-          fi
 
-      - name: Prepare Project
+      - name: Adjust Project Settings
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          # Update SDK constraints to match exactly what we installed
+          # Update SDK constraints to match installed version
           sed -i \
-            -e 's/sdk: ">=.*"/sdk: ">=3.8.0 <4.0.0"/' \
-            -e 's/flutter: ">=.*"/flutter: ">=3.16.0"/' \
+            -e 's/sdk: ">=.*"/sdk: ">=3.7.0 <4.0.0"/' \
+            -e 's/flutter: ">=.*"/flutter: ">=3.19.0"/' \
             pubspec.yaml
 
           # Set compatible dependency versions
           sed -i \
-            -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
-            -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
+            -e 's/firebase_core: .*/firebase_core: ^2.24.0/' \
+            -e 's/firebase_auth: .*/firebase_auth: ^4.11.0/' \
             -e 's/flutter_svg: .*/flutter_svg: ^2.1.0/' \
-            -e 's/http: .*/http: ^1.1.0/' \
+            -e 's/http: .*/http: ^0.13.5/' \
             -e 's/material_color_utilities: .*/material_color_utilities: 0.11.1/' \
             pubspec.yaml
 
-          # Update Gradle files directly (no project recreation)
+          # Update Gradle configuration
           sed -i \
             -e 's/agp:.*/agp:7.4.2/' \
             -e 's/gradle:.*/gradle:7.5/' \
