@@ -33,34 +33,59 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Force Compatible Versions
+      - name: Force SDK Compatibility
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          # Install yq for YAML processing
-          sudo apt-get update && sudo apt-get install -y yq
+          # Create a completely new pubspec.yaml with guaranteed compatible versions
+          cat << 'EOF' > pubspec.yaml
+          name: aurore_frontend
+          description: Aurore School Application
+          version: 1.0.0+1
 
-          # Create backup
-          cp pubspec.yaml pubspec.yaml.bak
+          environment:
+            sdk: ">=3.4.0 <4.0.0"  # Matches Flutter 3.22.0
+            flutter: ">=3.22.0 <4.0.0"
 
-          # Set EXACT compatible versions for ALL dependencies
-          yq eval '
-            .environment.sdk = ">=3.4.0 <4.0.0" |
-            .environment.flutter = ">=3.22.0 <4.0.0" |
-            .dependencies.firebase_core = "2.24.0" |
-            .dependencies.firebase_auth = "4.11.0" |
-            .dependencies.test = "1.24.0" |
-            .dependencies.material_color_utilities = "0.8.0" |
-            .dev_dependencies.flutter_test.sdk = "flutter"
-          ' pubspec.yaml > temp.yaml && mv temp.yaml pubspec.yaml
+          dependencies:
+            flutter:
+              sdk: flutter
+            firebase_core: 2.24.0
+            firebase_auth: 4.11.0
+            test: 1.24.0
+            material_color_utilities: 0.8.0
+            # Add other dependencies here with exact versions
 
-          echo "Final dependency configuration:"
-          cat pubspec.yaml | grep -E "sdk|flutter:|firebase|test|material_color_utilities|flutter_test"
+          dev_dependencies:
+            flutter_test:
+              sdk: flutter
+
+          flutter:
+            uses-material-design: true
+          EOF
+
+          # Merge with existing non-conflicting dependencies
+          python3 << 'EOF'
+          import yaml
+          with open('pubspec.original.yaml', 'r') as f:
+              original = yaml.safe_load(f)
+          with open('pubspec.yaml', 'r') as f:
+              new_spec = yaml.safe_load(f)
+          
+          # Preserve non-conflicting dependencies
+          for dep in original.get('dependencies', {}):
+              if dep not in ['flutter', 'firebase_core', 'firebase_auth', 'test', 'material_color_utilities']:
+                  new_spec['dependencies'][dep] = original['dependencies'][dep]
+          
+          with open('pubspec.yaml', 'w') as f:
+              yaml.dump(new_spec, f, sort_keys=False)
+          EOF
+
+          echo "Final pubspec.yaml:"
+          cat pubspec.yaml
 
       - name: Resolve Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          # Clean environment and force dependency resolution
-          rm -f pubspec.lock
           flutter clean
           flutter pub get
 
@@ -75,9 +100,7 @@ jobs:
             --obfuscate
 
       - name: Upload Artifact
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 7
