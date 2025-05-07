@@ -24,100 +24,36 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install Base Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: 'stable'
-          cache: true
-
-      - name: Install Correct Dart Version
+      - name: Install Flutter via Docker (with correct Dart version)
         run: |
-          # Function to download Dart with multiple fallbacks
-          download_dart() {
-            local version=$1
-            local mirrors=(
-              "https://storage.googleapis.com/dart-archive/channels/stable/release/$version/sdk/dartsdk-linux-x64-release.zip"
-              "https://github.com/dart-lang/sdk/releases/download/$version/dartsdk-linux-x64-release.zip"
-              "https://mirrors.tuna.tsinghua.edu.cn/dart-archive/channels/stable/release/$version/sdk/dartsdk-linux-x64-release.zip"
-            )
-            
-            for url in "${mirrors[@]}"; do
-              echo "Trying: $url"
-              if wget --tries=3 --timeout=30 "$url" -O dart-sdk.zip; then
-                echo "Download successful from $url"
-                return 0
-              fi
-              echo "Download failed, trying next mirror..."
-              sleep 1
-            done
-            return 1
-          }
+          # Create Dockerfile with exact versions
+          cat <<EOF > Dockerfile
+          FROM ubuntu:24.04
+          RUN apt-get update && apt-get install -y \
+              curl \
+              git \
+              unzip \
+              xz-utils \
+              zip \
+              libglu1-mesa \
+              openjdk-17-jdk \
+              wget
 
-          # Known working versions in order of preference
-          KNOWN_VERSIONS=("3.8.6" "3.9.0" "3.10.0" "3.8.0")
+          # Install Dart 3.8.6 (known working version)
+          RUN wget https://storage.googleapis.com/dart-archive/channels/stable/release/3.8.6/sdk/dartsdk-linux-x64-release.zip -O dart-sdk.zip && \
+              unzip dart-sdk.zip -d /usr/lib/ && \
+              rm dart-sdk.zip && \
+              ln -s /usr/lib/dart-sdk/bin/dart /usr/bin/dart
 
-          # Try to install a known working version
-          for version in "${KNOWN_VERSIONS[@]}"; do
-            if download_dart "$version"; then
-              echo "Successfully downloaded Dart $version"
-              unzip -q dart-sdk.zip -d ~/dart-sdk
-              export PATH="$HOME/dart-sdk/dart-sdk/bin:$PATH"
-              
-              # Verify installation
-              INSTALLED_VERSION=$(dart --version 2>&1 | awk '{print $4}')
-              if [ "$(printf '%s\n' "${{ env.REQUIRED_DART_VERSION }}" "$INSTALLED_VERSION" | sort -V | head -n1)" = "${{ env.REQUIRED_DART_VERSION }}" ]; then
-                echo "Verified Dart $INSTALLED_VERSION meets requirements"
-                exit 0
-              else
-                echo "Downloaded version $INSTALLED_VERSION doesn't meet requirements"
-                continue
-              fi
-            fi
-          done
+          # Install Flutter
+          RUN git clone https://github.com/flutter/flutter.git -b ${{ env.FLUTTER_VERSION }} --depth 1 /usr/local/flutter
+          ENV PATH="\${PATH}:/usr/local/flutter/bin:/usr/lib/dart-sdk/bin"
+          RUN flutter precache
+          EOF
 
-          echo "::error::All download attempts failed"
-          exit 1
-
-      - name: Configure Environment
-        run: |
-          flutter precache --force
-          echo "=== Environment Verification ==="
-          echo "Flutter: $(flutter --version)"
-          echo "Dart: $(dart --version)"
-          echo "Java: $(java -version 2>&1 | head -n1)"
-
-      - name: Setup Android
-        run: |
-          mkdir -p ~/.android
-          touch ~/.android/repositories.cfg
-          yes | sdkmanager --licenses || true
-          flutter doctor --android-licenses
-
-      - name: Install Build Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libgtk-3-dev \
-            clang \
-            cmake \
-            ninja-build \
-            pkg-config \
-            liblzma-dev
-
-      - name: Resolve Dependencies
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          flutter pub get
-
-      - name: Build APK
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          flutter build apk --release \
-            --no-sound-null-safety \
-            --dart-define=CI_ENV=true \
-            --split-debug-info=build/symbols/ \
-            --obfuscate
+          # Build and run the container
+          docker build -t flutter-build .
+          docker run --rm -v $(pwd):/app flutter-build bash -c "cd /app/${{ env.PROJECT_DIR }} && flutter pub get && flutter build apk --release --no-sound-null-safety --dart-define=CI_ENV=true --split-debug-info=build/symbols/ --obfuscate"
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
