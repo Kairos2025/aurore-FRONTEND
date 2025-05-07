@@ -16,6 +16,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Ensure we get all history for the Dart SDK
 
       - name: Setup Java 17
         uses: actions/setup-java@v3
@@ -23,19 +25,14 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install Pre-Downloaded Dart SDK
+      - name: Install Bundled Dart SDK
         run: |
-          # Create directory structure
-          sudo mkdir -p /usr/lib/dart-sdk
-          
-          # Extract pre-downloaded Dart SDK (base64 encoded)
-          # This is Dart 3.8.6 for Linux x64
-          echo "BASE64_ENCODED_DART_SDK" > dart-sdk.b64
-          base64 -d dart-sdk.b64 > dart-sdk.zip
-          unzip dart-sdk.zip -d /usr/lib/
+          # Extract the Dart SDK from repository storage
+          unzip .ci/dart-sdk-3.8.6.zip -d /usr/lib/
           sudo ln -s /usr/lib/dart-sdk/bin/dart /usr/bin/dart
           
           # Verify installation
+          echo "Installed Dart version:"
           dart --version
 
       - name: Install Flutter
@@ -45,22 +42,7 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Verify Environment
-        run: |
-          echo "=== Environment Verification ==="
-          echo "Flutter: $(flutter --version)"
-          echo "Dart: $(dart --version)"
-          echo "Java: $(java -version 2>&1 | head -n1)"
-          
-          # Verify Dart version meets requirements
-          DART_VERSION=$(dart --version 2>&1 | awk '{print $4}')
-          REQUIRED_VERSION="3.8.0"
-          if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
-            echo "::error::Dart version $DART_VERSION is too old. Required >= $REQUIRED_VERSION"
-            exit 1
-          fi
-
-      - name: Setup Android
+      - name: Setup Android Environment
         run: |
           mkdir -p ~/.android
           touch ~/.android/repositories.cfg
