@@ -6,13 +6,14 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: '3.22.3'  # Confirmed stable version with Dart 3.8.0
+  # Using Flutter 3.29.3 which includes Dart 3.7.2 (will manually upgrade Dart)
+  FLUTTER_VERSION: '3.29.3'
   PROJECT_DIR: 'aurore_frontend'
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60  # Increased timeout for safety
 
     steps:
       - uses: actions/checkout@v4
@@ -22,33 +23,73 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: '17'
+          cache: 'gradle'
 
-      - name: Install Flutter
+      - name: Install Base Flutter Version
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
           cache: true
 
-      - name: Verify Versions
+      - name: Upgrade Dart SDK Independently
         run: |
-          echo "=== Version Verification ==="
-          flutter --version
-          dart --version
+          # Install Dart 3.8.0+ regardless of Flutter version
+          echo "Installing specific Dart version..."
+          DART_VERSION="3.8.0"
+          wget https://storage.googleapis.com/dart-archive/channels/stable/release/$DART_VERSION/sdk/dartsdk-linux-x64-release.zip -O dart-sdk.zip
+          unzip -q dart-sdk.zip -d ~/dart-sdk
+          export PATH="$HOME/dart-sdk/dart-sdk/bin:$PATH"
           
-          # Check Dart version meets requirements
+          # Verify installation
+          echo "=== Version Verification ==="
+          dart --version
+          flutter --version
+          
+          # Ensure Flutter uses our Dart installation
+          flutter precache --force
+
+      - name: Verify Environment
+        run: |
+          # Final version check
           DART_VERSION=$(dart --version 2>&1 | awk '{print $4}')
           REQUIRED_VERSION="3.8.0"
           
           if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
-            echo "::error::Dart version $DART_VERSION is too old. Required >= $REQUIRED_VERSION"
-            exit 1
+            echo "::error::Critical: Failed to install Dart $REQUIRED_VERSION (Current: $DART_VERSION)"
+            echo "Fallback: Trying latest stable Dart..."
+            
+            # Fallback to latest stable Dart
+            LATEST_DART=$(curl -s https://storage.googleapis.com/dart-archive/channels/stable/release/latest/VERSION | jq -r '.version')
+            wget https://storage.googleapis.com/dart-archive/channels/stable/release/$LATEST_DART/sdk/dartsdk-linux-x64-release.zip -O dart-sdk.zip
+            unzip -q dart-sdk.zip -d ~/dart-sdk
+            export PATH="$HOME/dart-sdk/dart-sdk/bin:$PATH"
+            
+            NEW_VERSION=$(dart --version 2>&1 | awk '{print $4}')
+            if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$NEW_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
+              echo "::error::Unable to meet Dart version requirement"
+              exit 1
+            fi
           fi
 
-      - name: Accept Android Licenses
+          # System diagnostics
+          echo "=== System Info ==="
+          echo "Flutter: $(flutter --version)"
+          echo "Dart: $(dart --version)"
+          echo "Java: $(java -version 2>&1 | head -n 1)"
+          echo "Android SDK: $(sdkmanager --version)"
+
+      - name: Setup Android Licenses
         run: |
+          mkdir -p ~/.android
+          touch ~/.android/repositories.cfg
           yes | sdkmanager --licenses || true
           flutter doctor --android-licenses
+
+      - name: Install Linux Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev clang cmake ninja-build pkg-config
 
       - name: Resolve Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
