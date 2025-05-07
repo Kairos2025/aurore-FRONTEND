@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: '3.29.3'  # Known stable version
+  FLUTTER_VERSION: '3.29.3'
   PROJECT_DIR: 'aurore_frontend'
   REQUIRED_DART_VERSION: "3.8.0"
 
@@ -33,55 +33,56 @@ jobs:
 
       - name: Install Correct Dart Version
         run: |
-          # Install required tools
-          sudo apt-get update
-          sudo apt-get install -y jq curl unzip
+          # Function to download Dart with multiple fallbacks
+          download_dart() {
+            local version=$1
+            local mirrors=(
+              "https://storage.googleapis.com/dart-archive/channels/stable/release/$version/sdk/dartsdk-linux-x64-release.zip"
+              "https://github.com/dart-lang/sdk/releases/download/$version/dartsdk-linux-x64-release.zip"
+              "https://mirrors.tuna.tsinghua.edu.cn/dart-archive/channels/stable/release/$version/sdk/dartsdk-linux-x64-release.zip"
+            )
+            
+            for url in "${mirrors[@]}"; do
+              echo "Trying: $url"
+              if wget --tries=3 --timeout=30 "$url" -O dart-sdk.zip; then
+                echo "Download successful from $url"
+                return 0
+              fi
+              echo "Download failed, trying next mirror..."
+              sleep 1
+            done
+            return 1
+          }
 
-          # Get available Dart versions (fallback to known working version)
-          KNOWN_DART_VERSION="3.8.6"  # Known to exist and work
-          
-          echo "Trying to fetch available Dart versions..."
-          if RELEASES_JSON=$(curl -s https://storage.googleapis.com/dart-archive/channels/stable/release/releases.json); then
-            echo "Successfully fetched releases.json"
-            if VERSIONS=$(echo "$RELEASES_JSON" | jq -r '.releases[].version' 2>/dev/null | sort -V); then
-              echo "Found versions:"
-              echo "$VERSIONS"
+          # Known working versions in order of preference
+          KNOWN_VERSIONS=("3.8.6" "3.9.0" "3.10.0" "3.8.0")
+
+          # Try to install a known working version
+          for version in "${KNOWN_VERSIONS[@]}"; do
+            if download_dart "$version"; then
+              echo "Successfully downloaded Dart $version"
+              unzip -q dart-sdk.zip -d ~/dart-sdk
+              export PATH="$HOME/dart-sdk/dart-sdk/bin:$PATH"
               
-              # Find first version >= required
-              for ver in $VERSIONS; do
-                if [ "$(printf '%s\n' "${{ env.REQUIRED_DART_VERSION }}" "$ver" | sort -V | head -n1)" = "${{ env.REQUIRED_DART_VERSION }}" ]; then
-                  SELECTED_VERSION=$ver
-                  break
-                fi
-              done
+              # Verify installation
+              INSTALLED_VERSION=$(dart --version 2>&1 | awk '{print $4}')
+              if [ "$(printf '%s\n' "${{ env.REQUIRED_DART_VERSION }}" "$INSTALLED_VERSION" | sort -V | head -n1)" = "${{ env.REQUIRED_DART_VERSION }}" ]; then
+                echo "Verified Dart $INSTALLED_VERSION meets requirements"
+                exit 0
+              else
+                echo "Downloaded version $INSTALLED_VERSION doesn't meet requirements"
+                continue
+              fi
             fi
-          fi
+          done
 
-          # Fallback to known version if automatic detection failed
-          if [ -z "$SELECTED_VERSION" ]; then
-            echo "::warning::Using known working Dart version $KNOWN_DART_VERSION"
-            SELECTED_VERSION=$KNOWN_DART_VERSION
-          fi
-
-          echo "Selected Dart version: $SELECTED_VERSION"
-          
-          # Download and install Dart SDK
-          echo "Downloading Dart $SELECTED_VERSION..."
-          if ! wget https://storage.googleapis.com/dart-archive/channels/stable/release/$SELECTED_VERSION/sdk/dartsdk-linux-x64-release.zip -O dart-sdk.zip; then
-            echo "::error::Failed to download Dart SDK"
-            exit 1
-          fi
-          
-          unzip -q dart-sdk.zip -d ~/dart-sdk
-          export PATH="$HOME/dart-sdk/dart-sdk/bin:$PATH"
-          
-          # Verify installation
-          echo "Installed Dart version: $(dart --version 2>&1 | head -n1)"
+          echo "::error::All download attempts failed"
+          exit 1
 
       - name: Configure Environment
         run: |
           flutter precache --force
-          echo "=== Environment Summary ==="
+          echo "=== Environment Verification ==="
           echo "Flutter: $(flutter --version)"
           echo "Dart: $(dart --version)"
           echo "Java: $(java -version 2>&1 | head -n1)"
@@ -93,7 +94,7 @@ jobs:
           yes | sdkmanager --licenses || true
           flutter doctor --android-licenses
 
-      - name: Install Dependencies
+      - name: Install Build Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -104,10 +105,14 @@ jobs:
             pkg-config \
             liblzma-dev
 
-      - name: Build APK
+      - name: Resolve Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           flutter pub get
+
+      - name: Build APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
           flutter build apk --release \
             --no-sound-null-safety \
             --dart-define=CI_ENV=true \
