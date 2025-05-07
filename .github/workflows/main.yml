@@ -18,7 +18,25 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          path: ${{ env.PROJECT_DIR }}  # Checkout directly into the project directory
+
+      - name: Verify Project Structure
+        id: structure
+        run: |
+          echo "Repository contents:"
+          ls -la
+          echo "Project directory contents:"
+          ls -la ${{ env.PROJECT_DIR }} || true
+          
+          # Check where pubspec.yaml exists
+          if [ -f "${{ env.PROJECT_DIR }}/pubspec.yaml" ]; then
+            echo "pubspec.yaml found in project directory"
+          elif [ -f "pubspec.yaml" ]; then
+            echo "pubspec.yaml found in root"
+            echo "PROJECT_DIR=." >> $GITHUB_ENV
+          else
+            echo "::error::pubspec.yaml not found!"
+            exit 1
+          fi
 
       - name: Setup Java 17
         uses: actions/setup-java@v3
@@ -35,41 +53,42 @@ jobs:
           cache: true
           cache-key: 'flutter-${{ env.FLUTTER_VERSION }}'
 
-      - name: Verify Installation
+      - name: Install yq
         run: |
-          flutter --version
-          flutter doctor -v
+          sudo apt-get update
+          sudo apt-get install -y yq
 
       - name: Force Compatible Versions
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          # Install yq for reliable YAML editing
-          sudo snap install yq || sudo apt-get install -y yq
+          # Verify pubspec.yaml exists
+          if [ ! -f "pubspec.yaml" ]; then
+            echo "::error::pubspec.yaml not found in ${{ env.PROJECT_DIR }}!"
+            exit 1
+          fi
 
-          # Remove all test package references
-          yq eval 'del(.dependencies.test)' -i pubspec.yaml
-          yq eval 'del(.dev_dependencies.test)' -i pubspec.yaml
+          # Create backup
+          cp pubspec.yaml pubspec.yaml.bak
 
-          # Set exact compatible versions
-          yq eval '.dev_dependencies.flutter_test.sdk = "flutter"' -i pubspec.yaml
-          yq eval '.dependencies.firebase_core = "2.24.0"' -i pubspec.yaml
-          yq eval '.dependencies.firebase_auth = "4.11.0"' -i pubspec.yaml
-          yq eval '.environment.sdk = ">=3.4.0 <4.0.0"' -i pubspec.yaml
-          yq eval '.environment.flutter = ">=3.22.0 <4.0.0"' -i pubspec.yaml
+          # Update dependencies using yq
+          yq eval -i '
+            del(.dependencies.test) |
+            del(.dev_dependencies.test) |
+            .dev_dependencies.flutter_test.sdk = "flutter" |
+            .dependencies.firebase_core = "2.24.0" |
+            .dependencies.firebase_auth = "4.11.0" |
+            .environment.sdk = ">=3.4.0 <4.0.0" |
+            .environment.flutter = ">=3.22.0 <4.0.0"
+          ' pubspec.yaml
 
-          # Verify changes
-          echo "Final pubspec.yaml:"
+          echo "Updated dependencies:"
           cat pubspec.yaml | grep -E "flutter_test|firebase|sdk|flutter:"
 
       - name: Resolve Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          # Clean environment
-          rm -f pubspec.lock
           flutter clean
-          
-          # Get dependencies with retry
-          flutter pub get || (sleep 5 && flutter pub get)
+          flutter pub get
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
