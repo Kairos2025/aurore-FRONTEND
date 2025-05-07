@@ -39,51 +39,75 @@ jobs:
           # Create backup
           cp pubspec.yaml pubspec.backup.yaml
 
-          # Extract project metadata from original file
+          # Extract project metadata
           PROJECT_NAME=$(grep '^name:' pubspec.yaml | sed 's/^name: *//')
           PROJECT_VERSION=$(grep '^version:' pubspec.yaml | sed 's/^version: *//' || echo '1.0.0+1')
           PROJECT_DESCRIPTION=$(grep '^description:' pubspec.yaml | sed 's/^description: *//' || echo '')
 
-          # Create new pubspec.yaml with exact versions
-          cat << EOF > pubspec.yaml
-          name: $PROJECT_NAME
-          description: $PROJECT_DESCRIPTION
-          version: $PROJECT_VERSION
+          # Start building new pubspec.yaml
+          echo "name: $PROJECT_NAME" > pubspec.yaml
+          echo "description: $PROJECT_DESCRIPTION" >> pubspec.yaml
+          echo "version: $PROJECT_VERSION" >> pubspec.yaml
+          echo "" >> pubspec.yaml
+          echo "environment:" >> pubspec.yaml
+          echo "  sdk: \">=3.4.0 <4.0.0\"" >> pubspec.yaml
+          echo "  flutter: \">=3.22.0 <4.0.0\"" >> pubspec.yaml
+          echo "" >> pubspec.yaml
+          echo "dependencies:" >> pubspec.yaml
+          echo "  flutter:" >> pubspec.yaml
+          echo "    sdk: flutter" >> pubspec.yaml
+          echo "  firebase_core: \"2.24.0\"" >> pubspec.yaml
+          echo "  firebase_auth: \"4.11.0\"" >> pubspec.yaml
+          echo "  test: \"1.24.0\"" >> pubspec.yaml
+          echo "  material_color_utilities: \"0.8.0\"" >> pubspec.yaml
 
-          environment:
-            sdk: ">=3.4.0 <4.0.0"
-            flutter: ">=3.22.0 <4.0.0"
-
-          dependencies:
-            flutter:
-              sdk: flutter
-            firebase_core: "2.24.0"
-            firebase_auth: "4.11.0"
-            test: "1.24.0"
-            material_color_utilities: "0.8.0"
-          EOF
-
-          # Add other non-conflicting dependencies from original
+          # Add other non-conflicting dependencies
           grep -A 100 '^dependencies:' pubspec.backup.yaml | \
           grep -vE 'flutter|firebase_core|firebase_auth|test|material_color_utilities' | \
-          grep -v '^dependencies:' >> pubspec.yaml
+          grep -v '^dependencies:' | \
+          while read -r line; do
+            # Skip empty lines and comments
+            if [[ -n "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
+              echo "  $line" >> pubspec.yaml
+            fi
+          done
 
-          # Add dev dependencies if they exist
-          if grep -q '^dev_dependencies:' pubspec.backup.yaml; then
+          # Add dev_dependencies if they exist (only if not already present)
+          if grep -q '^dev_dependencies:' pubspec.backup.yaml && ! grep -q '^dev_dependencies:' pubspec.yaml; then
+            echo "" >> pubspec.yaml
             echo "dev_dependencies:" >> pubspec.yaml
             grep -A 100 '^dev_dependencies:' pubspec.backup.yaml | \
-            grep -v '^dev_dependencies:' >> pubspec.yaml
+            grep -v '^dev_dependencies:' | \
+            while read -r line; do
+              if [[ -n "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
+                echo "  $line" >> pubspec.yaml
+              fi
+            done
           fi
 
-          # Add flutter configuration if it exists
-          if grep -q '^flutter:' pubspec.backup.yaml; then
+          # Add flutter configuration if it exists (only if not already present)
+          if grep -q '^flutter:' pubspec.backup.yaml && ! grep -q '^flutter:' pubspec.yaml; then
+            echo "" >> pubspec.yaml
             echo "flutter:" >> pubspec.yaml
             grep -A 100 '^flutter:' pubspec.backup.yaml | \
-            grep -v '^flutter:' >> pubspec.yaml
+            grep -v '^flutter:' | \
+            while read -r line; do
+              if [[ -n "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
+                echo "  $line" >> pubspec.yaml
+              fi
+            done
           fi
 
           echo "Final pubspec.yaml:"
           cat pubspec.yaml
+
+      - name: Verify YAML Syntax
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          if ! python3 -c "import yaml; yaml.safe_load(open('pubspec.yaml'))"; then
+            echo "::error::pubspec.yaml is invalid!"
+            exit 1
+          fi
 
       - name: Resolve Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
