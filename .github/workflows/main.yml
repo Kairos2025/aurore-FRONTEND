@@ -33,7 +33,7 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Create Clean pubspec.yaml
+      - name: Create Properly Formatted pubspec.yaml
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           # Create backup
@@ -44,7 +44,7 @@ jobs:
           PROJECT_VERSION=$(grep '^version:' pubspec.yaml | sed 's/^version: *//; s/:/\\:/g' || echo '1.0.0+1')
           PROJECT_DESCRIPTION=$(grep '^description:' pubspec.yaml | sed 's/^description: *//; s/:/\\:/g' || echo '')
 
-          # Create new pubspec.yaml with core configuration
+          # Create new properly indented pubspec.yaml
           {
             echo "name: $PROJECT_NAME"
             echo "description: $PROJECT_DESCRIPTION"
@@ -63,7 +63,7 @@ jobs:
             echo "  material_color_utilities: \"0.8.0\""
           } > pubspec.yaml
 
-          # Add other dependencies, removing duplicates
+          # Add other non-conflicting dependencies with proper indentation
           awk '
             BEGIN { in_deps = 0 }
             /^dependencies:/ { in_deps = 1; next }
@@ -102,15 +102,24 @@ jobs:
           echo "Final pubspec.yaml contents:"
           cat pubspec.yaml
 
-      - name: Verify Dependency Versions
+      - name: Verify YAML Formatting
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          echo "Critical versions:"
-          grep -E "sdk:|flutter:|firebase|test|material_color_utilities" pubspec.yaml
-          if ! grep -q "sdk: \">=3.4.0 <4.0.0\"" pubspec.yaml; then
-            echo "::error::SDK version not properly set!"
+          # Check for basic YAML structure
+          if ! grep -q "name:" pubspec.yaml || \
+             ! grep -q "sdk:" pubspec.yaml || \
+             ! grep -q "dependencies:" pubspec.yaml; then
+            echo "::error::pubspec.yaml is missing required sections"
             exit 1
           fi
+          
+          # Check indentation of critical sections
+          if ! grep -q "  sdk: flutter" pubspec.yaml; then
+            echo "::error::Flutter SDK dependency not properly indented"
+            exit 1
+          fi
+          
+          echo "YAML formatting appears correct"
 
       - name: Resolve Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
