@@ -44,70 +44,77 @@ jobs:
           PROJECT_VERSION=$(grep '^version:' pubspec.yaml | sed 's/^version: *//' || echo '1.0.0+1')
           PROJECT_DESCRIPTION=$(grep '^description:' pubspec.yaml | sed 's/^description: *//' || echo '')
 
-          # Start building new pubspec.yaml
-          echo "name: $PROJECT_NAME" > pubspec.yaml
-          echo "description: $PROJECT_DESCRIPTION" >> pubspec.yaml
-          echo "version: $PROJECT_VERSION" >> pubspec.yaml
-          echo "" >> pubspec.yaml
-          echo "environment:" >> pubspec.yaml
-          echo "  sdk: \">=3.4.0 <4.0.0\"" >> pubspec.yaml
-          echo "  flutter: \">=3.22.0 <4.0.0\"" >> pubspec.yaml
-          echo "" >> pubspec.yaml
-          echo "dependencies:" >> pubspec.yaml
-          echo "  flutter:" >> pubspec.yaml
-          echo "    sdk: flutter" >> pubspec.yaml
-          echo "  firebase_core: \"2.24.0\"" >> pubspec.yaml
-          echo "  firebase_auth: \"4.11.0\"" >> pubspec.yaml
-          echo "  test: \"1.24.0\"" >> pubspec.yaml
-          echo "  material_color_utilities: \"0.8.0\"" >> pubspec.yaml
+          # Start building new pubspec.yaml with core configuration
+          cat << 'EOF' > pubspec.yaml
+          name: $PROJECT_NAME
+          description: $PROJECT_DESCRIPTION
+          version: $PROJECT_VERSION
 
-          # Add other non-conflicting dependencies
-          grep -A 100 '^dependencies:' pubspec.backup.yaml | \
-          grep -vE 'flutter|firebase_core|firebase_auth|test|material_color_utilities' | \
-          grep -v '^dependencies:' | \
-          while read -r line; do
-            # Skip empty lines and comments
-            if [[ -n "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
-              echo "  $line" >> pubspec.yaml
-            fi
-          done
+          environment:
+            sdk: ">=3.4.0 <4.0.0"
+            flutter: ">=3.22.0 <4.0.0"
 
-          # Add dev_dependencies if they exist (only if not already present)
-          if grep -q '^dev_dependencies:' pubspec.backup.yaml && ! grep -q '^dev_dependencies:' pubspec.yaml; then
+          dependencies:
+            flutter:
+              sdk: flutter
+            firebase_core: "2.24.0"
+            firebase_auth: "4.11.0"
+            test: "1.24.0"
+            material_color_utilities: "0.8.0"
+          EOF
+
+          # Process the template to insert variables
+          sed -i "s/\$PROJECT_NAME/$PROJECT_NAME/" pubspec.yaml
+          sed -i "s/\$PROJECT_DESCRIPTION/$PROJECT_DESCRIPTION/" pubspec.yaml
+          sed -i "s/\$PROJECT_VERSION/$PROJECT_VERSION/" pubspec.yaml
+
+          # Add other dependencies (non-conflicting ones)
+          awk '
+            /^dependencies:/ {deps=1; next}
+            /^[a-z]/ && deps {deps=0}
+            deps && !/flutter:|firebase_core:|firebase_auth:|test:|material_color_utilities:/ {print}
+          ' pubspec.backup.yaml >> pubspec.yaml
+
+          # Add dev_dependencies if they exist
+          if grep -q '^dev_dependencies:' pubspec.backup.yaml; then
             echo "" >> pubspec.yaml
             echo "dev_dependencies:" >> pubspec.yaml
-            grep -A 100 '^dev_dependencies:' pubspec.backup.yaml | \
-            grep -v '^dev_dependencies:' | \
-            while read -r line; do
-              if [[ -n "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
-                echo "  $line" >> pubspec.yaml
-              fi
-            done
+            awk '
+              /^dev_dependencies:/ {dev=1; next}
+              /^[a-z]/ && dev {dev=0}
+              dev {print}
+            ' pubspec.backup.yaml >> pubspec.yaml
           fi
 
-          # Add flutter configuration if it exists (only if not already present)
-          if grep -q '^flutter:' pubspec.backup.yaml && ! grep -q '^flutter:' pubspec.yaml; then
+          # Add flutter configuration if it exists
+          if grep -q '^flutter:' pubspec.backup.yaml; then
             echo "" >> pubspec.yaml
             echo "flutter:" >> pubspec.yaml
-            grep -A 100 '^flutter:' pubspec.backup.yaml | \
-            grep -v '^flutter:' | \
-            while read -r line; do
-              if [[ -n "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
-                echo "  $line" >> pubspec.yaml
-              fi
-            done
+            awk '
+              /^flutter:/ {fl=1; next}
+              /^[a-z]/ && fl {fl=0}
+              fl {print}
+            ' pubspec.backup.yaml >> pubspec.yaml
           fi
 
-          echo "Final pubspec.yaml:"
+          echo "Final pubspec.yaml contents:"
           cat pubspec.yaml
 
-      - name: Verify YAML Syntax
+      - name: Validate YAML
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          if ! python3 -c "import yaml; yaml.safe_load(open('pubspec.yaml'))"; then
-            echo "::error::pubspec.yaml is invalid!"
-            exit 1
-          fi
+          # Install Python YAML parser if needed
+          python3 -m pip install pyyaml --quiet
+          python3 << 'EOF'
+          import yaml
+          try:
+              with open('pubspec.yaml') as f:
+                  yaml.safe_load(f)
+              print("YAML is valid")
+          except Exception as e:
+              print(f"::error::Invalid YAML: {e}")
+              exit(1)
+          EOF
 
       - name: Resolve Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
