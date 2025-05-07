@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: '3.22.0'  # Comes with Dart 3.4.0
+  FLUTTER_VERSION: '3.22.0'
   PROJECT_DIR: 'aurore_frontend'
 
 jobs:
@@ -33,50 +33,63 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Force SDK Compatibility
+      - name: Verify Project Structure
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          # Create a fresh, compatible pubspec.yaml
-          cat << 'EOF' > pubspec.yaml
-          name: aurore_frontend
-          description: Aurore School Application
-          version: 1.0.0+1
+          if [ ! -f "pubspec.yaml" ]; then
+            echo "::error::pubspec.yaml not found!"
+            exit 1
+          fi
+          echo "Original pubspec.yaml:"
+          cat pubspec.yaml | head -n 20
 
-          environment:
-            sdk: ">=3.4.0 <4.0.0"  # Matches Flutter 3.22.0
-            flutter: ">=3.22.0 <4.0.0"
+      - name: Enforce Compatible Versions
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          # Install Python for YAML processing
+          sudo apt-get update && sudo apt-get install -y python3 python3-pip
+          pip3 install pyyaml
 
-          dependencies:
-            flutter:
-              sdk: flutter
-            firebase_core: 2.24.0
-            firebase_auth: 4.11.0
-            # Add other dependencies here with compatible versions
-
-          dev_dependencies:
-            flutter_test:
-              sdk: flutter
-
-          flutter:
-            uses-material-design: true
-          EOF
-
-          # Merge with existing dependencies
+          # Process pubspec.yaml with proper error handling
           python3 << 'EOF'
           import yaml
+          import os
+
+          # Read original pubspec.yaml
           with open('pubspec.yaml', 'r') as f:
-              new_spec = yaml.safe_load(f)
-          with open('pubspec.original.yaml', 'r') as f:
               original = yaml.safe_load(f)
-          
-          # Preserve non-conflicting dependencies
+
+          # Create base compatible configuration
+          new_spec = {
+              'name': original.get('name', 'aurore_frontend'),
+              'description': original.get('description', ''),
+              'version': original.get('version', '1.0.0+1'),
+              'environment': {
+                  'sdk': ">=3.4.0 <4.0.0",
+                  'flutter': ">=3.22.0 <4.0.0"
+              },
+              'dependencies': {
+                  'flutter': {'sdk': 'flutter'},
+                  'firebase_core': '2.24.0',
+                  'firebase_auth': '4.11.0'
+              },
+              'dev_dependencies': {
+                  'flutter_test': {'sdk': 'flutter'}
+              }
+          }
+
+          # Preserve other non-conflicting dependencies
           for dep in original.get('dependencies', {}):
               if dep not in ['flutter', 'firebase_core', 'firebase_auth']:
                   new_spec['dependencies'][dep] = original['dependencies'][dep]
-          
+
+          # Write new pubspec.yaml
           with open('pubspec.yaml', 'w') as f:
-              yaml.dump(new_spec, f, sort_keys=False)
+              yaml.dump(new_spec, f, sort_keys=False, default_flow_style=False)
           EOF
+
+          echo "Modified pubspec.yaml:"
+          cat pubspec.yaml | head -n 20
 
       - name: Resolve Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
@@ -90,7 +103,9 @@ jobs:
           flutter clean
           flutter build apk --release \
             --no-sound-null-safety \
-            --dart-define=CI_ENV=true
+            --dart-define=CI_ENV=true \
+            --split-debug-info=build/symbols/ \
+            --obfuscate
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
