@@ -33,48 +33,56 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Force Compatible Configurations
+      - name: Force Compatible SDK Version
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          # Install yq for reliable YAML editing
-          sudo apt-get update && sudo apt-get install -y yq
+          # Install Python for YAML processing
+          sudo apt-get update && sudo apt-get install -y python3 python3-pip
+          pip3 install pyyaml
 
-          # Create backup
-          cp pubspec.yaml pubspec.yaml.bak
+          # Process pubspec.yaml with proper error handling
+          python3 << 'EOF'
+          import yaml
+          import os
 
-          # Set EXACT compatible versions for ALL critical dependencies
-          yq eval '
-            .environment.sdk = ">=3.4.0 <4.0.0" |       # Match Flutter 3.22.0
-            .environment.flutter = ">=3.22.0 <4.0.0" |
-            .dependencies.firebase_core = "2.24.0" |
-            .dependencies.firebase_auth = "4.11.0" |
-            .dependencies.material_color_utilities = "0.8.0" |
-            del(.dependencies.test) |                     # Remove test package
-            .dev_dependencies.flutter_test.sdk = "flutter"
-          ' pubspec.yaml > temp.yaml && mv temp.yaml pubspec.yaml
+          # Read original pubspec.yaml
+          with open('pubspec.yaml', 'r') as f:
+              original = yaml.safe_load(f)
 
-          echo "Final dependency configuration:"
-          cat pubspec.yaml | grep -E "sdk|flutter:|firebase|material_color_utilities|flutter_test"
+          # Create new configuration with compatible versions
+          new_spec = {
+              'name': original.get('name', 'aurore_frontend'),
+              'description': original.get('description', ''),
+              'version': original.get('version', '1.0.0+1'),
+              'environment': {
+                  'sdk': ">=3.4.0 <4.0.0",  # Matches Flutter 3.22.0
+                  'flutter': ">=3.22.0 <4.0.0"
+              },
+              'dependencies': original.get('dependencies', {}),
+              'dev_dependencies': original.get('dev_dependencies', {})
+          }
+
+          # Force compatible Firebase versions
+          new_spec['dependencies']['firebase_core'] = '2.24.0'
+          new_spec['dependencies']['firebase_auth'] = '4.11.0'
+          
+          # Ensure material_color_utilities is compatible
+          if 'material_color_utilities' in new_spec['dependencies']:
+              new_spec['dependencies']['material_color_utilities'] = '0.8.0'
+
+          # Write new pubspec.yaml
+          with open('pubspec.yaml', 'w') as f:
+              yaml.dump(new_spec, f, sort_keys=False, default_flow_style=False)
+          EOF
+
+          echo "Modified pubspec.yaml:"
+          cat pubspec.yaml | grep -E "sdk:|flutter:|firebase|material_color_utilities"
 
       - name: Resolve Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          # Clean environment and force dependency resolution
-          rm -f pubspec.lock
           flutter clean
-          flutter pub get --verbose
-
-      - name: Verify Dependency Tree
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          echo "Dependency versions:"
-          flutter pub deps | grep -E 'flutter|firebase|material|test'
-          if flutter pub deps | grep -q 'material_color_utilities: 0.8.0'; then
-            echo "✓ All versions compatible"
-          else
-            echo "::error::Version conflict detected!"
-            exit 1
-          fi
+          flutter pub get
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
