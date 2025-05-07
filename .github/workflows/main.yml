@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: '3.19.0'  # Updated to version with Dart 3.9.0
+  FLUTTER_VERSION: '3.19.0'  # Contains Dart 3.9.0
   PROJECT_DIR: 'aurore_frontend'
 
 jobs:
@@ -16,26 +16,42 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Java 17
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '17'
+          cache: 'gradle'
 
-      - name: Install Correct Flutter Version
+      - name: Install Specific Flutter Version
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
           cache: true
+          cache-key: flutter-${{ env.FLUTTER_VERSION }}
 
-      - name: Verify Versions
+      - name: Force Dart SDK Version Check
         run: |
-          echo "Flutter version:"
+          # Remove any existing Dart installations that might interfere
+          sudo rm -rf /usr/lib/dart /usr/local/lib/dart
+          
+          # Verify versions
+          echo "=== Version Check ==="
           flutter --version
-          echo "Dart version:"
           dart --version
+          
+          # Ensure Dart meets minimum requirement
+          DART_VERSION=$(dart --version 2>&1 | awk '{print $4}')
+          REQUIRED_VERSION="3.8.0"
+          
+          if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
+            echo "::error::Dart version $DART_VERSION is too old. Required >= $REQUIRED_VERSION"
+            exit 1
+          fi
 
       - name: Resolve Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
