@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: '3.19.0'  # Updated (includes Dart 3.9.0)
+  FLUTTER_VERSION: '3.19.0'  # Updated to version with Dart 3.9.0
   PROJECT_DIR: 'aurore_frontend'
 
 jobs:
@@ -23,16 +23,19 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install Flutter
+      - name: Install Correct Flutter Version
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
           cache: true
 
-      - name: Verify Dart SDK Version
+      - name: Verify Versions
         run: |
-          dart --version  # Should show Dart 3.8.0+
+          echo "Flutter version:"
+          flutter --version
+          echo "Dart version:"
+          dart --version
 
       - name: Resolve Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
