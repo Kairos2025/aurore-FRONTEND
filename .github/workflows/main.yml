@@ -39,39 +39,39 @@ jobs:
           flutter --version
           flutter doctor -v
 
-      - name: Fix Gradle Project Structure
+      - name: Standardize Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          TEMP_DIR=$(mktemp -d)
-          flutter create -t app $TEMP_DIR/new_project
-          cp -r lib assets test pubspec.yaml $TEMP_DIR/new_project/
-          rm -rf *
-          cp -r $TEMP_DIR/new_project/* .
-          rm -rf $TEMP_DIR
+          # Install yq for YAML processing
+          sudo snap install yq || sudo apt-get install -y yq
 
-      - name: Update Dependency Versions
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          # Install yq if not already available
-          if ! command -v yq &> /dev/null; then
-            sudo snap install yq || sudo apt-get install -y yq
-          fi
+          # Create backup
+          cp pubspec.yaml pubspec.yaml.bak
 
-          # Set exact versions for known compatible packages
+          # Force all test package references to use the same version
+          yq eval 'del(.dev_dependencies.test)' -i pubspec.yaml
           yq eval '.dependencies.test = "1.24.0"' -i pubspec.yaml
-          yq eval '.dependencies.typed_data = "1.3.2"' -i pubspec.yaml
-          yq eval '.dependencies.vector_math = "2.1.4"' -i pubspec.yaml
-          yq eval '.dependencies.vm_service = "14.2.1"' -i pubspec.yaml
-          yq eval '.dependencies.web_socket_channel = "2.4.0"' -i pubspec.yaml
+          yq eval '.dev_dependencies.flutter_test.sdk = "flutter"' -i pubspec.yaml
+
+          # Set other critical dependencies
           yq eval '.environment.sdk = ">=3.4.0 <4.0.0"' -i pubspec.yaml
           yq eval '.environment.flutter = ">=3.22.0 <4.0.0"' -i pubspec.yaml
+
+          # Verify changes
+          echo "Modified dependencies:"
+          grep -E "test:|flutter_test:" pubspec.yaml
 
       - name: Resolve Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          # Use --offline to prevent unwanted upgrades
-          flutter pub get --offline || flutter pub get
-          flutter pub outdated
+          # Remove lockfile to ensure clean resolution
+          rm -f pubspec.lock
+          
+          # Get dependencies with retry logic
+          flutter pub get || (echo "First attempt failed, retrying..." && flutter pub get)
+          
+          # Verify resolution
+          flutter pub outdated --mode=null-safety
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
