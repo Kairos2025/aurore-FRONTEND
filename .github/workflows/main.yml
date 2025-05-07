@@ -39,24 +39,62 @@ jobs:
           flutter --version
           flutter doctor -v
 
-      - name: Update All Dependencies for Compatibility
+      - name: Force Compatible Dependency Versions
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          # Update all version constraints to be compatible with Flutter 3.22.0 (Dart 3.4.0)
-          sed -i \
-            -e 's/flutter: ">=3.36.0"/flutter: ">=3.22.0 <4.0.0"/' \
-            -e 's/sdk: ">=3.8.0 <4.0.0"/sdk: ">=3.4.0 <4.0.0"/' \
-            -e 's/test: >=1.25.9/test: ^1.24.7/' \
-            -e 's/flutter_lints: ^[0-9.]*/flutter_lints: ^2.0.0/' \
-            -e 's/material_color_utilities: ^[0-9.]*/material_color_utilities: ^0.8.0/' \
-            -e 's/firebase_core: ^[0-9.]*/firebase_core: ^2.24.0/' \
-            -e 's/firebase_auth: ^[0-9.]*/firebase_auth: ^4.11.0/' \
-            pubspec.yaml
+          # Create backup
+          cp pubspec.yaml pubspec.yaml.bak
+          
+          # Use Dart for reliable YAML modification
+          dart << 'EOF'
+          import 'dart:io';
+
+          void main() {
+            final file = File('pubspec.yaml');
+            var contents = file.readAsStringSync();
+            
+            // Update test package
+            contents = contents.replaceAll(
+              RegExp(r'test:\s*[>=^~]*[0-9.]+'),
+              'test: ^1.24.0'
+            );
+            
+            // Update other critical dependencies
+            contents = contents.replaceAll(
+              RegExp(r'flutter_lints:\s*[>=^~]*[0-9.]+'), 
+              'flutter_lints: ^2.0.0'
+            );
+            
+            contents = contents.replaceAll(
+              RegExp(r'material_color_utilities:\s*[>=^~]*[0-9.]+'),
+              'material_color_utilities: ^0.8.0'
+            );
+            
+            // Update SDK constraints
+            contents = contents.replaceAll(
+              RegExp(r'sdk:\s*"[^"]+"'),
+              'sdk: ">=3.4.0 <4.0.0"'
+            );
+            
+            contents = contents.replaceAll(
+              RegExp(r'flutter:\s*"[^"]+"'),
+              'flutter: ">=3.22.0 <4.0.0"'
+            );
+            
+            file.writeAsStringSync(contents);
+          }
+          EOF
+          
+          # Verify changes
+          echo "Updated pubspec.yaml:"
+          diff pubspec.yaml.bak pubspec.yaml || true
+          echo "Test package version:"
+          grep "test:" pubspec.yaml
 
       - name: Resolve Dependencies
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          flutter pub get
+          flutter pub get --verbose
           flutter pub outdated
 
       - name: Build APK
