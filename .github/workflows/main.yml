@@ -7,11 +7,7 @@ on:
 
 env:
   FLUTTER_VERSION: '3.22.0'
-  PROJECT_DIR: 'aurore_frontend'
-  # Compatible Firebase versions for Flutter 3.22.0
-  FIREBASE_CORE_VERSION: '2.24.0'
-  FIREBASE_AUTH_VERSION: '4.11.0'
-  FIREBASE_ANALYTICS_VERSION: '10.4.0'
+  PROJECT_DIR: 'aurore_frontend'  # Confirmed from your screenshots
 
 jobs:
   build:
@@ -22,6 +18,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          path: ${{ env.PROJECT_DIR }}  # Checkout directly into the project directory
 
       - name: Setup Java 17
         uses: actions/setup-java@v3
@@ -43,38 +40,36 @@ jobs:
           flutter --version
           flutter doctor -v
 
-      - name: Enforce Compatible Versions
+      - name: Force Compatible Versions
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           # Install yq for reliable YAML editing
           sudo snap install yq || sudo apt-get install -y yq
 
-          # Backup original file
-          cp pubspec.yaml pubspec.yaml.bak
+          # Remove all test package references
+          yq eval 'del(.dependencies.test)' -i pubspec.yaml
+          yq eval 'del(.dev_dependencies.test)' -i pubspec.yaml
 
-          # Update Firebase dependencies
-          yq eval ".dependencies.firebase_core = \"${{ env.FIREBASE_CORE_VERSION }}\"" -i pubspec.yaml
-          yq eval ".dependencies.firebase_auth = \"${{ env.FIREBASE_AUTH_VERSION }}\"" -i pubspec.yaml
-          yq eval ".dependencies.firebase_analytics = \"${{ env.FIREBASE_ANALYTICS_VERSION }}\"" -i pubspec.yaml
-
-          # Update other critical dependencies
-          yq eval '.dependencies.test = "1.24.0"' -i pubspec.yaml
+          # Set exact compatible versions
+          yq eval '.dev_dependencies.flutter_test.sdk = "flutter"' -i pubspec.yaml
+          yq eval '.dependencies.firebase_core = "2.24.0"' -i pubspec.yaml
+          yq eval '.dependencies.firebase_auth = "4.11.0"' -i pubspec.yaml
           yq eval '.environment.sdk = ">=3.4.0 <4.0.0"' -i pubspec.yaml
           yq eval '.environment.flutter = ">=3.22.0 <4.0.0"' -i pubspec.yaml
 
           # Verify changes
-          echo "Updated dependencies:"
-          grep -E "firebase|test|sdk|flutter:" pubspec.yaml
+          echo "Final pubspec.yaml:"
+          cat pubspec.yaml | grep -E "flutter_test|firebase|sdk|flutter:"
 
       - name: Resolve Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          # Clean up and get dependencies
+          # Clean environment
+          rm -f pubspec.lock
           flutter clean
-          flutter pub get
           
-          # Verify dependency tree
-          flutter pub deps
+          # Get dependencies with retry
+          flutter pub get || (sleep 5 && flutter pub get)
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
