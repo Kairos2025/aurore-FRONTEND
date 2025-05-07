@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: '3.22.0'  # Comes with Dart 3.4.0
+  FLUTTER_VERSION: '3.22.0'
   PROJECT_DIR: 'aurore_frontend'
 
 jobs:
@@ -33,17 +33,19 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Create Compatible pubspec.yaml
+      - name: Create Compatible Configuration
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          # Create backup of original
-          cp pubspec.yaml pubspec.original.yaml
+          # Extract project metadata
+          PROJECT_NAME=$(grep '^name:' pubspec.yaml | sed 's/^name: *//')
+          PROJECT_VERSION=$(grep '^version:' pubspec.yaml | sed 's/^version: *//' || echo '1.0.0+1')
+          PROJECT_DESCRIPTION=$(grep '^description:' pubspec.yaml | sed 's/^description: *//' || echo '')
 
-          # Create new base configuration
-          cat << 'EOF' > pubspec.yaml
-          name: $(grep '^name:' pubspec.original.yaml | cut -d: -f2 | xargs)
-          description: $(grep '^description:' pubspec.original.yaml | cut -d: -f2 | xargs || echo '')
-          version: $(grep '^version:' pubspec.original.yaml | cut -d: -f2 | xargs || echo '1.0.0+1')
+          # Create new pubspec.yaml with exact versions
+          cat << EOF > pubspec.yaml
+          name: $PROJECT_NAME
+          description: $PROJECT_DESCRIPTION
+          version: $PROJECT_VERSION
 
           environment:
             sdk: ">=3.4.0 <4.0.0"
@@ -56,18 +58,26 @@ jobs:
             firebase_auth: "4.11.0"
             test: "1.24.0"
             material_color_utilities: "0.8.0"
-
-          dev_dependencies:
-            flutter_test:
-              sdk: flutter
-
-          flutter:
-            uses-material-design: true
           EOF
 
           # Add other non-conflicting dependencies
-          grep -E '^  [a-z]' pubspec.original.yaml | \
-          grep -vE 'flutter|firebase_core|firebase_auth|test|material_color_utilities' >> pubspec.yaml
+          grep -A 100 '^dependencies:' pubspec.yaml.bak | \
+          grep -vE 'flutter|firebase_core|firebase_auth|test|material_color_utilities' | \
+          grep -v '^dependencies:' >> pubspec.yaml
+
+          # Add dev dependencies if they exist
+          if grep -q '^dev_dependencies:' pubspec.yaml.bak; then
+            echo "dev_dependencies:" >> pubspec.yaml
+            grep -A 100 '^dev_dependencies:' pubspec.yaml.bak | \
+            grep -v '^dev_dependencies:' >> pubspec.yaml
+          fi
+
+          # Add flutter configuration if it exists
+          if grep -q '^flutter:' pubspec.yaml.bak; then
+            echo "flutter:" >> pubspec.yaml
+            grep -A 100 '^flutter:' pubspec.yaml.bak | \
+            grep -v '^flutter:' >> pubspec.yaml
+          fi
 
           echo "Final pubspec.yaml:"
           cat pubspec.yaml
