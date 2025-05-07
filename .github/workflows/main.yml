@@ -33,9 +33,15 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Create Perfectly Formatted pubspec.yaml
+      - name: Validate and Fix pubspec.yaml
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
+          # Validate YAML syntax first
+          if ! python3 -c "import yaml; yaml.safe_load(open('pubspec.yaml'))"; then
+            echo "::error::Original pubspec.yaml has syntax errors"
+            exit 1
+          fi
+
           # Create backup
           cp pubspec.yaml pubspec.backup.yaml
 
@@ -56,21 +62,22 @@ jobs:
             echo ""
             echo "dependencies:"
             echo "  flutter:"
-            echo "    sdk: flutter"  # Note the 4-space indentation here
-            echo "  firebase_core: \"2.24.0\""
-            echo "  firebase_auth: \"4.11.0\""
-            echo "  test: \"1.24.0\""
-            echo "  material_color_utilities: \"0.8.0\""
+            echo "    sdk: flutter"
+            echo "  firebase_core: ^2.24.0"
+            echo "  firebase_auth: ^4.11.0"
+            echo "  test: ^1.24.0"
+            echo "  material_color_utilities: ^0.8.0"
           } > pubspec.yaml
 
-          # Add other non-conflicting dependencies with proper indentation
+          # Add other dependencies with proper formatting
           awk '
             BEGIN { in_deps = 0 }
             /^dependencies:/ { in_deps = 1; next }
             /^[a-z]/ && in_deps { in_deps = 0 }
             in_deps && !/flutter:|firebase_core:|firebase_auth:|test:|material_color_utilities:/ {
-              if (!seen[$1]++) {
-                print "  " $0  # 2-space indentation for dependencies
+              if ($0 ~ /:/ && !seen[$1]++) {
+                gsub(/"/, "", $0)  # Remove quotes if present
+                print "  " $0  # 2-space indentation
               }
             }
           ' pubspec.backup.yaml >> pubspec.yaml
@@ -83,7 +90,10 @@ jobs:
               BEGIN { in_dev = 0 }
               /^dev_dependencies:/ { in_dev = 1; next }
               /^[a-z]/ && in_dev { in_dev = 0 }
-              in_dev { print "  " $0 }  # 2-space indentation
+              in_dev && $0 ~ /:/ {
+                gsub(/"/, "", $0)
+                print "  " $0  # 2-space indentation
+              }
             ' pubspec.backup.yaml >> pubspec.yaml
           fi
 
@@ -99,14 +109,16 @@ jobs:
             ' pubspec.backup.yaml >> pubspec.yaml
           fi
 
-          echo "Final pubspec.yaml contents:"
-          cat pubspec.yaml
-
-          # Verify critical indentation
-          if ! grep -q "^    sdk: flutter" pubspec.yaml; then
-            echo "::error::Flutter SDK dependency not properly indented (needs 4 spaces)"
+          # Validate the new YAML file
+          if ! python3 -c "import yaml; yaml.safe_load(open('pubspec.yaml'))"; then
+            echo "::error::Generated pubspec.yaml has syntax errors"
+            echo "Generated content:"
+            cat pubspec.yaml
             exit 1
           fi
+
+          echo "Final pubspec.yaml contents:"
+          cat pubspec.yaml
 
       - name: Resolve Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
