@@ -7,7 +7,7 @@ on:
 
 env:
   FLUTTER_VERSION: '3.22.0'
-  PROJECT_DIR: 'aurore_frontend'  # Confirmed from your screenshots
+  PROJECT_DIR: 'aurore_frontend'
 
 jobs:
   build:
@@ -20,23 +20,11 @@ jobs:
           fetch-depth: 0
 
       - name: Verify Project Structure
-        id: structure
         run: |
-          echo "Repository contents:"
-          ls -la
-          echo "Project directory contents:"
-          ls -la ${{ env.PROJECT_DIR }} || true
-          
-          # Check where pubspec.yaml exists
-          if [ -f "${{ env.PROJECT_DIR }}/pubspec.yaml" ]; then
-            echo "pubspec.yaml found in project directory"
-          elif [ -f "pubspec.yaml" ]; then
-            echo "pubspec.yaml found in root"
-            echo "PROJECT_DIR=." >> $GITHUB_ENV
-          else
-            echo "::error::pubspec.yaml not found!"
+          [ -f "${{ env.PROJECT_DIR }}/pubspec.yaml" ] || {
+            echo "::error::pubspec.yaml not found in ${{ env.PROJECT_DIR }}!"
             exit 1
-          fi
+          }
 
       - name: Setup Java 17
         uses: actions/setup-java@v3
@@ -51,27 +39,15 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
           cache: true
-          cache-key: 'flutter-${{ env.FLUTTER_VERSION }}'
 
       - name: Install yq
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y yq
+        run: sudo apt-get update && sudo apt-get install -y yq
 
-      - name: Force Compatible Versions
+      - name: Modify Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          # Verify pubspec.yaml exists
-          if [ ! -f "pubspec.yaml" ]; then
-            echo "::error::pubspec.yaml not found in ${{ env.PROJECT_DIR }}!"
-            exit 1
-          fi
-
-          # Create backup
-          cp pubspec.yaml pubspec.yaml.bak
-
-          # Update dependencies using yq
-          yq eval -i '
+          # Correct yq command with YAML format specification
+          yq eval -i -y '
             del(.dependencies.test) |
             del(.dev_dependencies.test) |
             .dev_dependencies.flutter_test.sdk = "flutter" |
@@ -81,29 +57,24 @@ jobs:
             .environment.flutter = ">=3.22.0 <4.0.0"
           ' pubspec.yaml
 
-          echo "Updated dependencies:"
-          cat pubspec.yaml | grep -E "flutter_test|firebase|sdk|flutter:"
+          echo "Modified pubspec.yaml:"
+          cat pubspec.yaml
 
       - name: Resolve Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          flutter clean
-          flutter pub get
+        run: flutter pub get
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          set -e
+          flutter clean
           flutter build apk --release \
             --no-sound-null-safety \
-            --dart-define=CI_ENV=true \
             --split-debug-info=build/symbols/ \
             --obfuscate
 
       - name: Upload Artifact
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 7
