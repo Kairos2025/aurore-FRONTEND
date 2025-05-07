@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: '3.22.0'
+  FLUTTER_VERSION: '3.22.0'  # Comes with Dart 3.4.0
   PROJECT_DIR: 'aurore_frontend'
 
 jobs:
@@ -18,13 +18,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Verify Project Structure
-        run: |
-          if [ ! -f "${{ env.PROJECT_DIR }}/pubspec.yaml" ]; then
-            echo "::error::pubspec.yaml not found in ${{ env.PROJECT_DIR }}!"
-            exit 1
-          fi
 
       - name: Setup Java 17
         uses: actions/setup-java@v3
@@ -40,41 +33,36 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Install yq
+      - name: Verify Installation
         run: |
-          sudo apt-get update
-          sudo apt-get install -y yq
+          flutter --version
+          flutter doctor -v
 
-      - name: Modify Dependencies
+      - name: Update SDK Constraints
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          # Create backup
-          cp pubspec.yaml pubspec.yaml.bak
+          # Install yq if needed
+          if ! command -v yq &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y yq
+          fi
 
-          # Correct yq command with proper file handling
-          yq eval '
-            del(.dependencies.test) |
-            del(.dev_dependencies.test) |
-            .dev_dependencies.flutter_test.sdk = "flutter" |
-            .dependencies.firebase_core = "2.24.0" |
-            .dependencies.firebase_auth = "4.11.0" |
-            .environment.sdk = ">=3.4.0 <4.0.0" |
-            .environment.flutter = ">=3.22.0 <4.0.0"
-          ' pubspec.yaml > pubspec.yaml.tmp && mv pubspec.yaml.tmp pubspec.yaml
+          # Update SDK constraints to match Flutter 3.22.0 (Dart 3.4.0)
+          yq eval '.environment.sdk = ">=3.4.0 <4.0.0"' -i pubspec.yaml
+          yq eval '.environment.flutter = ">=3.22.0 <4.0.0"' -i pubspec.yaml
 
-          echo "Modified dependencies:"
-          grep -E "flutter_test|firebase|sdk|flutter:" pubspec.yaml
+          echo "Updated SDK constraints:"
+          grep -E "sdk:|flutter:" pubspec.yaml
 
       - name: Resolve Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          flutter clean
           flutter pub get
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           set -e
+          flutter clean
           flutter build apk --release \
             --no-sound-null-safety \
             --dart-define=CI_ENV=true \
