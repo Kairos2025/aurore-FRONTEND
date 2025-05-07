@@ -33,7 +33,7 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Create Properly Formatted pubspec.yaml
+      - name: Create Perfectly Formatted pubspec.yaml
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           # Create backup
@@ -44,7 +44,7 @@ jobs:
           PROJECT_VERSION=$(grep '^version:' pubspec.yaml | sed 's/^version: *//; s/:/\\:/g' || echo '1.0.0+1')
           PROJECT_DESCRIPTION=$(grep '^description:' pubspec.yaml | sed 's/^description: *//; s/:/\\:/g' || echo '')
 
-          # Create new properly indented pubspec.yaml
+          # Create new perfectly formatted pubspec.yaml
           {
             echo "name: $PROJECT_NAME"
             echo "description: $PROJECT_DESCRIPTION"
@@ -56,7 +56,7 @@ jobs:
             echo ""
             echo "dependencies:"
             echo "  flutter:"
-            echo "    sdk: flutter"
+            echo "    sdk: flutter"  # Note the 4-space indentation here
             echo "  firebase_core: \"2.24.0\""
             echo "  firebase_auth: \"4.11.0\""
             echo "  test: \"1.24.0\""
@@ -70,7 +70,7 @@ jobs:
             /^[a-z]/ && in_deps { in_deps = 0 }
             in_deps && !/flutter:|firebase_core:|firebase_auth:|test:|material_color_utilities:/ {
               if (!seen[$1]++) {
-                print "  " $0
+                print "  " $0  # 2-space indentation for dependencies
               }
             }
           ' pubspec.backup.yaml >> pubspec.yaml
@@ -83,7 +83,7 @@ jobs:
               BEGIN { in_dev = 0 }
               /^dev_dependencies:/ { in_dev = 1; next }
               /^[a-z]/ && in_dev { in_dev = 0 }
-              in_dev { print "  " $0 }
+              in_dev { print "  " $0 }  # 2-space indentation
             ' pubspec.backup.yaml >> pubspec.yaml
           fi
 
@@ -95,31 +95,18 @@ jobs:
               BEGIN { in_flutter = 0 }
               /^flutter:/ { in_flutter = 1; next }
               /^[a-z]/ && in_flutter { in_flutter = 0 }
-              in_flutter { print "  " $0 }
+              in_flutter { print "  " $0 }  # 2-space indentation
             ' pubspec.backup.yaml >> pubspec.yaml
           fi
 
           echo "Final pubspec.yaml contents:"
           cat pubspec.yaml
 
-      - name: Verify YAML Formatting
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          # Check for basic YAML structure
-          if ! grep -q "name:" pubspec.yaml || \
-             ! grep -q "sdk:" pubspec.yaml || \
-             ! grep -q "dependencies:" pubspec.yaml; then
-            echo "::error::pubspec.yaml is missing required sections"
+          # Verify critical indentation
+          if ! grep -q "^    sdk: flutter" pubspec.yaml; then
+            echo "::error::Flutter SDK dependency not properly indented (needs 4 spaces)"
             exit 1
           fi
-          
-          # Check indentation of critical sections
-          if ! grep -q "  sdk: flutter" pubspec.yaml; then
-            echo "::error::Flutter SDK dependency not properly indented"
-            exit 1
-          fi
-          
-          echo "YAML formatting appears correct"
 
       - name: Resolve Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
