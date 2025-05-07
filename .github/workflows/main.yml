@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: '3.22.0'  # Comes with Dart 3.4.0
+  FLUTTER_VERSION: '3.22.0'
   PROJECT_DIR: 'aurore_frontend'
 
 jobs:
@@ -38,31 +38,36 @@ jobs:
           flutter --version
           flutter doctor -v
 
-      - name: Update SDK Constraints
+      - name: Enforce Compatible Versions
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          # Install yq if needed
-          if ! command -v yq &> /dev/null; then
-            sudo apt-get update && sudo apt-get install -y yq
-          fi
+          # Install yq for YAML editing
+          sudo apt-get update && sudo apt-get install -y yq
 
-          # Update SDK constraints to match Flutter 3.22.0 (Dart 3.4.0)
-          yq eval '.environment.sdk = ">=3.4.0 <4.0.0"' -i pubspec.yaml
-          yq eval '.environment.flutter = ">=3.22.0 <4.0.0"' -i pubspec.yaml
+          # Create backup
+          cp pubspec.yaml pubspec.yaml.bak
 
-          echo "Updated SDK constraints:"
-          grep -E "sdk:|flutter:" pubspec.yaml
+          # Set exact compatible versions
+          yq eval '
+            .dependencies.firebase_core = "2.24.0" |
+            .dependencies.firebase_auth = "4.11.0" |
+            .environment.sdk = ">=3.4.0 <4.0.0" |
+            .environment.flutter = ">=3.22.0 <4.0.0"
+          ' pubspec.yaml > temp.yaml && mv temp.yaml pubspec.yaml
+
+          echo "Updated dependencies:"
+          grep -E "firebase|sdk|flutter:" pubspec.yaml
 
       - name: Resolve Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
+          flutter clean
           flutter pub get
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           set -e
-          flutter clean
           flutter build apk --release \
             --no-sound-null-safety \
             --dart-define=CI_ENV=true \
