@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: '3.19.0'  # Contains Dart 3.9.0
+  FLUTTER_VERSION: '3.22.3'  # Known to include Dart 3.8.0+
   PROJECT_DIR: 'aurore_frontend'
 
 jobs:
@@ -16,41 +16,50 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup Java 17
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '17'
-          cache: 'gradle'
 
-      - name: Install Specific Flutter Version
+      - name: Install Correct Flutter Version
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
           cache: true
-          cache-key: flutter-${{ env.FLUTTER_VERSION }}
 
-      - name: Force Dart SDK Version Check
+      - name: Verify Dart Version
         run: |
-          # Remove any existing Dart installations that might interfere
-          sudo rm -rf /usr/lib/dart /usr/local/lib/dart
+          # Force correct Dart version
+          flutter upgrade --force
           
-          # Verify versions
-          echo "=== Version Check ==="
+          echo "=== Version Verification ==="
           flutter --version
           dart --version
           
-          # Ensure Dart meets minimum requirement
+          # Check Dart version meets requirements
           DART_VERSION=$(dart --version 2>&1 | awk '{print $4}')
           REQUIRED_VERSION="3.8.0"
           
           if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
-            echo "::error::Dart version $DART_VERSION is too old. Required >= $REQUIRED_VERSION"
-            exit 1
+            echo "::error::Incorrect Dart version detected: $DART_VERSION (Required >= $REQUIRED_VERSION)"
+            echo "This Flutter version should include Dart 3.8.0+"
+            echo "Trying manual Dart SDK installation..."
+            
+            # Install Dart SDK directly as fallback
+            wget https://storage.googleapis.com/dart-archive/channels/stable/release/3.8.0/sdk/dartsdk-linux-x64-release.zip
+            unzip dartsdk-linux-x64-release.zip
+            export PATH="$PWD/dart-sdk/bin:$PATH"
+            
+            # Verify again
+            NEW_DART_VERSION=$(dart --version 2>&1 | awk '{print $4}')
+            if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$NEW_DART_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
+              echo "::error::Failed to install correct Dart version"
+              exit 1
+            fi
+            echo "Successfully installed Dart $NEW_DART_VERSION"
           fi
 
       - name: Resolve Dependencies
