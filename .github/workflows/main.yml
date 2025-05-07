@@ -8,6 +8,10 @@ on:
 env:
   FLUTTER_VERSION: '3.22.0'
   PROJECT_DIR: 'aurore_frontend'
+  # Compatible Firebase versions for Flutter 3.22.0
+  FIREBASE_CORE_VERSION: '2.24.0'
+  FIREBASE_AUTH_VERSION: '4.11.0'
+  FIREBASE_ANALYTICS_VERSION: '10.4.0'
 
 jobs:
   build:
@@ -39,45 +43,43 @@ jobs:
           flutter --version
           flutter doctor -v
 
-      - name: Standardize Dependencies
+      - name: Enforce Compatible Versions
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          # Install yq for YAML processing
+          # Install yq for reliable YAML editing
           sudo snap install yq || sudo apt-get install -y yq
 
-          # Create backup
+          # Backup original file
           cp pubspec.yaml pubspec.yaml.bak
 
-          # Force all test package references to use the same version
-          yq eval 'del(.dev_dependencies.test)' -i pubspec.yaml
-          yq eval '.dependencies.test = "1.24.0"' -i pubspec.yaml
-          yq eval '.dev_dependencies.flutter_test.sdk = "flutter"' -i pubspec.yaml
+          # Update Firebase dependencies
+          yq eval ".dependencies.firebase_core = \"${{ env.FIREBASE_CORE_VERSION }}\"" -i pubspec.yaml
+          yq eval ".dependencies.firebase_auth = \"${{ env.FIREBASE_AUTH_VERSION }}\"" -i pubspec.yaml
+          yq eval ".dependencies.firebase_analytics = \"${{ env.FIREBASE_ANALYTICS_VERSION }}\"" -i pubspec.yaml
 
-          # Set other critical dependencies
+          # Update other critical dependencies
+          yq eval '.dependencies.test = "1.24.0"' -i pubspec.yaml
           yq eval '.environment.sdk = ">=3.4.0 <4.0.0"' -i pubspec.yaml
           yq eval '.environment.flutter = ">=3.22.0 <4.0.0"' -i pubspec.yaml
 
           # Verify changes
-          echo "Modified dependencies:"
-          grep -E "test:|flutter_test:" pubspec.yaml
+          echo "Updated dependencies:"
+          grep -E "firebase|test|sdk|flutter:" pubspec.yaml
 
       - name: Resolve Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          # Remove lockfile to ensure clean resolution
-          rm -f pubspec.lock
+          # Clean up and get dependencies
+          flutter clean
+          flutter pub get
           
-          # Get dependencies with retry logic
-          flutter pub get || (echo "First attempt failed, retrying..." && flutter pub get)
-          
-          # Verify resolution
-          flutter pub outdated --mode=null-safety
+          # Verify dependency tree
+          flutter pub deps
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           set -e
-          flutter clean
           flutter build apk --release \
             --no-sound-null-safety \
             --dart-define=CI_ENV=true \
