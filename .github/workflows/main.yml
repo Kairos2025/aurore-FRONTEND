@@ -33,7 +33,7 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Create Valid pubspec.yaml
+      - name: Create Clean pubspec.yaml
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           # Create backup
@@ -44,7 +44,7 @@ jobs:
           PROJECT_VERSION=$(grep '^version:' pubspec.yaml | sed 's/^version: *//; s/:/\\:/g' || echo '1.0.0+1')
           PROJECT_DESCRIPTION=$(grep '^description:' pubspec.yaml | sed 's/^description: *//; s/:/\\:/g' || echo '')
 
-          # Create new pubspec.yaml with proper YAML structure
+          # Create new pubspec.yaml with core configuration
           {
             echo "name: $PROJECT_NAME"
             echo "description: $PROJECT_DESCRIPTION"
@@ -63,55 +63,54 @@ jobs:
             echo "  material_color_utilities: \"0.8.0\""
           } > pubspec.yaml
 
-          # Add other non-conflicting dependencies with proper indentation
-          grep -A 100 '^dependencies:' pubspec.backup.yaml | \
-          grep -vE 'flutter:|firebase_core:|firebase_auth:|test:|material_color_utilities:' | \
-          grep -v '^dependencies:' | \
-          while read -r line; do
-            # Skip empty lines and comments, maintain indentation
-            if [[ -n "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
-              echo "  $line" >> pubspec.yaml
-            fi
-          done
+          # Add other dependencies, removing duplicates
+          awk '
+            BEGIN { in_deps = 0 }
+            /^dependencies:/ { in_deps = 1; next }
+            /^[a-z]/ && in_deps { in_deps = 0 }
+            in_deps && !/flutter:|firebase_core:|firebase_auth:|test:|material_color_utilities:/ {
+              if (!seen[$1]++) {
+                print "  " $0
+              }
+            }
+          ' pubspec.backup.yaml >> pubspec.yaml
 
           # Add dev_dependencies if they exist
           if grep -q '^dev_dependencies:' pubspec.backup.yaml; then
             echo "" >> pubspec.yaml
             echo "dev_dependencies:" >> pubspec.yaml
-            grep -A 100 '^dev_dependencies:' pubspec.backup.yaml | \
-            grep -v '^dev_dependencies:' | \
-            while read -r line; do
-              if [[ -n "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
-                echo "  $line" >> pubspec.yaml
-              fi
-            done
+            awk '
+              BEGIN { in_dev = 0 }
+              /^dev_dependencies:/ { in_dev = 1; next }
+              /^[a-z]/ && in_dev { in_dev = 0 }
+              in_dev { print "  " $0 }
+            ' pubspec.backup.yaml >> pubspec.yaml
           fi
 
           # Add flutter configuration if it exists
           if grep -q '^flutter:' pubspec.backup.yaml; then
             echo "" >> pubspec.yaml
             echo "flutter:" >> pubspec.yaml
-            grep -A 100 '^flutter:' pubspec.backup.yaml | \
-            grep -v '^flutter:' | \
-            while read -r line; do
-              if [[ -n "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
-                echo "  $line" >> pubspec.yaml
-              fi
-            done
+            awk '
+              BEGIN { in_flutter = 0 }
+              /^flutter:/ { in_flutter = 1; next }
+              /^[a-z]/ && in_flutter { in_flutter = 0 }
+              in_flutter { print "  " $0 }
+            ' pubspec.backup.yaml >> pubspec.yaml
           fi
 
           echo "Final pubspec.yaml contents:"
           cat pubspec.yaml
 
-      - name: Validate YAML Structure
+      - name: Verify Dependency Versions
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          # Simple validation that doesn't require Python
-          if ! grep -q "name:" pubspec.yaml || ! grep -q "sdk:" pubspec.yaml; then
-            echo "::error::pubspec.yaml is missing required fields"
+          echo "Critical versions:"
+          grep -E "sdk:|flutter:|firebase|test|material_color_utilities" pubspec.yaml
+          if ! grep -q "sdk: \">=3.4.0 <4.0.0\"" pubspec.yaml; then
+            echo "::error::SDK version not properly set!"
             exit 1
           fi
-          echo "YAML structure appears valid"
 
       - name: Resolve Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
