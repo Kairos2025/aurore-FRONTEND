@@ -36,7 +36,10 @@ jobs:
       - name: Create Compatible Configuration
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          # Extract project metadata
+          # Create backup
+          cp pubspec.yaml pubspec.backup.yaml
+
+          # Extract project metadata from original file
           PROJECT_NAME=$(grep '^name:' pubspec.yaml | sed 's/^name: *//')
           PROJECT_VERSION=$(grep '^version:' pubspec.yaml | sed 's/^version: *//' || echo '1.0.0+1')
           PROJECT_DESCRIPTION=$(grep '^description:' pubspec.yaml | sed 's/^description: *//' || echo '')
@@ -60,22 +63,22 @@ jobs:
             material_color_utilities: "0.8.0"
           EOF
 
-          # Add other non-conflicting dependencies
-          grep -A 100 '^dependencies:' pubspec.yaml.bak | \
+          # Add other non-conflicting dependencies from original
+          grep -A 100 '^dependencies:' pubspec.backup.yaml | \
           grep -vE 'flutter|firebase_core|firebase_auth|test|material_color_utilities' | \
           grep -v '^dependencies:' >> pubspec.yaml
 
           # Add dev dependencies if they exist
-          if grep -q '^dev_dependencies:' pubspec.yaml.bak; then
+          if grep -q '^dev_dependencies:' pubspec.backup.yaml; then
             echo "dev_dependencies:" >> pubspec.yaml
-            grep -A 100 '^dev_dependencies:' pubspec.yaml.bak | \
+            grep -A 100 '^dev_dependencies:' pubspec.backup.yaml | \
             grep -v '^dev_dependencies:' >> pubspec.yaml
           fi
 
           # Add flutter configuration if it exists
-          if grep -q '^flutter:' pubspec.yaml.bak; then
+          if grep -q '^flutter:' pubspec.backup.yaml; then
             echo "flutter:" >> pubspec.yaml
-            grep -A 100 '^flutter:' pubspec.yaml.bak | \
+            grep -A 100 '^flutter:' pubspec.backup.yaml | \
             grep -v '^flutter:' >> pubspec.yaml
           fi
 
