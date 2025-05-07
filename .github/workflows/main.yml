@@ -21,10 +21,10 @@ jobs:
 
       - name: Verify Project Structure
         run: |
-          [ -f "${{ env.PROJECT_DIR }}/pubspec.yaml" ] || {
+          if [ ! -f "${{ env.PROJECT_DIR }}/pubspec.yaml" ]; then
             echo "::error::pubspec.yaml not found in ${{ env.PROJECT_DIR }}!"
             exit 1
-          }
+          fi
 
       - name: Setup Java 17
         uses: actions/setup-java@v3
@@ -41,13 +41,18 @@ jobs:
           cache: true
 
       - name: Install yq
-        run: sudo apt-get update && sudo apt-get install -y yq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yq
 
       - name: Modify Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          # Correct yq command with YAML format specification
-          yq eval -i -y '
+          # Create backup
+          cp pubspec.yaml pubspec.yaml.bak
+
+          # Correct yq command with proper file handling
+          yq eval '
             del(.dependencies.test) |
             del(.dev_dependencies.test) |
             .dev_dependencies.flutter_test.sdk = "flutter" |
@@ -55,26 +60,31 @@ jobs:
             .dependencies.firebase_auth = "4.11.0" |
             .environment.sdk = ">=3.4.0 <4.0.0" |
             .environment.flutter = ">=3.22.0 <4.0.0"
-          ' pubspec.yaml
+          ' pubspec.yaml > pubspec.yaml.tmp && mv pubspec.yaml.tmp pubspec.yaml
 
-          echo "Modified pubspec.yaml:"
-          cat pubspec.yaml
+          echo "Modified dependencies:"
+          grep -E "flutter_test|firebase|sdk|flutter:" pubspec.yaml
 
       - name: Resolve Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
-        run: flutter pub get
+        run: |
+          flutter clean
+          flutter pub get
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          flutter clean
+          set -e
           flutter build apk --release \
             --no-sound-null-safety \
+            --dart-define=CI_ENV=true \
             --split-debug-info=build/symbols/ \
             --obfuscate
 
       - name: Upload Artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
