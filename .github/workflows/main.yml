@@ -1,4 +1,4 @@
-name: Flutter APK Builder (Fixed Dart SDK Installation)
+name: Flutter APK Builder (Verified)
 
 on:
   push:
@@ -9,6 +9,7 @@ env:
   PROJECT_DIR: 'aurore_frontend'
   FLUTTER_VERSION: '3.16.9'
   FLUTTER_HOME: '/opt/flutter'
+  DART_VERSION: '3.8.6'
   DART_SDK_URL: 'https://storage.googleapis.com/flutter_infra_release/flutter/f40e976bedff57e69e1b3d89a7c2a3c617a03dad/dart-sdk-linux-x64.zip'
 
 jobs:
@@ -42,13 +43,15 @@ jobs:
           # Add to PATH
           echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
 
-      - name: Install Dart SDK
+      - name: Download and Install Dart SDK
         run: |
           # Remove existing Dart SDK
           sudo rm -rf ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk
           
-          # Download Dart SDK
-          wget ${{ env.DART_SDK_URL }} -O dart-sdk.zip
+          # Download Dart SDK with retry logic
+          for i in {1..3}; do
+            wget ${{ env.DART_SDK_URL }} -O dart-sdk.zip && break || sleep 30
+          done
           
           # Verify download
           if ! unzip -t dart-sdk.zip; then
@@ -56,19 +59,18 @@ jobs:
             exit 1
           fi
           
-          # Extract to temporary directory first
-          mkdir -p ${{ env.FLUTTER_HOME }}/bin/cache/temp-dart-sdk
-          unzip dart-sdk.zip -d ${{ env.FLUTTER_HOME }}/bin/cache/temp-dart-sdk
+          # Extract directly to correct location
+          unzip dart-sdk.zip -d ${{ env.FLUTTER_HOME }}/bin/cache/
           
-          # Move contents to correct location
-          if [ -d "${{ env.FLUTTER_HOME }}/bin/cache/temp-dart-sdk/dart-sdk" ]; then
-            mv ${{ env.FLUTTER_HOME }}/bin/cache/temp-dart-sdk/dart-sdk ${{ env.FLUTTER_HOME }}/bin/cache/
-          else
-            mv ${{ env.FLUTTER_HOME }}/bin/cache/temp-dart-sdk/* ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk
+          # Handle nested directory structure if exists
+          if [ -d "${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk" ]; then
+            if [ -d "${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/dart-sdk" ]; then
+              mv ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/dart-sdk ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk-temp
+              rm -rf ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk
+              mv ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk-temp ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk
+            fi
           fi
           
-          # Cleanup
-          rm -rf ${{ env.FLUTTER_HOME }}/bin/cache/temp-dart-sdk
           rm dart-sdk.zip
           
           # Verify installation
@@ -77,16 +79,16 @@ jobs:
 
       - name: Configure Flutter
         run: |
-          # Disable automatic Dart SDK updates
-          echo "disable-dart-sdk-update=true" > ${{ env.FLUTTER_HOME }}/bin/internal/engine.version
+          # Create engine.version file with correct format
+          echo "engine.version=f40e976bedff57e69e1b3d89a7c2a3c617a03dad" > ${{ env.FLUTTER_HOME }}/bin/internal/engine.version
+          echo "disable-dart-sdk-update=true" >> ${{ env.FLUTTER_HOME }}/bin/internal/engine.version
           
           # Verify installation
           ${{ env.FLUTTER_HOME }}/bin/flutter --version
-          DART_VERSION=$(${{ env.FLUTTER_HOME }}/bin/dart --version 2>&1 | awk '{print $4}')
-          REQUIRED="3.8.0"
+          DART_ACTUAL=$(${{ env.FLUTTER_HOME }}/bin/dart --version 2>&1 | awk '{print $4}')
           
-          if [ "$(printf '%s\n' "$REQUIRED" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED" ]; then
-            echo "::error::Dart version $DART_VERSION < required $REQUIRED"
+          if [ "$DART_ACTUAL" != "${{ env.DART_VERSION }}" ]; then
+            echo "::error::Dart version mismatch! Actual: $DART_ACTUAL, Required: ${{ env.DART_VERSION }}"
             exit 1
           fi
 
