@@ -17,11 +17,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Java (Pre-installed)
-        run: |
-          # Verify existing Java installation
-          java -version
-          javac -version
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
@@ -30,12 +31,13 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Setup Android (Fast)
+      - name: Setup Android (Robust)
         run: |
           mkdir -p ~/.android
           touch ~/.android/repositories.cfg
-          yes | sdkmanager --licenses >/dev/null 2>&1
-          flutter doctor --android-licenses
+          # Handle license acceptance more robustly
+          (yes || true) | sdkmanager --licenses >/dev/null 2>&1
+          flutter doctor --android-licenses -y
 
       - name: Install Build Dependencies
         run: |
