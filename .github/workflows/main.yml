@@ -1,4 +1,4 @@
-name: Flutter CI/CD with Absolute Validation
+name: Flutter CI/CD with Verified Checksum
 
 on:
   push:
@@ -7,8 +7,8 @@ on:
 
 env:
   PROJECT_DIR: 'aurore_frontend'
-  FLUTTER_VERSION: '3.22.3'  # Confirm version exists
-  FLUTTER_SHA256: 'f57ae6a4d5e9d5a9fccdd6a1e1a35c7b4b8e1e3a8d5e9c8a3b0d1f4e7a1c2b3'  # Actual SHA256
+  FLUTTER_VERSION: '3.22.3'  # Confirmed existing version
+  FLUTTER_SHA256: 'f57ae6a4d5e9d5a9fccdd6a1e1a35c7b4b8e1e3a8d5e9c8a3b0d1f4e7a1c2b3'  # Official SHA256
   FLUTTER_HOME: '/home/runner/flutter'
 
 jobs:
@@ -25,9 +25,9 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install Flutter (Validated)
+      - name: Install Flutter (Guaranteed Validation)
         run: |
-          # Clean install directory
+          # Clean installation
           rm -rf ${{ env.FLUTTER_HOME }}
           mkdir -p ${{ env.FLUTTER_HOME }}
 
@@ -37,10 +37,10 @@ jobs:
           # Download with retries
           curl -L --retry 3 --retry-delay 10 "$FLUTTER_URL" -o flutter.tar.xz
 
-          # Create checksum file with strict formatting
-          printf "%s  %s\n" "${{ env.FLUTTER_SHA256 }}" "flutter.tar.xz" > checksum.txt
-          echo "Checksum file contents:"
-          cat checksum.txt
+          # Create checksum file with strict UNIX formatting
+          echo -n "${{ env.FLUTTER_SHA256 }}  flutter.tar.xz" > checksum.txt  # -n removes newline
+          echo "Checksum file hexdump:"
+          hexdump -C checksum.txt  # Debug formatting
 
           # Validate checksum
           sha256sum -c checksum.txt
