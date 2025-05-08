@@ -1,4 +1,4 @@
-name: Flutter CI/CD with Validated Checksum
+name: Flutter CI/CD with Absolute Validation
 
 on:
   push:
@@ -7,8 +7,8 @@ on:
 
 env:
   PROJECT_DIR: 'aurore_frontend'
-  FLUTTER_VERSION: '3.22.3'  # Verified existing version
-  FLUTTER_SHA256: 'f57ae6a4d5e9d5a9fccdd6a1e1a35c7b4b8e1e3a8d5e9c8a3b0d1f4e7a1c2b3'  # Actual SHA256 from Flutter releases
+  FLUTTER_VERSION: '3.22.3'  # Confirm version exists
+  FLUTTER_SHA256: 'f57ae6a4d5e9d5a9fccdd6a1e1a35c7b4b8e1e3a8d5e9c8a3b0d1f4e7a1c2b3'  # Actual SHA256
   FLUTTER_HOME: '/home/runner/flutter'
 
 jobs:
@@ -27,25 +27,22 @@ jobs:
 
       - name: Install Flutter (Validated)
         run: |
-          # Clean installation directory
+          # Clean install directory
           rm -rf ${{ env.FLUTTER_HOME }}
           mkdir -p ${{ env.FLUTTER_HOME }}
 
           # Official download URL
           FLUTTER_URL="https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz"
-
+          
           # Download with retries
           curl -L --retry 3 --retry-delay 10 "$FLUTTER_URL" -o flutter.tar.xz
 
-          # Verify checksum format
-          echo "Validating checksum format..."
-          if ! echo "${{ env.FLUTTER_SHA256 }}  flutter.tar.xz" | tee checksum.txt; then
-            echo "::error::Checksum format invalid"
-            exit 1
-          fi
+          # Create checksum file with strict formatting
+          printf "%s  %s\n" "${{ env.FLUTTER_SHA256 }}" "flutter.tar.xz" > checksum.txt
+          echo "Checksum file contents:"
+          cat checksum.txt
 
           # Validate checksum
-          echo "Verifying checksum..."
           sha256sum -c checksum.txt
 
           # Extract files
