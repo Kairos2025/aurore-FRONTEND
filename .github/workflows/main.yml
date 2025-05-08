@@ -1,4 +1,4 @@
-name: Flutter APK Builder (Enforced Dart 3.8.0+)
+name: Flutter APK Builder (Absolute Version Enforcement)
 
 on:
   push:
@@ -7,17 +7,24 @@ on:
 
 env:
   PROJECT_DIR: 'aurore_frontend'
-  # Using exact Flutter version that contains Dart 3.8.0+
   FLUTTER_VERSION: '3.16.9'  # Contains Dart 3.8.6
-  FLUTTER_HOME: '/home/runner/flutter'
+  FLUTTER_HOME: '/home/runner/flutter_new'  # Different location to avoid cache
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Purge All Existing Flutter Installations
+        run: |
+          sudo rm -rf /usr/local/flutter
+          sudo rm -rf /opt/hostedtoolcache/flutter
+          sudo rm -rf $HOME/flutter
+          sudo rm -rf $HOME/.flutter
+          sudo rm -rf $HOME/.pub-cache
 
       - name: Set up Java 17
         uses: actions/setup-java@v3
@@ -25,52 +32,45 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Force Install Correct Flutter Version
+      - name: Install Flutter from Official Archive
         run: |
-          # Completely clean install
-          sudo rm -rf ${{ env.FLUTTER_HOME }}
-          sudo rm -rf /usr/local/flutter
+          # Download specific version from official archive
+          wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz
+          tar xf flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz
+          mv flutter ${{ env.FLUTTER_HOME }}
           
-          # Install specific version
-          git clone https://github.com/flutter/flutter.git \
-            -b ${{ env.FLUTTER_VERSION }} \
-            --depth 1 \
-            ${{ env.FLUTTER_HOME }}
-          
-          # Add to system PATH
+          # Add to PATH
           echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
           echo "${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/bin" >> $GITHUB_PATH
-          echo "FLUTTER_ROOT=${{ env.FLUTTER_HOME }}" >> $GITHUB_ENV
 
-      - name: Verify Installation
+      - name: Force Version Verification
         run: |
-          # Force PATH update
-          export PATH="${{ env.FLUTTER_HOME }}/bin:$PATH"
-          
-          echo "=== Version Verification ==="
-          flutter --version
-          dart --version
+          # Absolute path to avoid any PATH issues
+          ${{ env.FLUTTER_HOME }}/bin/flutter --version
+          ${{ env.FLUTTER_HOME }}/bin/dart --version
           
           # Strict version check
-          DART_VERSION=$(dart --version 2>&1 | awk '{print $4}')
+          DART_VERSION=$(${{ env.FLUTTER_HOME }}/bin/dart --version 2>&1 | awk '{print $4}')
           REQUIRED="3.8.0"
           if [ "$(printf '%s\n' "$REQUIRED" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED" ]; then
-            echo "::error::CRITICAL: Wrong Dart version $DART_VERSION"
-            echo "Flutter ${{ env.FLUTTER_VERSION }} should provide Dart ≥3.8.0"
-            echo "Forcing version check failure..."
+            echo "::error::VERSION MISMATCH: Dart $DART_VERSION detected!"
+            echo "This should be impossible with Flutter ${{ env.FLUTTER_VERSION }}"
+            echo "Please report this to GitHub Actions support"
             exit 1
           fi
 
       - name: Accept Android Licenses
         run: |
-          yes | sdkmanager --licenses
-          yes | flutter doctor --android-licenses
+          mkdir -p ~/.android
+          touch ~/.android/repositories.cfg
+          yes | ${{ env.FLUTTER_HOME }}/bin/sdkmanager --licenses
+          yes | ${{ env.FLUTTER_HOME }}/bin/flutter doctor --android-licenses
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          flutter pub get
-          flutter build apk \
+          ${{ env.FLUTTER_HOME }}/bin/flutter pub get
+          ${{ env.FLUTTER_HOME }}/bin/flutter build apk \
             --release \
             --shrink \
             --target-platform android-arm,android-arm64
