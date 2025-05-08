@@ -1,4 +1,4 @@
-name: Flutter CI/CD with Correct Download URL
+name: Flutter CI/CD with Direct Installation
 
 on:
   push:
@@ -24,30 +24,20 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install Flutter (Correct URL)
+      - name: Install Flutter (Direct Method)
         run: |
           # Clean installation
           rm -rf ${{ env.FLUTTER_HOME }}
           mkdir -p ${{ env.FLUTTER_HOME }}
 
-          # CORRECT download URL format
-          FLUTTER_URL="https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz"
+          # Install Flutter using official script
+          git clone https://github.com/flutter/flutter.git -b ${{ env.FLUTTER_VERSION }} --depth 1 ${{ env.FLUTTER_HOME }}
           
-          # Download with retries and progress
-          echo "Downloading Flutter from: $FLUTTER_URL"
-          curl -L --retry 3 --progress-bar "$FLUTTER_URL" -o flutter.tar.xz
-          
-          # Verify download size (minimum 700MB expected)
-          FILE_SIZE=$(stat -c%s flutter.tar.xz)
-          if [ "$FILE_SIZE" -lt 700000000 ]; then
-            echo "::error::Downloaded file is too small ($FILE_SIZE bytes), likely corrupted"
-            exit 1
-          fi
-          
-          # Extract with validation
-          echo "Extracting Flutter..."
-          tar -xJf flutter.tar.xz -C ${{ env.FLUTTER_HOME }} --strip-components=1
+          # Add to PATH
           echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
+          
+          # Pre-download dependencies
+          flutter precache
 
       - name: Verify Installation
         run: |
