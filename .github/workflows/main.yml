@@ -1,4 +1,4 @@
-name: Flutter APK Builder (Complete Setup)
+name: Flutter APK Builder (Alternative Dart Source)
 
 on:
   push:
@@ -42,17 +42,20 @@ jobs:
           # Add to PATH
           echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
 
-      - name: Install Correct Dart SDK
+      - name: Install Dart SDK from Flutter Engine
         run: |
           # Remove existing Dart SDK
           sudo rm -rf ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk
           
-          # Download Dart SDK from verified source
-          DART_BUILD="3.8.6"
-          wget https://storage.googleapis.com/dart-archive/channels/stable/release/$DART_BUILD/sdk/dartsdk-linux-x64-release.zip -O dart-sdk.zip
-          unzip dart-sdk.zip -d ${{ env.FLUTTER_HOME }}/bin/cache/
+          # Get engine version from Flutter
+          ENGINE_VERSION=$(grep 'engine.version' ${{ env.FLUTTER_HOME }}/bin/internal/engine.version | cut -d'=' -f2)
+          echo "Using Flutter engine version: $ENGINE_VERSION"
+          
+          # Download Dart SDK from Flutter's infrastructure
+          wget https://storage.googleapis.com/flutter_infra_release/flutter/$ENGINE_VERSION/dart-sdk-linux-x64.zip
+          unzip dart-sdk-linux-x64.zip -d ${{ env.FLUTTER_HOME }}/bin/cache/
           mv ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk* ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk
-          rm dart-sdk.zip
+          rm dart-sdk-linux-x64.zip
           
           # Verify installation
           ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/bin/dart --version
