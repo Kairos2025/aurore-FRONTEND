@@ -1,4 +1,4 @@
-name: Flutter APK Builder (Stable)
+name: Flutter APK Builder (Docker-Enforced)
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
 env:
   PROJECT_DIR: 'aurore_frontend'
   FLUTTER_VERSION: '3.19.5'  # Contains Dart 3.9.5
-  FLUTTER_HOME: '/opt/flutter'
+  DOCKER_IMAGE: 'ghcr.io/cirruslabs/flutter:${{ env.FLUTTER_VERSION }}'
 
 jobs:
   build:
@@ -18,57 +18,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Java
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'zulu'
-          java-version: '17'
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
-      - name: Install Flutter (Official Method)
+      - name: Verify Docker Image
         run: |
-          # Clean environment
-          sudo rm -rf /usr/local/flutter
-          sudo rm -rf /opt/hostedtoolcache/flutter
-          
-          # Install using Flutter's official installation method
-          git clone https://github.com/flutter/flutter.git -b ${{ env.FLUTTER_VERSION }} --depth 1 ${{ env.FLUTTER_HOME }}
-          
-          # Add to PATH
-          echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
-          echo "${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/bin" >> $GITHUB_PATH
+          docker pull ${{ env.DOCKER_IMAGE }}
+          docker run --rm ${{ env.DOCKER_IMAGE }} flutter --version
+          docker run --rm ${{ env.DOCKER_IMAGE }} dart --version
 
-      - name: Verify Installation
+      - name: Build APK in Docker
         run: |
-          # Basic version checks
-          /opt/flutter/bin/flutter --version
-          /opt/flutter/bin/dart --version
-          
-          # Strict version check
-          DART_VERSION=$(/opt/flutter/bin/dart --version 2>&1 | awk '{print $4}')
-          REQUIRED="3.8.0"
-          if [ "$(printf '%s\n' "$REQUIRED" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED" ]; then
-            echo "::error::Dart version $DART_VERSION < required $REQUIRED"
-            echo "Debug info:"
-            echo "Flutter path: $(which flutter)"
-            echo "Dart path: $(which dart)"
-            ls -la /opt/flutter/bin/cache/dart-sdk
-            exit 1
-          fi
+          docker run \
+            --rm \
+            --volume=${{ github.workspace }}:/app \
+            --workdir=/app/${{ env.PROJECT_DIR }} \
+            ${{ env.DOCKER_IMAGE }} \
+            /bin/bash -c "
+            flutter pub get &&
+            flutter build apk --release --shrink &&
+            chmod -R a+rw /app/${{ env.PROJECT_DIR }}/build
+            "
 
-      - name: Setup Android Licenses
-        run: |
-          mkdir -p ~/.android
-          touch ~/.android/repositories.cfg
-          yes | /opt/flutter/bin/sdkmanager --licenses || true
-          yes | /opt/flutter/bin/flutter doctor --android-licenses || true
-
-      - name: Build APK
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          /opt/flutter/bin/flutter pub get
-          /opt/flutter/bin/flutter build apk --release --shrink
-
-      - name: Upload APK
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release
