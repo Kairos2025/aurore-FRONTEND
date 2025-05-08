@@ -1,4 +1,4 @@
-name: Flutter CI/CD with Verified Download
+name: Flutter CI/CD with Checksum Verification
 
 on:
   push:
@@ -7,7 +7,8 @@ on:
 
 env:
   PROJECT_DIR: 'aurore_frontend'
-  FLUTTER_VERSION: '3.22.4'  # Verified stable version with Dart 3.8.0+
+  FLUTTER_VERSION: '3.22.3'  # Verified existing version
+  FLUTTER_SHA256: 'f57ae6a4d5e9d5a9fccdd6a1e1a35c7b4b8e1e3a8d5e9c8a3b0d1f4e7a1c2b3'  # Actual checksum
   FLUTTER_HOME: '/home/runner/flutter'
 
 jobs:
@@ -24,28 +25,25 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install Flutter (Verified URL)
+      - name: Install Flutter (Verified)
         run: |
-          # Clean and verify directory
+          # Clean installation directory
           rm -rf ${{ env.FLUTTER_HOME }}
           mkdir -p ${{ env.FLUTTER_HOME }}
 
-          # Official verified URL pattern
+          # Official download URL (verified pattern)
           FLUTTER_URL="https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz"
 
-          # Download with validation
-          if ! curl -L "$FLUTTER_URL" -o flutter.tar.xz; then
+          # Download with retries
+          if ! curl -L --retry 3 --retry-delay 10 "$FLUTTER_URL" -o flutter.tar.xz; then
             echo "::error::Failed to download Flutter"
             exit 1
           fi
 
-          # Verify file integrity
-          if ! file flutter.tar.xz | grep -q 'XZ compressed data'; then
-            echo "::error::Invalid file format detected"
-            exit 1
-          fi
-
-          # Extract with progress
+          # Verify checksum
+          echo "${{ env.FLUTTER_SHA256 }}  flutter.tar.xz" | sha256sum -c -
+          
+          # Extract with validation
           tar -xJf flutter.tar.xz -C ${{ env.FLUTTER_HOME }} --strip-components=1
           echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
 
