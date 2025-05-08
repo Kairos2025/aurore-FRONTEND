@@ -1,4 +1,4 @@
-name: Ultimate Flutter CI/CD Pipeline
+name: Flutter CI/CD with Absolute Path Safety
 
 on:
   push:
@@ -7,114 +7,73 @@ on:
 
 env:
   PROJECT_DIR: 'aurore_frontend'
-  REQUIRED_DART: '3.8.0'
-  FLUTTER_VERSIONS: '3.30.0 3.29.3 3.28.0'  # Fallback order
+  FLUTTER_VERSION: '3.30.0'  # Contains Dart 3.8.0+
+  FLUTTER_HOME: '/home/runner/flutter'  # Absolute path
 
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Java (Cached)
+      - name: Setup Java
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '17'
           cache: 'gradle'
 
-      - name: Install Flutter with Multi-Layer Fallback
-        id: install-flutter
+      - name: Install Flutter (Absolute Path)
         run: |
-          # Try official action first
-          for version in $FLUTTER_VERSIONS; do
-            echo "Attempting Flutter $version via official action"
-            if flutter_version=$version bash -xc " \
-              curl -s https://raw.githubusercontent.com/subosito/flutter-action/main/setup.sh | bash -s -- -p -a x64"; then
-              echo "FLUTTER_VERSION=$version" >> $GITHUB_ENV
-              echo "$HOME/flutter/bin" >> $GITHUB_PATH
-              exit 0
-            fi
-            echo "::warning::Failed to install Flutter $version through action"
-          done
-
-          # Fallback to direct download
-          for version in $FLUTTER_VERSIONS; do
-            echo "Trying direct download for Flutter $version"
-            FLUTTER_ZIP="https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_$version-stable.tar.xz"
-            if curl -sI $FLUTTER_ZIP | grep -q "200 OK"; then
-              curl -L $FLUTTER_ZIP | tar -C $HOME -xJ
-              echo "$HOME/flutter/bin" >> $GITHUB_PATH
-              echo "FLUTTER_VERSION=$version" >> $GITHUB_ENV
-              exit 0
-            fi
-          done
-
-          echo "::error::All installation methods failed"
-          exit 1
-
-      - name: Validate Environment
-        run: |
-          # Verify Flutter
-          if ! command -v flutter &> /dev/null; then
-            echo "::error::Flutter not found in PATH"
+          # Clean previous installations
+          rm -rf ${{ env.FLUTTER_HOME }}
+          
+          # Download from primary source
+          FLUTTER_URL="https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz"
+          
+          echo "Downloading Flutter from: $FLUTTER_URL"
+          curl -L $FLUTTER_URL | tar -xJ -C /home/runner
+          
+          # Verify extraction
+          if [ ! -d "${{ env.FLUTTER_HOME }}/bin" ]; then
+            echo "::error::Flutter not extracted correctly"
             exit 1
           fi
+          
+          # Add to PATH permanently
+          echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
+          echo "FLUTTER_ROOT=${{ env.FLUTTER_HOME }}" >> $GITHUB_ENV
 
-          # Verify Dart version
+      - name: Validate Installation
+        run: |
+          # Verify flutter command
+          if ! command -v flutter >/dev/null; then
+            echo "::error::Flutter not in PATH"
+            echo "Current PATH: $PATH"
+            exit 1
+          fi
+          
+          # Verify dart version
           DART_VERSION=$(dart --version 2>&1 | awk '/Dart SDK version:/ {print $4}')
-          if [ -z "$DART_VERSION" ]; then
-            echo "::error::Failed to get Dart version"
+          REQUIRED="3.8.0"
+          
+          if [ "$(printf '%s\n' "$REQUIRED" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED" ]; then
+            echo "::error::Dart $DART_VERSION < $REQUIRED"
             exit 1
           fi
 
-          if [ "$(printf '%s\n' "$REQUIRED_DART" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED_DART" ]; then
-            echo "::error::Insufficient Dart version: $DART_VERSION < $REQUIRED_DART"
-            exit 1
-          fi
-
-          echo "Validated Flutter $(flutter --version)"
-          echo "Validated Dart $DART_VERSION"
-
-      - name: Configure Android (Non-Interactive)
+      - name: Configure Android
         run: |
           mkdir -p ~/.android
           echo -e "8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e" > ~/.android/licenses.properties
-          yes | sdkmanager --licenses >/dev/null 2>&1 || true
 
-      - name: Install Essential Dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends \
-            libgtk-3-dev \
-            clang \
-            cmake \
-            ninja-build 2>/dev/null
-
-      - name: Cache Dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.pub-cache
-            ${{ env.PROJECT_DIR }}/.dart_tool
-            ${{ env.PROJECT_DIR }}/build
-          key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.lock') }}
-
-      - name: Resolve Packages
+      - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          flutter pub get --offline || flutter pub get
-
-      - name: Build APK (Optimized)
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          flutter build apk --release \
-            --no-sound-null-safety \
-            --shrink \
-            --obfuscate \
-            --dart-define=CI_ENV=true \
-            --split-debug-info=build/debug-info
+          flutter pub get
+          flutter build apk --release --no-sound-null-safety --shrink
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
