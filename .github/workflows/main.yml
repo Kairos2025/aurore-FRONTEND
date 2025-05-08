@@ -1,4 +1,4 @@
-name: Flutter APK Builder (Version-Enforced Docker)
+name: Flutter APK Builder (Verified Docker)
 
 on:
   push:
@@ -7,23 +7,23 @@ on:
 
 env:
   PROJECT_DIR: 'aurore_frontend'
-  # Using exact image tag that contains Dart 3.9.5
-  DOCKER_IMAGE: 'ghcr.io/cirruslabs/flutter:3.19.5'
+  # Using specifically tagged image with Dart 3.9.5
+  DOCKER_IMAGE: 'alefcarlos/flutter:3.19.5-dart-3.9.5'
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify Docker Image Contents
+      - name: Verify Docker Image
         run: |
           docker pull ${{ env.DOCKER_IMAGE }}
           docker run --rm ${{ env.DOCKER_IMAGE }} flutter --version
           docker run --rm ${{ env.DOCKER_IMAGE }} dart --version
-          # Verify Dart version meets requirements
+          # Strict version check
           DART_VERSION=$(docker run --rm ${{ env.DOCKER_IMAGE }} dart --version 2>&1 | awk '{print $4}')
           REQUIRED="3.8.0"
           if [ "$(printf '%s\n' "$REQUIRED" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED" ]; then
