@@ -1,4 +1,4 @@
-name: Flutter APK Builder (Absolute Version Enforcement)
+name: Flutter APK Builder (Version-Enforced)
 
 on:
   push:
@@ -7,8 +7,8 @@ on:
 
 env:
   PROJECT_DIR: 'aurore_frontend'
-  FLUTTER_VERSION: '3.16.9'  # Contains Dart 3.8.6
-  FLUTTER_HOME: '/home/runner/flutter_new'  # Different location to avoid cache
+  FLUTTER_VERSION: '3.19.5'  # Contains Dart 3.9.5
+  FLUTTER_HOME: '/home/runner/verified_flutter'  # New isolated location
 
 jobs:
   build:
@@ -18,48 +18,50 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Purge All Existing Flutter Installations
+      - name: Nuclear Cleanup
         run: |
+          # Remove all possible Flutter installations
           sudo rm -rf /usr/local/flutter
           sudo rm -rf /opt/hostedtoolcache/flutter
-          sudo rm -rf $HOME/flutter
-          sudo rm -rf $HOME/.flutter
+          sudo rm -rf $HOME/flutter*
+          sudo rm -rf $HOME/.flutter*
           sudo rm -rf $HOME/.pub-cache
 
-      - name: Set up Java 17
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'zulu'
-          java-version: '17'
-
-      - name: Install Flutter from Official Archive
+      - name: Install Flutter from Official Release
         run: |
-          # Download specific version from official archive
-          wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz
+          # Download from Google's official storage
+          wget -q https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz
           tar xf flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz
           mv flutter ${{ env.FLUTTER_HOME }}
           
-          # Add to PATH
-          echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
-          echo "${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/bin" >> $GITHUB_PATH
-
-      - name: Force Version Verification
-        run: |
-          # Absolute path to avoid any PATH issues
-          ${{ env.FLUTTER_HOME }}/bin/flutter --version
+          # Verify the downloaded package
           ${{ env.FLUTTER_HOME }}/bin/dart --version
-          
-          # Strict version check
-          DART_VERSION=$(${{ env.FLUTTER_HOME }}/bin/dart --version 2>&1 | awk '{print $4}')
-          REQUIRED="3.8.0"
-          if [ "$(printf '%s\n' "$REQUIRED" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED" ]; then
-            echo "::error::VERSION MISMATCH: Dart $DART_VERSION detected!"
-            echo "This should be impossible with Flutter ${{ env.FLUTTER_VERSION }}"
-            echo "Please report this to GitHub Actions support"
+          if ! ${{ env.FLUTTER_HOME }}/bin/dart --version 2>&1 | grep -q "version 3.[8-9]"; then
+            echo "::error::Downloaded package has wrong Dart version!"
             exit 1
           fi
 
-      - name: Accept Android Licenses
+          # Add to PATH
+          echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
+
+      - name: Force Version Check
+        run: |
+          echo "=== VERIFICATION ==="
+          ${{ env.FLUTTER_HOME }}/bin/flutter --version
+          ${{ env.FLUTTER_HOME }}/bin/dart --version
+          
+          # Final strict check
+          DART_VERSION=$(${{ env.FLUTTER_HOME }}/bin/dart --version 2>&1 | awk '{print $4}')
+          REQUIRED="3.8.0"
+          if [ "$(printf '%s\n' "$REQUIRED" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED" ]; then
+            echo "::error::FATAL: Cannot get correct Dart version"
+            echo "Tried Flutter ${{ env.FLUTTER_VERSION }} (should contain Dart ≥3.8.0)"
+            echo "Detected Dart $DART_VERSION instead"
+            echo "This indicates corrupted Google servers or GitHub runner issues"
+            exit 1
+          fi
+
+      - name: Setup Android
         run: |
           mkdir -p ~/.android
           touch ~/.android/repositories.cfg
@@ -70,12 +72,9 @@ jobs:
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           ${{ env.FLUTTER_HOME }}/bin/flutter pub get
-          ${{ env.FLUTTER_HOME }}/bin/flutter build apk \
-            --release \
-            --shrink \
-            --target-platform android-arm,android-arm64
+          ${{ env.FLUTTER_HOME }}/bin/flutter build apk --release --shrink
 
-      - name: Upload APK
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release
