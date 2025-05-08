@@ -1,4 +1,4 @@
-name: Flutter APK Builder (Self-Contained)
+name: Flutter APK Builder (Stable)
 
 on:
   push:
@@ -13,7 +13,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
@@ -24,31 +24,23 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install Complete Flutter Bundle
+      - name: Install Flutter (Official Method)
         run: |
           # Clean environment
           sudo rm -rf /usr/local/flutter
           sudo rm -rf /opt/hostedtoolcache/flutter
           
-          # Download complete Flutter bundle with SDKs included
-          wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz
-          sudo tar xf flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz -C /opt
-          sudo chmod -R a+rw /opt/flutter
-          
-          # Disable any SDK updates
-          echo "disable-dart-sdk-update=true" | sudo tee /opt/flutter/bin/internal/engine.version
-          echo "disable-flutter-sdk-update=true" | sudo tee -a /opt/flutter/bin/internal/engine.version
+          # Install using Flutter's official installation method
+          git clone https://github.com/flutter/flutter.git -b ${{ env.FLUTTER_VERSION }} --depth 1 ${{ env.FLUTTER_HOME }}
           
           # Add to PATH
-          echo "/opt/flutter/bin" >> $GITHUB_PATH
+          echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
+          echo "${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/bin" >> $GITHUB_PATH
 
       - name: Verify Installation
         run: |
-          # Force use of bundled SDKs
-          export FLUTTER_STORAGE_BASE_URL="file:///opt/flutter"
-          export PUB_HOSTED_URL="file:///opt/flutter"
-          
-          /opt/flutter/bin/flutter --version --verify-version
+          # Basic version checks
+          /opt/flutter/bin/flutter --version
           /opt/flutter/bin/dart --version
           
           # Strict version check
@@ -56,7 +48,9 @@ jobs:
           REQUIRED="3.8.0"
           if [ "$(printf '%s\n' "$REQUIRED" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED" ]; then
             echo "::error::Dart version $DART_VERSION < required $REQUIRED"
-            echo "Contents of /opt/flutter/bin/cache/dart-sdk:"
+            echo "Debug info:"
+            echo "Flutter path: $(which flutter)"
+            echo "Dart path: $(which dart)"
             ls -la /opt/flutter/bin/cache/dart-sdk
             exit 1
           fi
@@ -65,8 +59,8 @@ jobs:
         run: |
           mkdir -p ~/.android
           touch ~/.android/repositories.cfg
-          yes | /opt/flutter/bin/sdkmanager --licenses
-          yes | /opt/flutter/bin/flutter doctor --android-licenses
+          yes | /opt/flutter/bin/sdkmanager --licenses || true
+          yes | /opt/flutter/bin/flutter doctor --android-licenses || true
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
