@@ -1,4 +1,4 @@
-name: Ultra-Fast Flutter APK Builder
+name: Flutter APK Builder with Dart 3.8+
 
 on:
   push:
@@ -6,38 +6,49 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: '3.29.3'  # Latest stable
+  FLUTTER_VERSION: '3.30.0'  # This version includes Dart 3.8.0+
   PROJECT_DIR: 'aurore_frontend'
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Java (Cached)
+      - name: Setup Java
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '17'
           cache: 'gradle'
 
-      - name: Install Flutter (Cached)
+      - name: Install Correct Flutter Version
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
           cache: true
 
-      - name: Bypass Android Licenses
+      - name: Verify Dart Version
+        run: |
+          echo "Dart SDK version:"
+          dart --version
+          DART_VERSION=$(dart --version 2>&1 | awk '{print $4}')
+          REQUIRED_VERSION="3.8.0"
+          if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
+            echo "::error::Dart version $DART_VERSION is too old. Required >= $REQUIRED_VERSION"
+            exit 1
+          fi
+
+      - name: Setup Android Licenses
         run: |
           mkdir -p ~/.android
           echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > ~/.android/licenses.properties
           echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> ~/.android/licenses.properties
 
-      - name: Install Essential Dependencies
+      - name: Install Build Dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
@@ -45,12 +56,12 @@ jobs:
             cmake \
             ninja-build
 
-      - name: Get Packages (Offline First)
+      - name: Resolve Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          flutter pub get --offline || flutter pub get
+          flutter pub get
 
-      - name: Build APK (Ultra-Fast)
+      - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           flutter build apk --release \
