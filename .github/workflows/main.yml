@@ -1,4 +1,4 @@
-name: Flutter APK Builder (Bypass Checksum)
+name: Flutter APK Builder (Version-Locked)
 
 on:
   push:
@@ -7,13 +7,14 @@ on:
 
 env:
   PROJECT_DIR: 'aurore_frontend'
-  FLUTTER_VERSION: '3.19.5'  # Contains Dart 3.9.5
+  FLUTTER_VERSION: '3.19.5'  # Target version
+  DART_VERSION: '3.9.5'      # Required Dart version
   FLUTTER_HOME: '/opt/flutter'
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
 
     steps:
       - uses: actions/checkout@v4
@@ -24,31 +25,49 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install Flutter (Official Method)
+      - name: Install Precise Flutter Version
         run: |
           # Clean environment
           sudo rm -rf /usr/local/flutter
           sudo rm -rf /opt/hostedtoolcache/flutter
           
-          # Install using Flutter's official installation method
-          git clone https://github.com/flutter/flutter.git -b ${{ env.FLUTTER_VERSION }} --depth 1 ${{ env.FLUTTER_HOME }}
+          # Clone specific Flutter version
+          git clone https://github.com/flutter/flutter.git \
+            -b ${{ env.FLUTTER_VERSION }} \
+            --depth 1 \
+            ${{ env.FLUTTER_HOME }}
+          
+          # Prevent automatic Dart SDK updates
+          echo "disable-dart-sdk-update=true" >> ${{ env.FLUTTER_HOME }}/bin/internal/engine.version
           
           # Add to PATH
           echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
           echo "${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/bin" >> $GITHUB_PATH
 
-      - name: Force Version Verification
+      - name: Force Dart SDK Version
         run: |
-          # Verify versions using absolute paths
-          /opt/flutter/bin/flutter --version
-          /opt/flutter/bin/dart --version
+          # Manually set the Dart SDK version
+          echo "Flutter ${{ env.FLUTTER_VERSION }} requires Dart ${{ env.DART_VERSION }}"
+          /opt/flutter/bin/flutter --version --verify-version
           
-          # Strict version check
-          DART_VERSION=$(/opt/flutter/bin/dart --version 2>&1 | awk '{print $4}')
-          REQUIRED="3.8.0"
-          if [ "$(printf '%s\n' "$REQUIRED" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED" ]; then
-            echo "::error::Dart version $DART_VERSION < required $REQUIRED"
-            exit 1
+          # Verify Dart version
+          DART_ACTUAL=$(/opt/flutter/bin/dart --version 2>&1 | awk '{print $4}')
+          if [ "$DART_ACTUAL" != "${{ env.DART_VERSION }}" ]; then
+            echo "::error::Dart version mismatch! Actual: $DART_ACTUAL, Required: ${{ env.DART_VERSION }}"
+            echo "Manually installing correct Dart SDK..."
+            
+            # Download correct Dart SDK
+            DART_BUILD=$(grep 'engine.version' ${{ env.FLUTTER_HOME }}/bin/internal/engine.version | cut -d'=' -f2)
+            wget https://storage.googleapis.com/flutter_infra_release/flutter/$DART_BUILD/dart-sdk-linux-x64.zip
+            unzip -o dart-sdk-linux-x64.zip -d ${{ env.FLUTTER_HOME }}/bin/cache/
+            rm dart-sdk-linux-x64.zip
+            
+            # Re-verify
+            DART_ACTUAL=$(/opt/flutter/bin/dart --version 2>&1 | awk '{print $4}')
+            if [ "$DART_ACTUAL" != "${{ env.DART_VERSION }}" ]; then
+              echo "::error::Failed to install correct Dart SDK"
+              exit 1
+            fi
           fi
 
       - name: Setup Android Licenses
