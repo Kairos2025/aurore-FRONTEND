@@ -1,4 +1,4 @@
-name: Flutter CI/CD with Verified Download
+name: Flutter CI/CD with Correct Download URL
 
 on:
   push:
@@ -24,25 +24,28 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install Flutter (Verified)
+      - name: Install Flutter (Correct URL)
         run: |
           # Clean installation
           rm -rf ${{ env.FLUTTER_HOME }}
           mkdir -p ${{ env.FLUTTER_HOME }}
 
-          # Official download URL (verified working)
+          # CORRECT download URL format
           FLUTTER_URL="https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz"
           
-          # Download with retries and validation
-          curl -L --retry 3 "$FLUTTER_URL" -o flutter.tar.xz
+          # Download with retries and progress
+          echo "Downloading Flutter from: $FLUTTER_URL"
+          curl -L --retry 3 --progress-bar "$FLUTTER_URL" -o flutter.tar.xz
           
-          # Verify file type
-          if ! file flutter.tar.xz | grep -q 'XZ compressed data'; then
-            echo "::error::Downloaded file is not a valid XZ archive"
+          # Verify download size (minimum 700MB expected)
+          FILE_SIZE=$(stat -c%s flutter.tar.xz)
+          if [ "$FILE_SIZE" -lt 700000000 ]; then
+            echo "::error::Downloaded file is too small ($FILE_SIZE bytes), likely corrupted"
             exit 1
           fi
           
-          # Extract with progress
+          # Extract with validation
+          echo "Extracting Flutter..."
           tar -xJf flutter.tar.xz -C ${{ env.FLUTTER_HOME }} --strip-components=1
           echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
 
@@ -51,7 +54,7 @@ jobs:
           flutter --version
           dart --version
           
-          # Verify Dart version
+          # Verify Dart version meets requirements
           DART_VERSION=$(dart --version 2>&1 | awk '{print $4}')
           REQUIRED="3.8.0"
           if [ "$(printf '%s\n' "$REQUIRED" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED" ]; then
