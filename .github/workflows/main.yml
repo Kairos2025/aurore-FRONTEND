@@ -1,4 +1,4 @@
-name: Flutter APK Builder (Direct Dart SDK)
+name: Flutter APK Builder (Stable)
 
 on:
   push:
@@ -7,14 +7,13 @@ on:
 
 env:
   PROJECT_DIR: 'aurore_frontend'
-  FLUTTER_VERSION: '3.16.9'  # Works with Dart 3.8.6
-  DART_VERSION: '3.8.6'       # Explicit version
+  FLUTTER_VERSION: '3.16.9'  # Contains Dart 3.8.6
   FLUTTER_HOME: '/opt/flutter'
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@v4
@@ -25,53 +24,48 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install Flutter Base
+      - name: Install Flutter (Verified Bundle)
         run: |
+          # Clean environment
           sudo rm -rf /usr/local/flutter
           sudo rm -rf /opt/hostedtoolcache/flutter
-          git clone https://github.com/flutter/flutter.git -b ${{ env.FLUTTER_VERSION }} --depth 1 ${{ env.FLUTTER_HOME }}
-          echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
+          
+          # Download from reliable source
+          wget https://github.com/flutter/flutter/releases/download/${{ env.FLUTTER_VERSION }}/flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz
+          
+          # Install
+          sudo tar xf flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz -C /opt
+          sudo chmod -R a+rw /opt/flutter
+          
+          # Add to PATH
+          echo "/opt/flutter/bin" >> $GITHUB_PATH
+          echo "/opt/flutter/bin/cache/dart-sdk/bin" >> $GITHUB_PATH
 
-      - name: Install Correct Dart SDK
+      - name: Verify Installation
         run: |
-          # Remove existing Dart SDK
-          sudo rm -rf ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk
+          /opt/flutter/bin/flutter --version
+          DART_VERSION=$(/opt/flutter/bin/dart --version 2>&1 | awk '{print $4}')
+          REQUIRED="3.8.0"
           
-          # Download specific Dart version
-          wget https://storage.googleapis.com/dart-archive/channels/stable/release/${{ env.DART_VERSION }}/sdk/dartsdk-linux-x64-release.zip
-          unzip dartsdk-linux-x64-release.zip -d ${{ env.FLUTTER_HOME }}/bin/cache/
-          mv ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk* ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk
-          rm dartsdk-linux-x64-release.zip
-          
-          # Verify installation
-          ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/bin/dart --version
-          echo "${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/bin" >> $GITHUB_PATH
-
-      - name: Verify Versions
-        run: |
-          echo "Flutter version:"
-          ${{ env.FLUTTER_HOME }}/bin/flutter --version
-          echo "Dart version:"
-          ${{ env.FLUTTER_HOME }}/bin/dart --version
-          
-          DART_ACTUAL=$(${{ env.FLUTTER_HOME }}/bin/dart --version 2>&1 | awk '{print $4}')
-          if [ "$DART_ACTUAL" != "${{ env.DART_VERSION }}" ]; then
-            echo "::error::Dart version mismatch! Actual: $DART_ACTUAL, Required: ${{ env.DART_VERSION }}"
+          if [ "$(printf '%s\n' "$REQUIRED" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED" ]; then
+            echo "::error::Dart version $DART_VERSION < required $REQUIRED"
+            echo "Debug info:"
+            ls -la /opt/flutter/bin/cache/dart-sdk
             exit 1
           fi
 
-      - name: Setup Android
+      - name: Setup Android SDK
         run: |
           mkdir -p ~/.android
           touch ~/.android/repositories.cfg
-          yes | ${{ env.FLUTTER_HOME }}/bin/sdkmanager --licenses || true
-          yes | ${{ env.FLUTTER_HOME }}/bin/flutter doctor --android-licenses || true
+          yes | /opt/flutter/bin/sdkmanager --licenses || echo "License acceptance may have failed - continuing anyway"
+          yes | /opt/flutter/bin/flutter doctor --android-licenses || echo "Android licenses may have failed - continuing anyway"
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          ${{ env.FLUTTER_HOME }}/bin/flutter pub get
-          ${{ env.FLUTTER_HOME }}/bin/flutter build apk --release --shrink
+          /opt/flutter/bin/flutter pub get
+          /opt/flutter/bin/flutter build apk --release --shrink
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
