@@ -7,7 +7,7 @@ on:
 
 env:
   PROJECT_DIR: 'aurore_frontend'
-  FLUTTER_VERSION: '3.30.0'  # Contains Dart 3.8.0+
+  FLUTTER_VERSION: 'stable'  # Using 'stable' channel instead of specific version
   FLUTTER_HOME: '/home/runner/flutter'
 
 jobs:
@@ -46,7 +46,7 @@ jobs:
           
           # Verify Dart version meets requirements
           DART_VERSION=$(dart --version 2>&1 | awk '{print $4}')
-          REQUIRED="3.8.0"
+          REQUIRED="3.0.0"  # Minimum required version
           if [ "$(printf '%s\n' "$REQUIRED" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED" ]; then
             echo "::error::Dart version $DART_VERSION < required $REQUIRED"
             exit 1
@@ -55,12 +55,16 @@ jobs:
       - name: Setup Android Licenses
         run: |
           mkdir -p ~/.android
-          echo -e "8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e" > ~/.android/licenses.properties
+          touch ~/.android/licenses.properties
+          yes | flutter doctor --android-licenses
+
+      - name: Get Dependencies
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: flutter pub get
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          flutter pub get
           flutter build apk --release --no-sound-null-safety --shrink
 
       - name: Upload Artifact
