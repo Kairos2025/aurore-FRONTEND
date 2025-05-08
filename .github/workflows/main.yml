@@ -17,32 +17,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Java & Flutter (Parallel)
+      - name: Setup Java & Flutter
         run: |
-          # Parallel installation
-          (
-            # 1. Java setup
-            sudo apt-get update -qq
-            sudo apt-get install -qq openjdk-17-jdk
-            java -version
-          ) &
-          (
-            # 2. Flutter setup
-            git clone https://github.com/flutter/flutter.git -b $FLUTTER_VERSION --depth 1 flutter
-            echo "$GITHUB_WORKSPACE/flutter/bin" >> $GITHUB_PATH
-          ) &
-          wait
+          # Install Java
+          sudo apt-get update -qq
+          sudo apt-get install -qq openjdk-17-jdk
           
-          # Minimal Dart version check (bypass full SDK)
-          echo 'echo "Dart SDK version: 3.8.6"' > flutter/bin/dart
-          chmod +x flutter/bin/dart
+          # Install Flutter
+          git clone https://github.com/flutter/flutter.git -b $FLUTTER_VERSION --depth 1 flutter
+          echo "$GITHUB_WORKSPACE/flutter/bin" >> $GITHUB_PATH
+          flutter --version
 
-      - name: Fast Android Setup
+      - name: Setup Android
         run: |
           mkdir -p ~/.android
           touch ~/.android/repositories.cfg
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
-          flutter doctor --android-licenses -q
+          flutter doctor --android-licenses
 
       - name: Install Dependencies
         run: |
@@ -53,12 +44,17 @@ jobs:
             ninja-build \
             pkg-config
 
-      - name: Get Packages (Cached)
+      - name: Resolve Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          flutter pub get --offline || flutter pub get
+          # Check for outdated packages first
+          flutter pub outdated || true
+          
+          # Get packages with dependency resolution
+          flutter pub upgrade --major-versions
+          flutter pub get
 
-      - name: Build APK (Optimized)
+      - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           flutter build apk --release \
