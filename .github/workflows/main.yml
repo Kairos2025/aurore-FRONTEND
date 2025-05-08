@@ -1,4 +1,4 @@
-name: Flutter CI/CD with Guaranteed Installation
+name: Flutter CI/CD with Dart 3.8.0+
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 
 env:
   PROJECT_DIR: 'aurore_frontend'
-  FLUTTER_VERSION: '3.22.3'  # Confirmed working version
+  FLUTTER_VERSION: '3.30.0'  # Contains Dart 3.8.0+
   FLUTTER_HOME: '/home/runner/flutter'
 
 jobs:
@@ -24,34 +24,38 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install Flutter (Direct Download)
+      - name: Install Correct Flutter Version
         run: |
-          # Clean installation directory
+          # Clean installation
           rm -rf ${{ env.FLUTTER_HOME }}
           mkdir -p ${{ env.FLUTTER_HOME }}
 
-          # Download Flutter (skipping checksum validation)
+          # Official download URL
           FLUTTER_URL="https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${{ env.FLUTTER_VERSION }}-stable.tar.xz"
+          
+          # Download and extract in one step
           curl -L --retry 3 "$FLUTTER_URL" | tar -xJ -C ${{ env.FLUTTER_HOME }} --strip-components=1
           
-          # Verify extraction
+          # Verify installation
           if [ ! -f "${{ env.FLUTTER_HOME }}/bin/flutter" ]; then
-            echo "::error::Flutter extraction failed"
+            echo "::error::Flutter installation failed"
             exit 1
           fi
           
           echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
 
-      - name: Validate Installation
+      - name: Verify Dart Version
         run: |
+          echo "Flutter version:"
           flutter --version
+          
+          echo "Dart version:"
           dart --version
           
-          # Verify Dart version meets requirements
           DART_VERSION=$(dart --version 2>&1 | awk '{print $4}')
           REQUIRED="3.8.0"
           if [ "$(printf '%s\n' "$REQUIRED" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED" ]; then
-            echo "::error::Dart version $DART_VERSION < required $REQUIRED"
+            echo "::error::Insufficient Dart version: $DART_VERSION < $REQUIRED"
             exit 1
           fi
 
