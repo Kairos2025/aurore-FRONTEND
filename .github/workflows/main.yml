@@ -1,4 +1,4 @@
-name: Fast Flutter APK Builder
+name: Ultra-Fast Flutter APK Builder
 
 on:
   push:
@@ -6,61 +6,56 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: '3.29.3'
+  FLUTTER_VERSION: '3.29.3'  # Latest stable
   PROJECT_DIR: 'aurore_frontend'
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Java
+      - name: Setup Java (Cached)
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '17'
           cache: 'gradle'
 
-      - name: Install Flutter
+      - name: Install Flutter (Cached)
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
           cache: true
 
-      - name: Setup Android (Robust)
+      - name: Bypass Android Licenses
         run: |
           mkdir -p ~/.android
-          touch ~/.android/repositories.cfg
-          # Handle license acceptance more robustly
-          (yes || true) | sdkmanager --licenses >/dev/null 2>&1
-          flutter doctor --android-licenses -y
+          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > ~/.android/licenses.properties
+          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> ~/.android/licenses.properties
 
-      - name: Install Build Dependencies
+      - name: Install Essential Dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
             libgtk-3-dev \
-            clang \
             cmake \
-            ninja-build \
-            pkg-config
+            ninja-build
 
-      - name: Resolve Dependencies
+      - name: Get Packages (Offline First)
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          flutter pub get
+          flutter pub get --offline || flutter pub get
 
-      - name: Build APK (Optimized)
+      - name: Build APK (Ultra-Fast)
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           flutter build apk --release \
             --no-sound-null-safety \
             --shrink \
-            --split-debug-info=/tmp/symbols \
             --obfuscate \
             --dart-define=CI_ENV=true
 
@@ -69,4 +64,3 @@ jobs:
         with:
           name: app-release
           path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 5
