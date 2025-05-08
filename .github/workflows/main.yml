@@ -8,7 +8,6 @@ on:
 env:
   PROJECT_DIR: 'aurore_frontend'
   FLUTTER_VERSION: '3.19.5'  # Contains Dart 3.9.5
-  DOCKER_IMAGE: 'ghcr.io/cirruslabs/flutter:${{ env.FLUTTER_VERSION }}'
 
 jobs:
   build:
@@ -23,9 +22,9 @@ jobs:
 
       - name: Verify Docker Image
         run: |
-          docker pull ${{ env.DOCKER_IMAGE }}
-          docker run --rm ${{ env.DOCKER_IMAGE }} flutter --version
-          docker run --rm ${{ env.DOCKER_IMAGE }} dart --version
+          docker pull ghcr.io/cirruslabs/flutter:${{ env.FLUTTER_VERSION }}
+          docker run --rm ghcr.io/cirruslabs/flutter:${{ env.FLUTTER_VERSION }} flutter --version
+          docker run --rm ghcr.io/cirruslabs/flutter:${{ env.FLUTTER_VERSION }} dart --version
 
       - name: Build APK in Docker
         run: |
@@ -33,7 +32,7 @@ jobs:
             --rm \
             --volume=${{ github.workspace }}:/app \
             --workdir=/app/${{ env.PROJECT_DIR }} \
-            ${{ env.DOCKER_IMAGE }} \
+            ghcr.io/cirruslabs/flutter:${{ env.FLUTTER_VERSION }} \
             /bin/bash -c "
             flutter pub get &&
             flutter build apk --release --shrink &&
