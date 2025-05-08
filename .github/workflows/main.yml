@@ -29,7 +29,7 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y curl git unzip
+          sudo apt-get install -y curl git unzip xz-utils
 
       - name: Install Flutter Base
         run: |
@@ -74,11 +74,16 @@ jobs:
 
       - name: Patch Flutter Tool
         run: |
-          # Disable SDK update completely
-          sed -i 's/return _downloadSdkZip(requiredSdk, dartSdkPath)/return true # Disabled auto-download/' ${{ env.FLUTTER_HOME }}/bin/internal/update_dart_sdk.dart
-          
           # Create minimal engine.version file
           echo "engine.version=f40e976bedff57e69e1b3d89a7c2a3c617a03dad" > ${{ env.FLUTTER_HOME }}/bin/internal/engine.version
+          
+          # Disable SDK update by modifying the flutter tool script
+          FLUTTER_TOOL="${{ env.FLUTTER_HOME }}/bin/flutter"
+          if [ -f "$FLUTTER_TOOL" ]; then
+            sed -i 's/return await _downloadSdkZip(requiredSdk, dartSdkPath)/return true # Disabled auto-download/' "$FLUTTER_TOOL"
+          else
+            echo "::warning::Flutter tool not found at $FLUTTER_TOOL, skipping SDK update patch"
+          fi
 
       - name: Verify Installation
         run: |
