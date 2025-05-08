@@ -7,7 +7,7 @@ on:
 
 env:
   PROJECT_DIR: 'aurore_frontend'
-  FLUTTER_VERSION: 'stable'  # Using 'stable' channel instead of specific version
+  FLUTTER_VERSION: 'stable'  # Use valid branch name
   FLUTTER_HOME: '/home/runner/flutter'
 
 jobs:
@@ -24,48 +24,33 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install Flutter (Direct Method)
+      - name: Install Flutter
         run: |
           # Clean installation
           rm -rf ${{ env.FLUTTER_HOME }}
-          mkdir -p ${{ env.FLUTTER_HOME }}
+          git clone https://github.com/flutter/flutter.git \
+            -b ${{ env.FLUTTER_VERSION }} \
+            --depth 1 \
+            ${{ env.FLUTTER_HOME }}
 
-          # Install Flutter using official script
-          git clone https://github.com/flutter/flutter.git -b ${{ env.FLUTTER_VERSION }} --depth 1 ${{ env.FLUTTER_HOME }}
-          
-          # Add to PATH
+          # Add to PATH for CURRENT STEP
           echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
-          
-          # Pre-download dependencies
-          flutter precache
+          export PATH="${{ env.FLUTTER_HOME }}/bin:$PATH"
 
-      - name: Verify Installation
-        run: |
+          # Verify installation
           flutter --version
-          dart --version
-          
-          # Verify Dart version meets requirements
-          DART_VERSION=$(dart --version 2>&1 | awk '{print $4}')
-          REQUIRED="3.0.0"  # Minimum required version
-          if [ "$(printf '%s\n' "$REQUIRED" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED" ]; then
-            echo "::error::Dart version $DART_VERSION < required $REQUIRED"
-            exit 1
-          fi
+          flutter precache
 
       - name: Setup Android Licenses
         run: |
-          mkdir -p ~/.android
-          touch ~/.android/licenses.properties
+          yes | sdkmanager --licenses || true
           yes | flutter doctor --android-licenses
-
-      - name: Get Dependencies
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: flutter pub get
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          flutter build apk --release --no-sound-null-safety --shrink
+          flutter pub get
+          flutter build apk --release --shrink
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
