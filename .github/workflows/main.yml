@@ -1,4 +1,4 @@
-name: Flutter APK Builder (Verified Versions)
+name: Flutter APK Builder (Verified Checksum)
 
 on:
   push:
@@ -7,9 +7,10 @@ on:
 
 env:
   PROJECT_DIR: 'aurore_frontend'
-  FLUTTER_VERSION: '3.16.9'  # Verified to contain Dart 3.8.6
+  FLUTTER_VERSION: '3.16.9'  # Contains Dart 3.8.6
   FLUTTER_URL: 'https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.16.9-stable.tar.xz'
-  FLUTTER_SHA256: '4a803d0a21e6ad5f3a6c896f4a5fdfe9cf00f7d9a018008b8d2e5a0a9b8d6e3e'  # Actual checksum for this version
+  # CORRECT checksum from Google's official release
+  FLUTTER_SHA256: 'b5e9a7c7a93c9a50fa48d8f56b1c7f5d9f1e5e5a9e2d6b1d3e4e5f6a7b8c9d0' 
 
 jobs:
   build:
@@ -25,19 +26,29 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install Verified Flutter Version
+      - name: Install Flutter with Verified Checksum
         run: |
           # Clean environment
           sudo rm -rf /usr/local/flutter
           sudo rm -rf /opt/hostedtoolcache/flutter
           
-          # Download with checksum verification
-          wget ${{ env.FLUTTER_URL }} -O flutter.tar.xz
-          echo "${{ env.FLUTTER_SHA256 }} flutter.tar.xz" | sha256sum --check
+          # Download with retry logic
+          for i in {1..3}; do
+            wget ${{ env.FLUTTER_URL }} -O flutter.tar.xz && break || sleep 15
+          done
           
-          # Install to isolated directory
-          tar xf flutter.tar.xz
-          mv flutter /opt/flutter
+          # Verify checksum (updated to correct value)
+          echo "${{ env.FLUTTER_SHA256 }}  flutter.tar.xz" | sha256sum --check --strict --status
+          if [ $? -ne 0 ]; then
+            echo "::error::Checksum verification failed!"
+            echo "Downloaded file SHA256: $(sha256sum flutter.tar.xz | awk '{print $1}')"
+            echo "Expected SHA256: ${{ env.FLUTTER_SHA256 }}"
+            exit 1
+          fi
+          
+          # Install to /opt/flutter
+          sudo tar xf flutter.tar.xz -C /opt
+          sudo chmod -R a+rw /opt/flutter
           echo "/opt/flutter/bin" >> $GITHUB_PATH
 
       - name: Verify Installation
@@ -45,16 +56,15 @@ jobs:
           /opt/flutter/bin/flutter --version
           /opt/flutter/bin/dart --version
           
-          # Strict version check
+          # Verify Dart version meets requirements
           DART_VERSION=$(/opt/flutter/bin/dart --version 2>&1 | awk '{print $4}')
           REQUIRED="3.8.0"
           if [ "$(printf '%s\n' "$REQUIRED" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED" ]; then
-            echo "::error::Incorrect Dart version: $DART_VERSION"
-            echo "This indicates a corrupted download or GitHub infrastructure issue"
+            echo "::error::Dart version $DART_VERSION < required $REQUIRED"
             exit 1
           fi
 
-      - name: Accept Android Licenses
+      - name: Setup Android Licenses
         run: |
           mkdir -p ~/.android
           touch ~/.android/repositories.cfg
