@@ -1,4 +1,4 @@
-name: Flutter CI/CD with Direct Installation
+name: Flutter APK Builder (No Demo)
 
 on:
   push:
@@ -7,18 +7,18 @@ on:
 
 env:
   PROJECT_DIR: 'aurore_frontend'
-  FLUTTER_VERSION: 'stable'  # Use valid branch name
+  FLUTTER_VERSION: '3.16.0'  # Contains Dart 3.8.0+
   FLUTTER_HOME: '/home/runner/flutter'
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Java
+      - name: Set up Java 17
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
@@ -26,34 +26,42 @@ jobs:
 
       - name: Install Flutter
         run: |
-          # Clean installation
+          # Clean install
           rm -rf ${{ env.FLUTTER_HOME }}
           git clone https://github.com/flutter/flutter.git \
             -b ${{ env.FLUTTER_VERSION }} \
             --depth 1 \
             ${{ env.FLUTTER_HOME }}
-
-          # Add to PATH for CURRENT STEP
+          
+          # Add to PATH
           echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
-          export PATH="${{ env.FLUTTER_HOME }}/bin:$PATH"
+          echo "${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/bin" >> $GITHUB_PATH
 
-          # Verify installation
-          flutter --version
-          flutter precache
-
-      - name: Setup Android Licenses
+      - name: Verify Versions
         run: |
-          yes | sdkmanager --licenses || true
-          yes | flutter doctor --android-licenses
+          flutter --version
+          dart --version
+          flutter doctor
 
-      - name: Build APK
+      - name: Accept Android Licenses
+        run: yes | flutter doctor --android-licenses
+
+      - name: Get Dependencies
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: flutter pub get
+
+      - name: Build Release APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          flutter pub get
-          flutter build apk --release --shrink
+          flutter build apk \
+            --release \
+            --shrink \
+            --no-tree-shake-icons \
+            --target-platform android-arm,android-arm64
 
-      - name: Upload Artifact
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 5
