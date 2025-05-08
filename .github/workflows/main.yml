@@ -1,4 +1,4 @@
-name: Flutter APK Builder (Dart 3.8.0+)
+name: Flutter APK Builder (Enforced Dart 3.8.0+)
 
 on:
   push:
@@ -7,7 +7,8 @@ on:
 
 env:
   PROJECT_DIR: 'aurore_frontend'
-  FLUTTER_VERSION: '3.19.5'  # Contains Dart 3.9.5
+  # Using exact Flutter version that contains Dart 3.8.0+
+  FLUTTER_VERSION: '3.16.9'  # Contains Dart 3.8.6
   FLUTTER_HOME: '/home/runner/flutter'
 
 jobs:
@@ -24,43 +25,58 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install Specific Flutter Version
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: 'stable'
-          cache: true
-
-      - name: Verify Dart Version
+      - name: Force Install Correct Flutter Version
         run: |
+          # Completely clean install
+          sudo rm -rf ${{ env.FLUTTER_HOME }}
+          sudo rm -rf /usr/local/flutter
+          
+          # Install specific version
+          git clone https://github.com/flutter/flutter.git \
+            -b ${{ env.FLUTTER_VERSION }} \
+            --depth 1 \
+            ${{ env.FLUTTER_HOME }}
+          
+          # Add to system PATH
+          echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
+          echo "${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/bin" >> $GITHUB_PATH
+          echo "FLUTTER_ROOT=${{ env.FLUTTER_HOME }}" >> $GITHUB_ENV
+
+      - name: Verify Installation
+        run: |
+          # Force PATH update
+          export PATH="${{ env.FLUTTER_HOME }}/bin:$PATH"
+          
+          echo "=== Version Verification ==="
+          flutter --version
           dart --version
+          
+          # Strict version check
           DART_VERSION=$(dart --version 2>&1 | awk '{print $4}')
           REQUIRED="3.8.0"
           if [ "$(printf '%s\n' "$REQUIRED" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED" ]; then
-            echo "::error::Dart version $DART_VERSION < required $REQUIRED"
-            echo "Recommended Flutter versions for Dart 3.8.0+: 3.16.0+"
+            echo "::error::CRITICAL: Wrong Dart version $DART_VERSION"
+            echo "Flutter ${{ env.FLUTTER_VERSION }} should provide Dart ≥3.8.0"
+            echo "Forcing version check failure..."
             exit 1
           fi
 
       - name: Accept Android Licenses
-        run: yes | flutter doctor --android-licenses
+        run: |
+          yes | sdkmanager --licenses
+          yes | flutter doctor --android-licenses
 
-      - name: Get Dependencies
+      - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           flutter pub get
-
-      - name: Build Release APK
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
           flutter build apk \
             --release \
             --shrink \
             --target-platform android-arm,android-arm64
 
-      - name: Upload APK Artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 7
