@@ -1,4 +1,4 @@
-name: Flutter APK Builder (Correct Dart SDK)
+name: Flutter APK Builder (Dart 3.8.0+)
 
 on:
   push:
@@ -7,13 +7,13 @@ on:
 
 env:
   PROJECT_DIR: 'aurore_frontend'
-  FLUTTER_VERSION: '3.19.0'  # Contains Dart 3.9.0
+  FLUTTER_VERSION: '3.19.5'  # Contains Dart 3.9.5
   FLUTTER_HOME: '/home/runner/flutter'
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - uses: actions/checkout@v4
@@ -24,25 +24,21 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install Correct Flutter Version
-        run: |
-          # Clean install
-          rm -rf ${{ env.FLUTTER_HOME }}
-          git clone https://github.com/flutter/flutter.git \
-            -b ${{ env.FLUTTER_VERSION }} \
-            --depth 1 \
-            ${{ env.FLUTTER_HOME }}
-          
-          # Add to PATH
-          echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
-          echo "${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/bin" >> $GITHUB_PATH
+      - name: Install Specific Flutter Version
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
 
-      - name: Verify Versions
+      - name: Verify Dart Version
         run: |
-          flutter --version
           dart --version
-          if ! dart --version 2>&1 | grep -q "version 3.[8-9]"; then
-            echo "::error::Incorrect Dart version (requires ≥3.8.0)"
+          DART_VERSION=$(dart --version 2>&1 | awk '{print $4}')
+          REQUIRED="3.8.0"
+          if [ "$(printf '%s\n' "$REQUIRED" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED" ]; then
+            echo "::error::Dart version $DART_VERSION < required $REQUIRED"
+            echo "Recommended Flutter versions for Dart 3.8.0+: 3.16.0+"
             exit 1
           fi
 
@@ -51,7 +47,8 @@ jobs:
 
       - name: Get Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
-        run: flutter pub get
+        run: |
+          flutter pub get
 
       - name: Build Release APK
         working-directory: ${{ env.PROJECT_DIR }}
@@ -59,7 +56,6 @@ jobs:
           flutter build apk \
             --release \
             --shrink \
-            --no-tree-shake-icons \
             --target-platform android-arm,android-arm64
 
       - name: Upload APK Artifact
@@ -67,4 +63,4 @@ jobs:
         with:
           name: app-release
           path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 5
+          retention-days: 7
