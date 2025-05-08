@@ -1,4 +1,4 @@
-name: Flutter APK Builder with Dart 3.8+
+name: Reliable Flutter APK Builder
 
 on:
   push:
@@ -6,7 +6,6 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: '3.30.0'  # This version includes Dart 3.8.0+
   PROJECT_DIR: 'aurore_frontend'
 
 jobs:
@@ -24,17 +23,34 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      - name: Install Correct Flutter Version
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: 'stable'
-          cache: true
+      - name: Install Flutter with Fallback
+        id: install-flutter
+        run: |
+          # Try known good versions in order
+          VERSIONS=("3.30.0" "3.29.0" "3.28.0" "3.27.0")
+          
+          for version in "${VERSIONS[@]}"; do
+            echo "Attempting to install Flutter $version"
+            if bash <(curl -s https://raw.githubusercontent.com/subosito/flutter-action/main/setup.sh) -p -v $version -a x64; then
+              echo "FLUTTER_VERSION=$version" >> $GITHUB_ENV
+              echo "FLUTTER_PATH=$HOME/flutter" >> $GITHUB_ENV
+              echo "$HOME/flutter/bin" >> $GITHUB_PATH
+              exit 0
+            fi
+            echo "Failed to install Flutter $version, trying next..."
+          done
+          
+          echo "::error::All Flutter installation attempts failed"
+          exit 1
 
       - name: Verify Dart Version
         run: |
+          echo "Installed Flutter version:"
+          flutter --version
+          
           echo "Dart SDK version:"
           dart --version
+          
           DART_VERSION=$(dart --version 2>&1 | awk '{print $4}')
           REQUIRED_VERSION="3.8.0"
           if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
