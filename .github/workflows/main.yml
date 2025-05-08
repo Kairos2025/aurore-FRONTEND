@@ -1,4 +1,4 @@
-name: Flutter APK Builder (Local Dart SDK)
+name: Flutter APK Builder (Fixed Dart SDK Installation)
 
 on:
   push:
@@ -7,9 +7,8 @@ on:
 
 env:
   PROJECT_DIR: 'aurore_frontend'
-  FLUTTER_VERSION: '3.16.9'  # Should contain Dart 3.8.6
+  FLUTTER_VERSION: '3.16.9'
   FLUTTER_HOME: '/opt/flutter'
-  DART_VERSION: '3.8.6'
   DART_SDK_URL: 'https://storage.googleapis.com/flutter_infra_release/flutter/f40e976bedff57e69e1b3d89a7c2a3c617a03dad/dart-sdk-linux-x64.zip'
 
 jobs:
@@ -43,7 +42,7 @@ jobs:
           # Add to PATH
           echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
 
-      - name: Download and Install Dart SDK
+      - name: Install Dart SDK
         run: |
           # Remove existing Dart SDK
           sudo rm -rf ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk
@@ -57,9 +56,19 @@ jobs:
             exit 1
           fi
           
-          # Install Dart SDK
-          unzip dart-sdk.zip -d ${{ env.FLUTTER_HOME }}/bin/cache/
-          mv ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk* ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk
+          # Extract to temporary directory first
+          mkdir -p ${{ env.FLUTTER_HOME }}/bin/cache/temp-dart-sdk
+          unzip dart-sdk.zip -d ${{ env.FLUTTER_HOME }}/bin/cache/temp-dart-sdk
+          
+          # Move contents to correct location
+          if [ -d "${{ env.FLUTTER_HOME }}/bin/cache/temp-dart-sdk/dart-sdk" ]; then
+            mv ${{ env.FLUTTER_HOME }}/bin/cache/temp-dart-sdk/dart-sdk ${{ env.FLUTTER_HOME }}/bin/cache/
+          else
+            mv ${{ env.FLUTTER_HOME }}/bin/cache/temp-dart-sdk/* ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk
+          fi
+          
+          # Cleanup
+          rm -rf ${{ env.FLUTTER_HOME }}/bin/cache/temp-dart-sdk
           rm dart-sdk.zip
           
           # Verify installation
@@ -73,10 +82,11 @@ jobs:
           
           # Verify installation
           ${{ env.FLUTTER_HOME }}/bin/flutter --version
-          DART_ACTUAL=$(${{ env.FLUTTER_HOME }}/bin/dart --version 2>&1 | awk '{print $4}')
+          DART_VERSION=$(${{ env.FLUTTER_HOME }}/bin/dart --version 2>&1 | awk '{print $4}')
+          REQUIRED="3.8.0"
           
-          if [ "$DART_ACTUAL" != "${{ env.DART_VERSION }}" ]; then
-            echo "::error::Dart version mismatch! Actual: $DART_ACTUAL, Required: ${{ env.DART_VERSION }}"
+          if [ "$(printf '%s\n' "$REQUIRED" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED" ]; then
+            echo "::error::Dart version $DART_VERSION < required $REQUIRED"
             exit 1
           fi
 
