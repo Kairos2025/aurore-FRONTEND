@@ -1,4 +1,4 @@
-name: Flutter APK Builder (No Demo)
+name: Flutter APK Builder (Correct Dart SDK)
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 
 env:
   PROJECT_DIR: 'aurore_frontend'
-  FLUTTER_VERSION: '3.16.0'  # Contains Dart 3.8.0+
+  FLUTTER_VERSION: '3.19.0'  # Contains Dart 3.9.0
   FLUTTER_HOME: '/home/runner/flutter'
 
 jobs:
@@ -24,7 +24,7 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install Flutter
+      - name: Install Correct Flutter Version
         run: |
           # Clean install
           rm -rf ${{ env.FLUTTER_HOME }}
@@ -41,7 +41,10 @@ jobs:
         run: |
           flutter --version
           dart --version
-          flutter doctor
+          if ! dart --version 2>&1 | grep -q "version 3.[8-9]"; then
+            echo "::error::Incorrect Dart version (requires ≥3.8.0)"
+            exit 1
+          fi
 
       - name: Accept Android Licenses
         run: yes | flutter doctor --android-licenses
