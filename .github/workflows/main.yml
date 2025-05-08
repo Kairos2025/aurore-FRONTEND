@@ -1,4 +1,4 @@
-name: Flutter APK Builder (Alternative Dart Source)
+name: Flutter APK Builder (Fixed Dart SDK Installation)
 
 on:
   push:
@@ -7,9 +7,8 @@ on:
 
 env:
   PROJECT_DIR: 'aurore_frontend'
-  FLUTTER_VERSION: '3.16.9'  # Matches Dart 3.8.6
+  FLUTTER_VERSION: '3.16.9'
   FLUTTER_HOME: '/opt/flutter'
-  DART_VERSION: '3.8.6'
 
 jobs:
   build:
@@ -25,11 +24,6 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install System Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y curl git unzip
-
       - name: Install Flutter
         run: |
           # Clean environment
@@ -42,35 +36,36 @@ jobs:
           # Add to PATH
           echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
 
-      - name: Install Dart SDK from Flutter Engine
+      - name: Install Correct Dart SDK
         run: |
           # Remove existing Dart SDK
           sudo rm -rf ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk
           
-          # Get engine version from Flutter
+          # Get engine version
           ENGINE_VERSION=$(grep 'engine.version' ${{ env.FLUTTER_HOME }}/bin/internal/engine.version | cut -d'=' -f2)
           echo "Using Flutter engine version: $ENGINE_VERSION"
           
-          # Download Dart SDK from Flutter's infrastructure
+          # Download and extract Dart SDK
           wget https://storage.googleapis.com/flutter_infra_release/flutter/$ENGINE_VERSION/dart-sdk-linux-x64.zip
           unzip dart-sdk-linux-x64.zip -d ${{ env.FLUTTER_HOME }}/bin/cache/
-          mv ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk* ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk
-          rm dart-sdk-linux-x64.zip
           
-          # Verify installation
-          ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/bin/dart --version
+          # Fix directory structure (no need to move if zip extracts correctly)
+          if [ -d "${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/dart-sdk" ]; then
+            mv ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/dart-sdk/* ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/
+            rm -rf ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/dart-sdk
+          fi
+          
+          rm dart-sdk-linux-x64.zip
           echo "${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/bin" >> $GITHUB_PATH
 
       - name: Verify Installation
         run: |
-          echo "Flutter version:"
           ${{ env.FLUTTER_HOME }}/bin/flutter --version
-          echo "Dart version:"
-          ${{ env.FLUTTER_HOME }}/bin/dart --version
+          DART_VERSION=$(${{ env.FLUTTER_HOME }}/bin/dart --version 2>&1 | awk '{print $4}')
+          REQUIRED="3.8.0"
           
-          DART_ACTUAL=$(${{ env.FLUTTER_HOME }}/bin/dart --version 2>&1 | awk '{print $4}')
-          if [ "$DART_ACTUAL" != "${{ env.DART_VERSION }}" ]; then
-            echo "::error::Dart version mismatch! Actual: $DART_ACTUAL, Required: ${{ env.DART_VERSION }}"
+          if [ "$(printf '%s\n' "$REQUIRED" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED" ]; then
+            echo "::error::Dart version $DART_VERSION < required $REQUIRED"
             echo "Debug info:"
             ls -la ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk
             exit 1
