@@ -30,7 +30,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2.8.0
         with:
-          flutter-version: '3.31.0' # Updated to a version likely with Dart >=3.8.0 (as of May 2025)
+          flutter-version: '3.32.0' # Adjusted to a likely available version with Dart >=3.8.0
           channel: 'stable'
           architecture: 'x64'
 
