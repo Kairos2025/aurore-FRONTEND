@@ -13,81 +13,88 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Checkout the repository
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Set up Java (required for Android builds)
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      # Using Flutter 3.16.9 (newer but still stable with Firebase)
+      # Set up Flutter with a version that should support firebase_auth 5.6.0
       - name: Set up Flutter
         uses: subosito/flutter-action@v2.8.0
         with:
-          flutter-version: '3.16.9'
+          flutter-version: '3.10.6'  # Version known to work with older firebase packages
           channel: 'stable'
           architecture: 'x64'
 
-      - name: Verify setup
+      # Verify Flutter setup
+      - name: Verify Flutter setup
         run: |
           flutter doctor -v
           flutter --version
+          dart --version
 
+      # Accept Android licenses
       - name: Accept Android licenses
-        run: yes | flutter doctor --android-licenses
+        run: |
+          yes | flutter doctor --android-licenses
 
-      - name: Navigate to project
-        run: cd aurore_frontend && ls -la
+      # Change directory to aurore_frontend
+      - name: Navigate to project directory
+        run: |
+          cd aurore_frontend
+          echo "Current directory: $(pwd)"
+          ls -la
 
-      # Modern Firebase alternative configuration
-      - name: Update Firebase dependencies
+      # Debug: Show pubspec.yaml content
+      - name: Show pubspec.yaml
         working-directory: ./aurore_frontend
         run: |
-          # Backup original files
+          cat pubspec.yaml
+          echo "Current Flutter version: $(flutter --version)"
+          flutter pub deps
+
+      # Update pubspec.yaml constraints
+      - name: Update pubspec constraints
+        working-directory: ./aurore_frontend
+        run: |
+          # Backup original pubspec
           cp pubspec.yaml pubspec.yaml.bak
-          cp pubspec.lock pubspec.lock.bak 2>/dev/null || true
 
-          # Update to modern Firebase packages
-          sed -i 's/firebase_auth: ^5.6.0/firebase_auth: ^6.3.0/' pubspec.yaml
-          sed -i 's/firebase_core: .*/firebase_core: ^2.24.0/' pubspec.yaml
+          # Update SDK constraints to be more permissive
+          sed -i 's/sdk: ">=3.8.0 <4.0.0"/sdk: ">=2.17.0 <4.0.0"/' pubspec.yaml
+          sed -i 's/flutter: ">=3.36.0"/flutter: ">=3.0.0"/' pubspec.yaml
           
-          # Add required Firebase plugins
-          if ! grep -q "firebase_core" pubspec.yaml; then
-            echo "  firebase_core: ^2.24.0" >> pubspec.yaml
-          fi
-          if ! grep -q "firebase_analytics" pubspec.yaml; then
-            echo "  firebase_analytics: ^11.3.0" >> pubspec.yaml
-          fi
-
-          # Update SDK constraints
-          sed -i 's/sdk: ">=.*<4.0.0"/sdk: ">=3.0.0 <4.0.0"/' pubspec.yaml
-          sed -i 's/flutter: ">=.*"/flutter: ">=3.16.0"/' pubspec.yaml
-
-          echo "Updated pubspec.yaml:"
+          # Try both possible firebase_auth versions
+          sed -i 's/firebase_auth: ^6.3.0/firebase_auth: ^4.2.4/' pubspec.yaml  # Older stable version
+          
+          echo "Updated pubspec.yaml contents:"
           cat pubspec.yaml
 
-      # Dependency resolution with fallback
+      # Get dependencies with verbose output
       - name: Install dependencies
         working-directory: ./aurore_frontend
         run: |
           flutter pub get --verbose || {
-            echo "Primary resolution failed, trying fallback..."
-            
-            # Fallback to slightly older but stable versions
-            sed -i 's/firebase_auth: ^6.3.0/firebase_auth: ^5.0.0/' pubspec.yaml
-            sed -i 's/firebase_core: ^2.24.0/firebase_core: ^2.18.0/' pubspec.yaml
-            
+            echo "Trying alternative firebase_auth version..."
+            sed -i 's/firebase_auth: ^4.2.4/firebase_auth: ^5.6.0/' pubspec.yaml
             flutter pub get --verbose || {
-              echo "All resolution attempts failed"
-              echo "Restoring original files..."
-              cp pubspec.yaml.bak pubspec.yaml
-              cp pubspec.lock.bak pubspec.lock 2>/dev/null || true
-              exit 1
+              echo "Trying latest compatible version..."
+              sed -i 's/firebase_auth: ^5.6.0/firebase_auth: ^3.11.2/' pubspec.yaml
+              flutter pub get --verbose || {
+                echo "All attempts failed, restoring original pubspec.yaml"
+                cp pubspec.yaml.bak pubspec.yaml
+                exit 1
+              }
             }
           }
 
+      # Set up Android SDK
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
@@ -95,12 +102,14 @@ jobs:
           ndk-version: '25.1.8937393'
           build-tools-version: '33.0.2'
 
+      # Build the APK
       - name: Build APK
         working-directory: ./aurore_frontend
         run: |
-          flutter build apk --release
+          flutter build apk --release --no-sound-null-safety
           ls -la build/app/outputs/flutter-apk/
 
+      # Upload the APK as an artifact
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
