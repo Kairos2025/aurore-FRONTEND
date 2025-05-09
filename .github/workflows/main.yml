@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout the repository
+      # Checkout the repository with a specific path
       - name: Checkout code
         uses: actions/checkout@v3
         with:
@@ -30,15 +30,15 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.10.0' # Specify a stable Flutter version
+          flutter-version: '3.22.0' # Updated to a recent stable version as of May 2025
           channel: 'stable'
 
       # Verify working directory
       - name: Verify directory
         run: |
-          ls -la
           pwd
-          ls -la ./auroe-FRONTEND/auroe_frontend || echo "Directory not found"
+          ls -la ./auroe-FRONTEND
+          ls -la ./auroe-FRONTEND/auroe_frontend || { echo "Error: auroe_frontend directory not found"; exit 1; }
 
       # Get Flutter dependencies
       - name: Install dependencies
@@ -48,11 +48,13 @@ jobs:
       # Build the APK
       - name: Build APK
         working-directory: ./auroe-FRONTEND/auroe_frontend
-        run: flutter build apk --release
+        run: |
+          flutter build apk --release
+          ls -la build/app/outputs/flutter-apk/ || { echo "Error: APK build failed or output not found"; exit 1; }
 
       # Upload the APK as an artifact
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release.apk
-          path: auroe-FRONTEND/auroe_frontend/build/app/outputs/flutter-apk/app-release.apk
+          path: aurore-FRONTEND/auroe_frontend/build/app/outputs/flutter-apk/app-release.apk
