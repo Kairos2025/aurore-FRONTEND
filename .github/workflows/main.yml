@@ -1,4 +1,4 @@
-name: Flutter APK Builder (Guaranteed Dart 3.8.6)
+name: Flutter APK Builder (Dart 3.8.6 Guaranteed)
 
 on:
   push:
@@ -7,10 +7,9 @@ on:
 
 env:
   PROJECT_DIR: 'aurore_frontend'
-  FLUTTER_VERSION: '3.19.5'  # This version ships with Dart 3.8.6
+  FLUTTER_VERSION: '3.19.5'  # This version includes Dart 3.8.6
   FLUTTER_HOME: '/opt/flutter'
   DART_VERSION: '3.8.6'
-  DART_SDK_SHA256: 'f5a0f42bced3debff6a95a4207d467f0a0f2c8a3f0a1e0f1b3e0c6a8e6b5d8c' # Actual SHA256 for Dart 3.8.6 SDK
 
 jobs:
   build:
@@ -32,16 +31,17 @@ jobs:
           sudo apt-get install -y \
             curl git unzip xz-utils \
             libglu1-mesa build-essential \
-            libstdc++6 clang cmake ninja-build \
-            wget
+            libstdc++6 clang cmake ninja-build
 
       - name: Clean Environment
         run: |
           sudo rm -rf /usr/local/flutter
           sudo rm -rf /opt/hostedtoolcache/flutter
           sudo rm -rf ${{ env.FLUTTER_HOME }}
+          sudo rm -rf ~/.flutter
+          sudo rm -rf ~/.dart*
 
-      - name: Install Flutter (Official Method)
+      - name: Install Flutter with Correct Dart Version
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -50,36 +50,15 @@ jobs:
 
       - name: Verify Dart Version
         run: |
-          echo "Verifying Dart version..."
-          DART_ACTUAL=$(dart --version 2>&1 | awk '{print $4}')
-          echo "Current Dart version: $DART_ACTUAL"
+          echo "=== Current Dart Version ==="
+          dart --version
           
+          DART_ACTUAL=$(dart --version 2>&1 | awk '{print $4}')
           if [ "$DART_ACTUAL" != "${{ env.DART_VERSION }}" ]; then
-            echo "::error::Incorrect Dart version! Actual: $DART_ACTUAL, Expected: ${{ env.DART_VERSION }}"
-            echo "::warning::Falling back to manual Dart SDK installation"
-            
-            # Manual Dart SDK installation
-            echo "Downloading Dart SDK..."
-            wget -q https://storage.googleapis.com/dart-archive/channels/stable/release/3.8.6/sdk/dartsdk-linux-x64-release.zip \
-              -O dart-sdk.zip || \
-              wget -q https://storage.googleapis.com/dart-archive/channels/stable/release/3.8.6/sdk/dartsdk-linux-x64-release.zip \
-              -O dart-sdk.zip || \
-              (echo "::error::Failed to download Dart SDK" && exit 1)
-            
-            echo "Verifying checksum..."
-            echo "${{ env.DART_SDK_SHA256 }}  dart-sdk.zip" | sha256sum -c - || \
-              (echo "::error::Checksum verification failed!" && exit 1)
-            
-            echo "Installing Dart SDK..."
-            unzip -q dart-sdk.zip -d $FLUTTER_HOME/bin/cache/
-            rm dart-sdk.zip
-            
-            # Verify final version
-            DART_ACTUAL=$($FLUTTER_HOME/bin/cache/dart-sdk/bin/dart --version 2>&1 | awk '{print $4}')
-            if [ "$DART_ACTUAL" != "${{ env.DART_VERSION }}" ]; then
-              echo "::error::Final Dart version still incorrect: $DART_ACTUAL"
-              exit 1
-            fi
+            echo "::error::Dart version mismatch! Actual: $DART_ACTUAL, Expected: ${{ env.DART_VERSION }}"
+            echo "This should not happen with Flutter ${{ env.FLUTTER_VERSION }}"
+            echo "Please verify the Flutter version includes Dart ${{ env.DART_VERSION }}"
+            exit 1
           fi
 
       - name: Setup Android
@@ -91,13 +70,6 @@ jobs:
           touch ~/.android/repositories.cfg
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
           yes | flutter doctor --android-licenses || true
-
-      - name: Install Android Tools
-        run: |
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-            "platform-tools" \
-            "platforms;android-33" \
-            "build-tools;33.0.0"
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
