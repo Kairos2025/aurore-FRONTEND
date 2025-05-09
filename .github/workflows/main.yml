@@ -26,10 +26,30 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      # Fetch the latest stable Flutter version
-      - name: Fetch latest stable Flutter version
+      # Attempt to set up Flutter with the beta channel
+      - name: Set up Flutter (Beta Channel)
+        uses: subosito/flutter-action@v2.8.0
+        with:
+          channel: 'beta'
+          architecture: 'x64'
+
+      # Verify Flutter and Dart version (Beta Channel)
+      - name: Verify Flutter setup (Beta Channel)
         run: |
-          echo "Fetching the latest stable Flutter version..."
+          flutter doctor -v || { echo "Error: Flutter setup failed"; exit 1; }
+          flutter --version || { echo "Error: Flutter not found"; exit 1; }
+          dart --version || { echo "Error: Dart not found"; exit 1; }
+          dart_version=$(dart --version 2>&1 | grep -oP '\d+\.\d+\.\d+')
+          echo "Dart version: $dart_version"
+          if [[ "$(echo $dart_version | cut -d'.' -f1)" -eq 3 && "$(echo $dart_version | cut -d'.' -f2)" -lt 8 ]]; then
+            echo "Error: Dart version must be >=3.8.0, found $dart_version"; exit 1
+          fi
+
+      # Fallback to latest stable channel if beta channel Dart version is insufficient
+      - name: Fetch latest stable Flutter version
+        if: failure()
+        run: |
+          echo "Beta channel Dart version insufficient, fetching the latest stable Flutter version..."
           git clone --depth 1 --branch stable https://github.com/flutter/flutter.git flutter_latest
           cd flutter_latest
           ./bin/flutter --version
@@ -39,16 +59,18 @@ jobs:
           cd ..
           rm -rf flutter_latest
 
-      # Set up Flutter with the latest stable version
-      - name: Set up Flutter
+      # Retry Flutter setup with the latest stable version
+      - name: Set up Flutter (Stable Channel Fallback)
+        if: env.FLUTTER_VERSION != ''
         uses: subosito/flutter-action@v2.8.0
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
           architecture: 'x64'
 
-      # Verify Flutter and Dart version
-      - name: Verify Flutter setup
+      # Verify Flutter and Dart version (Stable Channel Fallback)
+      - name: Verify Flutter setup (Stable Channel Fallback)
+        if: env.FLUTTER_VERSION != ''
         run: |
           flutter doctor -v || { echo "Error: Flutter setup failed"; exit 1; }
           flutter --version || { echo "Error: Flutter not found"; exit 1; }
