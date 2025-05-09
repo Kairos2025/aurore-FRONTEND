@@ -87,6 +87,13 @@ jobs:
             echo "Error: aurore-FRONTEND directory not found"; exit 1
           fi
 
+      # Workaround: Modify pubspec.yaml to allow Dart 3.7.2
+      - name: Update Dart SDK constraint in pubspec.yaml
+        working-directory: ./aurore-FRONTEND/aurore_frontend
+        run: |
+          sed -i "s/sdk: '>=3.8.0 <4.0.0'/sdk: '>=3.7.0 <4.0.0'/" pubspec.yaml
+          cat pubspec.yaml
+
       # Get Flutter dependencies
       - name: Install dependencies
         working-directory: ./aurore-FRONTEND/aurore_frontend
