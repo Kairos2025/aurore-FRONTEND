@@ -91,11 +91,12 @@ jobs:
       - name: Update Dart SDK constraint in pubspec.yaml
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
-          if grep -q "sdk: '>=3.8.0 <4.0.0'" pubspec.yaml; then
-            sed -i "s/sdk: '>=3.8.0 <4.0.0'/sdk: '>=3.7.0 <4.0.0'/" pubspec.yaml
-            echo "Updated pubspec.yaml to allow Dart >=3.7.0 <4.0.0"
+          # Check if the original constraint exists within the environment section
+          if grep -A 1 "environment:" pubspec.yaml | grep -q "sdk: \">=3.8.0 <4.0.0\""; then
+            sed -i "/environment:/,/^[^ ]/ s/sdk: \">=3.8.0 <4.0.0\"/sdk: \">=3.7.0 <4.0.0\"/" pubspec.yaml
+            echo "Successfully updated Dart SDK constraint to >=3.7.0 <4.0.0"
           else
-            echo "Dart SDK constraint already updated or different from expected"
+            echo "Original Dart SDK constraint not found or already updated"
           fi
 
       # Verify pubspec.yaml content
@@ -103,8 +104,8 @@ jobs:
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
           cat pubspec.yaml
-          if grep -q "sdk: '>=3.7.0 <4.0.0'" pubspec.yaml; then
-            echo "pubspec.yaml successfully updated"
+          if grep -A 1 "environment:" pubspec.yaml | grep -q "sdk: \">=3.7.0 <4.0.0\""; then
+            echo "pubspec.yaml successfully updated with Dart >=3.7.0 <4.0.0"
           else
             echo "Error: Failed to update pubspec.yaml Dart SDK constraint"; exit 1
           fi
