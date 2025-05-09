@@ -1,4 +1,4 @@
-name: Flutter APK Builder (Dart 3.8.6 Guaranteed)
+name: Flutter APK Builder (Self-Contained Dart 3.8.6)
 
 on:
   push:
@@ -7,12 +7,10 @@ on:
 
 env:
   PROJECT_DIR: 'aurore_frontend'
-  FLUTTER_VERSION: '3.16.9'  # Confirmed to work with Dart 3.8.6
+  FLUTTER_VERSION: '3.16.9'
   FLUTTER_HOME: '/opt/flutter'
   DART_VERSION: '3.8.6'
-  # Using direct download from Dart's official archive (not Flutter's storage)
-  DART_SDK_URL: 'https://storage.googleapis.com/dart-archive/channels/stable/release/3.8.6/sdk/dartsdk-linux-x64-release.zip'
-  DART_SDK_SHA256: 'f5a0f42bced3debff6a95a4207d467f0a0f2c8a3f0a1e0f1b3e0c6a8e6b5d8c'
+  LOCAL_DART_SDK: './tools/dart-sdk/dartsdk-linux-x64-release.zip'
 
 jobs:
   build:
@@ -21,6 +19,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Required to get the Dart SDK from the repo
 
       - name: Setup Java
         uses: actions/setup-java@v3
@@ -34,8 +34,7 @@ jobs:
           sudo apt-get install -y \
             curl git unzip xz-utils \
             libglu1-mesa build-essential \
-            libstdc++6 clang cmake ninja-build \
-            wget
+            libstdc++6 clang cmake ninja-build
 
       - name: Nuclear Clean
         run: |
@@ -45,64 +44,44 @@ jobs:
           sudo rm -rf ~/.flutter
           sudo rm -rf ~/.dart*
 
-      - name: Install Flutter Base
+      - name: Install Flutter
         run: |
           git clone https://github.com/flutter/flutter.git -b ${{ env.FLUTTER_VERSION }} --depth 1 ${{ env.FLUTTER_HOME }}
           echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
 
-      - name: Install Dart SDK (Guaranteed Method)
+      - name: Install Dart SDK from Repository
         run: |
-          echo "=== Installing Dart ${{ env.DART_VERSION }} ==="
+          echo "=== Installing Dart SDK from local repository ==="
           
-          # Method 1: Try direct download first
-          echo "Attempting direct download..."
-          if wget -q ${{ env.DART_SDK_URL }} -O dart-sdk.zip && unzip -t dart-sdk.zip; then
-            echo "Direct download successful!"
-          else
-            echo "Direct download failed, trying alternative mirrors..."
-            rm -f dart-sdk.zip
-            
-            # Method 2: Try alternative mirrors
-            MIRRORS=(
-              "https://mirrors.tuna.tsinghua.edu.cn/dart-archive/channels/stable/release/3.8.6/sdk/dartsdk-linux-x64-release.zip"
-              "https://mirror.nju.edu.cn/dart-archive/channels/stable/release/3.8.6/sdk/dartsdk-linux-x64-release.zip"
-            )
-            
-            for mirror in "${MIRRORS[@]}"; do
-              echo "Trying mirror: $mirror"
-              if wget -q "$mirror" -O dart-sdk.zip && unzip -t dart-sdk.zip; then
-                echo "Mirror download successful!"
-                break
-              fi
-              rm -f dart-sdk.zip
-            done
-            
-            if [ ! -f dart-sdk.zip ]; then
-              echo "::error::All download methods failed!"
-              exit 1
-            fi
+          # Verify the SDK exists
+          if [ ! -f "${{ env.LOCAL_DART_SDK }}" ]; then
+            echo "::error::Dart SDK not found at ${{ env.LOCAL_DART_SDK }}"
+            echo "Please download Dart 3.8.6 SDK and place it in your repository"
+            exit 1
           fi
 
+          # Verify checksum
           echo "Verifying checksum..."
-          echo "${{ env.DART_SDK_SHA256 }}  dart-sdk.zip" | sha256sum -c - || (echo "::error::Checksum verification failed!" && exit 1)
+          echo "${{ env.DART_SDK_SHA256 }}  ${{ env.LOCAL_DART_SDK }}" | sha256sum -c - || \
+            (echo "::error::Checksum verification failed!" && exit 1)
 
+          # Install Dart SDK
           echo "Installing Dart SDK..."
           rm -rf ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk
-          unzip -q dart-sdk.zip -d ${{ env.FLUTTER_HOME }}/bin/cache/
-          rm dart-sdk.zip
+          unzip -q ${{ env.LOCAL_DART_SDK }} -d ${{ env.FLUTTER_HOME }}/bin/cache/
 
-          # Fix directory structure
+          # Fix directory structure if needed
           if [ -d "${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/dart-sdk" ]; then
             mv ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/dart-sdk/* ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/
             rm -rf ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/dart-sdk
           fi
 
-          # Verify installation
+          # Verify version
           DART_ACTUAL=$(${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/bin/dart --version 2>&1 | awk '{print $4}')
           echo "Installed Dart version: $DART_ACTUAL"
           
           if [ "$DART_ACTUAL" != "${{ env.DART_VERSION }}" ]; then
-            echo "::error::Final Dart version still incorrect!"
+            echo "::error::Dart version mismatch! Actual: $DART_ACTUAL, Expected: ${{ env.DART_VERSION }}"
             exit 1
           fi
 
