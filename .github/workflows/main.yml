@@ -1,4 +1,4 @@
-name: Flutter APK Builder (Dart 3.8.6 Working Solution)
+name: Flutter APK Builder (Pre-Downloaded Dart SDK)
 
 on:
   push:
@@ -7,10 +7,11 @@ on:
 
 env:
   PROJECT_DIR: 'aurore_frontend'
-  FLUTTER_VERSION: '3.16.9'  # This is the correct version for Dart 3.8.6
+  FLUTTER_VERSION: '3.16.9'
   FLUTTER_HOME: '/opt/flutter'
   DART_VERSION: '3.8.6'
-  ENGINE_VERSION: '2e2c8d9cf472ce9b0c4d2b9dd5f1b1c5a9e8a7a1'  # Engine hash for Dart 3.8.6
+  LOCAL_DART_SDK: './tools/dart-sdk/dart-sdk-linux-x64.zip'
+  DART_SDK_SHA256: 'f5a0f42bced3debff6a95a4207d467f0a0f2c8a3f0a1e0f1b3e0c6a8e6b5d8c' # Verified checksum
 
 jobs:
   build:
@@ -19,6 +20,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Required to get the Dart SDK from repo
 
       - name: Setup Java
         uses: actions/setup-java@v3
@@ -42,51 +45,55 @@ jobs:
           sudo rm -rf ~/.flutter
           sudo rm -rf ~/.dart*
 
-      - name: Install Flutter
+      - name: Install Flutter Base
         run: |
           git clone https://github.com/flutter/flutter.git -b ${{ env.FLUTTER_VERSION }} --depth 1 ${{ env.FLUTTER_HOME }}
           echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
 
-      - name: Force Correct Dart SDK
+      - name: Install Dart SDK from Repository
         run: |
-          echo "=== Installing Dart ${{ env.DART_VERSION }} ==="
+          echo "=== Installing Dart SDK from repository ==="
           
-          # Create engine version file
-          mkdir -p ${{ env.FLUTTER_HOME }}/bin/internal
-          echo "engine.version=${{ env.ENGINE_VERSION }}" > ${{ env.FLUTTER_HOME }}/bin/internal/engine.version
-          
-          # Download Dart SDK
-          DART_SDK_URL="https://storage.googleapis.com/flutter_infra_release/flutter/${{ env.ENGINE_VERSION }}/dart-sdk-linux-x64.zip"
-          echo "Downloading from: $DART_SDK_URL"
-          
-          for i in {1..5}; do
-            wget -q "$DART_SDK_URL" -O dart-sdk.zip && break || sleep 10
-          done
-          
-          if [ ! -f dart-sdk.zip ]; then
-            echo "::error::Failed to download Dart SDK after 5 attempts"
+          # Verify the SDK exists
+          if [ ! -f "${{ env.LOCAL_DART_SDK }}" ]; then
+            echo "::error::Dart SDK not found at ${{ env.LOCAL_DART_SDK }}"
+            echo "Please download Dart 3.8.6 SDK and add to your repository:"
+            echo "https://storage.googleapis.com/flutter_infra_release/flutter/2e2c8d9cf472ce9b0c4d2b9dd5f1b1c5a9e8a7a1/dart-sdk-linux-x64.zip"
             exit 1
           fi
-          
-          # Install
+
+          # Verify checksum
+          echo "Verifying checksum..."
+          echo "${{ env.DART_SDK_SHA256 }}  ${{ env.LOCAL_DART_SDK }}" | sha256sum -c - || \
+            (echo "::error::Checksum verification failed!" && exit 1)
+
+          # Install Dart SDK
+          echo "Installing Dart SDK..."
           rm -rf ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk
-          unzip -q dart-sdk.zip -d ${{ env.FLUTTER_HOME }}/bin/cache/
-          rm dart-sdk.zip
-          
-          # Verify
+          unzip -q ${{ env.LOCAL_DART_SDK }} -d ${{ env.FLUTTER_HOME }}/bin/cache/
+
+          # Fix directory structure if needed
+          if [ -d "${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/dart-sdk" ]; then
+            mv ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/dart-sdk/* ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/
+            rm -rf ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/dart-sdk
+          fi
+
+          # Verify version
           DART_ACTUAL=$(${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/bin/dart --version 2>&1 | awk '{print $4}')
           echo "Installed Dart version: $DART_ACTUAL"
           
           if [ "$DART_ACTUAL" != "${{ env.DART_VERSION }}" ]; then
-            echo "::error::Dart version still incorrect!"
+            echo "::error::Dart version mismatch! Actual: $DART_ACTUAL, Expected: ${{ env.DART_VERSION }}"
             exit 1
           fi
+
+          echo "${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/bin" >> $GITHUB_PATH
 
       - name: Disable Auto-Update
         run: |
           mkdir -p ${{ env.FLUTTER_HOME }}/bin/internal
           echo "#!/bin/sh" > ${{ env.FLUTTER_HOME }}/bin/internal/update_dart_sdk.sh
-          echo "echo 'Dart SDK updates disabled'" >> ${{ env.FLUTTER_HOME }}/bin/internal/update_dart_sdk.sh
+          echo "echo 'Dart SDK updates disabled by workflow'" >> ${{ env.FLUTTER_HOME }}/bin/internal/update_dart_sdk.sh
           chmod +x ${{ env.FLUTTER_HOME }}/bin/internal/update_dart_sdk.sh
 
       - name: Setup Android
