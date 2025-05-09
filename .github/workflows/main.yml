@@ -97,39 +97,56 @@ jobs:
       - name: Regenerate Android project
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
+          # Backup original pubspec.yaml
+          cp pubspec.yaml pubspec.yaml.original
+          echo "Backed up original pubspec.yaml to pubspec.yaml.original"
           # Backup existing android directory
           if [ -d "android" ]; then
             mv android android_backup
             echo "Backed up existing android directory to android_backup"
           fi
+          # Backup lib, assets, and fonts directories
+          if [ -d "lib" ]; then
+            cp -r lib lib_backup
+            echo "Backed up lib directory to lib_backup"
+          fi
+          if [ -d "assets" ]; then
+            cp -r assets assets_backup
+            echo "Backed up assets directory to assets_backup"
+          fi
+          if [ -d "fonts" ]; then
+            cp -r fonts fonts_backup
+            echo "Backed up fonts directory to fonts_backup"
+          fi
           # Create new project structure
           flutter create -t app . --platforms android
           # Restore pubspec.yaml
-          cp pubspec.yaml pubspec.yaml.bak  # Backup new pubspec.yaml
-          cp ./pubspec.yaml .  # Restore original pubspec.yaml from current directory
+          mv pubspec.yaml pubspec.yaml.new  # Backup new pubspec.yaml
+          mv pubspec.yaml.original pubspec.yaml  # Restore original pubspec.yaml
+          echo "Restored original pubspec.yaml"
           # Restore lib directory (Dart code)
-          if [ -d "../lib" ]; then
+          if [ -d "lib_backup" ]; then
             rm -rf lib
-            cp -r ../lib .
+            mv lib_backup lib
             echo "Restored lib directory"
           else
-            echo "Error: lib directory not found in parent"; exit 1
+            echo "Error: lib_backup directory not found"; exit 1
           fi
           # Restore assets
-          if [ -d "../assets" ]; then
+          if [ -d "assets_backup" ]; then
             rm -rf assets
-            cp -r ../assets .
+            mv assets_backup assets
             echo "Restored assets directory"
           else
-            echo "Warning: assets directory not found in parent, using default"
+            echo "Warning: assets_backup directory not found, using default"
           fi
           # Restore fonts (if any)
-          if [ -d "../fonts" ]; then
+          if [ -d "fonts_backup" ]; then
             rm -rf fonts
-            cp -r ../fonts .
+            mv fonts_backup fonts
             echo "Restored fonts directory"
           else
-            echo "Warning: fonts directory not found in parent, using default"
+            echo "Warning: fonts_backup directory not found, using default"
           fi
 
       # Get Flutter dependencies (after migration)
