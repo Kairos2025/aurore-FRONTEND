@@ -16,6 +16,8 @@ jobs:
       # Checkout the repository
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          path: aurore-FRONTEND
 
       # Set up Java (required for Android builds)
       - name: Set up Java
@@ -31,19 +33,26 @@ jobs:
           flutter-version: '3.10.0' # Specify a stable Flutter version
           channel: 'stable'
 
+      # Verify working directory
+      - name: Verify directory
+        run: |
+          ls -la
+          pwd
+          ls -la ./auroe-FRONTEND/auroe_frontend || echo "Directory not found"
+
       # Get Flutter dependencies
       - name: Install dependencies
-        working-directory: ./auroe_frontend
+        working-directory: ./auroe-FRONTEND/auroe_frontend
         run: flutter pub get
 
       # Build the APK
       - name: Build APK
-        working-directory: ./auroe_frontend
+        working-directory: ./auroe-FRONTEND/auroe_frontend
         run: flutter build apk --release
 
       # Upload the APK as an artifact
       - name: Upload APK
-        uses: actions/upload-artifact@v4 # Updated to v4 for better compatibility
+        uses: actions/upload-artifact@v4
         with:
           name: app-release.apk
-          path: auroe_frontend/build/app/outputs/flutter-apk/app-release.apk
+          path: auroe-FRONTEND/auroe_frontend/build/app/outputs/flutter-apk/app-release.apk
