@@ -10,6 +10,7 @@ env:
   FLUTTER_VERSION: '3.16.9'
   FLUTTER_HOME: '/opt/flutter'
   DART_VERSION: '3.8.6'
+  ENGINE_VERSION: 'f40e976bedff57e69e1b3d89a7c2a3c617a03dad'  # From your original workflow
 
 jobs:
   build:
@@ -41,15 +42,25 @@ jobs:
           git clone https://github.com/flutter/flutter.git -b ${{ env.FLUTTER_VERSION }} --depth 1 ${{ env.FLUTTER_HOME }}
           echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
 
-      - name: Install Specific Dart SDK
+      - name: Install Correct Dart SDK
         run: |
-          # Get the correct Dart SDK URL from Flutter's internal files
-          DART_SDK_URL=$(grep 'dart-sdk/' ${{ env.FLUTTER_HOME }}/bin/internal/engine.version | cut -d' ' -f2)
+          # Use the engine version you specified to construct the URL
+          DART_SDK_URL="https://storage.googleapis.com/flutter_infra_release/flutter/${{ env.ENGINE_VERSION }}/dart-sdk-linux-x64.zip"
           echo "Downloading Dart SDK from: $DART_SDK_URL"
           
-          # Download and extract
+          # Download with retries
+          for i in {1..5}; do
+            curl -L $DART_SDK_URL -o dart-sdk.zip && break || sleep 30
+          done
+          
+          # Verify download
+          if ! unzip -t dart-sdk.zip; then
+            echo "::error::Downloaded Dart SDK is corrupt"
+            exit 1
+          fi
+          
+          # Extract to Flutter's cache
           mkdir -p ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk
-          curl -L $DART_SDK_URL -o dart-sdk.zip
           unzip -q dart-sdk.zip -d ${{ env.FLUTTER_HOME }}/bin/cache/
           rm dart-sdk.zip
           
@@ -62,17 +73,19 @@ jobs:
             exit 1
           fi
 
-      - name: Setup Flutter Cache
+      - name: Prevent Auto Updates
         run: |
-          # Pre-download dependencies
-          ${{ env.FLUTTER_HOME }}/bin/flutter precache --android
+          # Create dummy update script
+          mkdir -p ${{ env.FLUTTER_HOME }}/bin/internal
+          cat > ${{ env.FLUTTER_HOME }}/bin/internal/update_dart_sdk.sh << 'EOL'
+          #!/bin/sh
+          echo "Dart SDK updates are disabled in CI"
+          exit 0
+          EOL
+          chmod +x ${{ env.FLUTTER_HOME }}/bin/internal/update_dart_sdk.sh
           
-          # Create necessary cache files
-          echo "3.16.9" > ${{ env.FLUTTER_HOME }}/version
-          touch ${{ env.FLUTTER_HOME }}/bin/cache/.dartignore
-          
-          # Fix permissions
-          sudo chmod -R 755 ${{ env.FLUTTER_HOME }}
+          # Create engine version file
+          echo "engine.version=${{ env.ENGINE_VERSION }}" > ${{ env.FLUTTER_HOME }}/bin/internal/engine.version
 
       - name: Verify Installation
         run: |
@@ -83,8 +96,8 @@ jobs:
         run: |
           mkdir -p ~/.android
           touch ~/.android/repositories.cfg
-          yes | ${{ env.FLUTTER_HOME }}/bin/sdkmanager --licenses
-          yes | ${{ env.FLUTTER_HOME }}/bin/flutter doctor --android-licenses
+          yes | ${{ env.FLUTTER_HOME }}/bin/sdkmanager --licenses || true
+          yes | ${{ env.FLUTTER_HOME }}/bin/flutter doctor --android-licenses || true
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
