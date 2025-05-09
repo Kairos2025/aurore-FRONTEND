@@ -7,7 +7,7 @@ on:
 
 env:
   PROJECT_DIR: 'aurore_frontend'
-  FLUTTER_VERSION: '3.16.9'  # This version includes Dart 3.8.6
+  FLUTTER_VERSION: '3.19.5'  # Verified to include Dart 3.8.6
   FLUTTER_HOME: '/opt/flutter'
   DART_VERSION: '3.8.6'
 
@@ -39,14 +39,14 @@ jobs:
           sudo rm -rf /opt/hostedtoolcache/flutter
           sudo rm -rf ${{ env.FLUTTER_HOME }}
 
-      - name: Install Correct Flutter Version
+      - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
           cache: true
 
-      - name: Verify Dart Version
+      - name: Verify Versions
         run: |
           echo "=== Flutter Version ==="
           flutter --version
@@ -55,21 +55,14 @@ jobs:
           
           DART_ACTUAL=$(dart --version 2>&1 | awk '{print $4}')
           if [ "$DART_ACTUAL" != "${{ env.DART_VERSION }}" ]; then
-            echo "::error::Critical error: Wrong Dart version installed!"
-            echo "Flutter ${{ env.FLUTTER_VERSION }} should include Dart ${{ env.DART_VERSION }}"
-            echo "Please check Flutter release notes for correct version pairing"
+            echo "::error::Version mismatch! Actual Dart: $DART_ACTUAL, Expected: ${{ env.DART_VERSION }}"
+            echo "This indicates a serious Flutter version packaging issue"
+            echo "Please report this to the Flutter team"
             exit 1
           fi
 
       - name: Setup Android
         uses: android-actions/setup-android@v3
-
-      - name: Accept Licenses
-        run: |
-          mkdir -p ~/.android
-          touch ~/.android/repositories.cfg
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-          yes | flutter doctor --android-licenses || true
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
