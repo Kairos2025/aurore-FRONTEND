@@ -121,8 +121,8 @@ jobs:
           # Create new project structure
           flutter create -t app . --platforms android
           # Restore pubspec.yaml
-          mv pubspec.yaml pubspec.yaml.new  # Backup new pubspec.yaml
-          mv pubspec.yaml.original pubspec.yaml  # Restore original pubspec.yaml
+          mv pubspec.yaml pubspec.yaml.new
+          mv pubspec.yaml.original pubspec.yaml
           echo "Restored original pubspec.yaml"
           # Restore lib directory (Dart code)
           if [ -d "lib_backup" ]; then
@@ -149,24 +149,58 @@ jobs:
             echo "Warning: fonts_backup directory not found, using default"
           fi
 
+      # Fix imports in main.dart to use relative paths
+      - name: Update imports in main.dart
+        working-directory: ./aurore-FRONTEND/aurore_frontend
+        run: |
+          if [ -f "lib/main.dart" ]; then
+            sed -i 's|package:aurore_school/core/constants/app_colors.dart|core/constants/app_colors.dart|' lib/main.dart
+            sed -i 's|package:aurore_school/core/providers/auth_provider.dart|core/providers/auth_provider.dart|' lib/main.dart
+            sed -i 's|package:aurore_school/core/providers/qr_provider.dart|core/providers/qr_provider.dart|' lib/main.dart
+            sed -i 's|package:aurore_school/core/providers/api_service.dart|core/providers/api_service.dart|' lib/main.dart
+            sed -i 's|package:aurore_school/core/providers/timetable_controller.dart|core/providers/timetable_controller.dart|' lib/main.dart
+            sed -i 's|package:aurore_school/core/providers/ai_detector_provider.dart|core/providers/ai_detector_provider.dart|' lib/main.dart
+            sed -i 's|package:aurore_school/features/auth/login_screen.dart|features/auth/login_screen.dart|' lib/main.dart
+            sed -i 's|package:aurore_school/features/auth/reset_password_screen.dart|features/auth/reset_password_screen.dart|' lib/main.dart
+            sed -i 's|package:aurore_school/features/auth/sign_up_screen.dart|features/auth/sign_up_screen.dart|' lib/main.dart
+            sed -i 's|package:aurore_school/features/dashboard/teacher/teacher_dashboard.dart|features/dashboard/teacher/teacher_dashboard.dart|' lib/main.dart
+            sed -i 's|package:aurore_school/features/dashboard/student/student_dashboard.dart|features/dashboard/student/student_dashboard.dart|' lib/main.dart
+            sed -i 's|package:aurore_school/features/dashboard/admin/admin_dashboard.dart|features/dashboard/admin/admin_dashboard.dart|' lib/main.dart
+            sed -i 's|package:aurore_school/features/dashboard/support/support_screen.dart|features/dashboard/support/support_screen.dart|' lib/main.dart
+            sed -i 's|package:aurore_school/features/timetable_screen.dart|features/timetable_screen.dart|' lib/main.dart
+            sed -i 's|package:aurore_school/utils/secure_storage.dart|utils/secure_storage.dart|' lib/main.dart
+            echo "Updated imports in main.dart to use relative paths"
+            cat lib/main.dart
+          else
+            echo "Error: lib/main.dart not found"; exit 1
+          fi
+
       # Get Flutter dependencies (after migration)
       - name: Install dependencies
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
           flutter pub get || { echo "Error: Failed to get dependencies"; echo "pubspec.yaml content:"; cat pubspec.yaml; exit 1; }
 
-      # Set up Android SDK
+      # Set up Android SDK with updated NDK version
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
           sdk-level: '33'
-          ndk-version: '25.1.8937393'
+          ndk-version: '27.0.12077973'  # Updated to match plugin requirements
+
+      # Update NDK version in build.gradle.kts
+      - name: Update NDK version in build.gradle.kts
+        working-directory: ./aurore-FRONTEND/aurore_frontend
+        run: |
+          sed -i '/android {/a \        ndkVersion = "27.0.12077973"' android/app/build.gradle.kts
+          echo "Updated NDK version in android/app/build.gradle.kts"
+          cat android/app/build.gradle.kts
 
       # Build the APK
       - name: Build APK
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
-          flutter build apk --release || { echo "Error: APK build failed"; cat android/build.gradle; exit 1; }
+          flutter build apk --release || { echo "Error: APK build failed"; cat android/app/build.gradle.kts; exit 1; }
 
       # Upload the APK as an artifact
       - name: Upload APK
