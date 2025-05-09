@@ -1,4 +1,4 @@
-name: Flutter APK Builder (Guaranteed Version Match)
+name: Flutter APK Builder (Fixed Android Setup)
 
 on:
   push:
@@ -7,10 +7,9 @@ on:
 
 env:
   PROJECT_DIR: 'aurore_frontend'
-  FLUTTER_VERSION: '3.16.9'  # Updated to stable channel version
-  FLUTTER_HOME: '/opt/flutter'
-  DART_VERSION: '3.2.6'      # Matching Dart version for Flutter 3.16.9
-  ENGINE_VERSION: 'f40e976bedff57e69e1b3d89a7c2a3c617a03dad'
+  FLUTTER_VERSION: '3.16.9'
+  ANDROID_HOME: '/usr/local/lib/android/sdk'
+  ANDROID_SDK_ROOT: '/usr/local/lib/android/sdk'
 
 jobs:
   build:
@@ -20,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Java
+      - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
@@ -35,81 +34,43 @@ jobs:
             libstdc++6 clang cmake ninja-build \
             pkg-config libgtk-3-dev
 
-      - name: Nuclear Environment Clean
-        run: |
-          sudo rm -rf /usr/local/flutter
-          sudo rm -rf /opt/hostedtoolcache/flutter
-          sudo rm -rf ${{ env.FLUTTER_HOME }}
-          sudo rm -rf ~/.flutter
-          sudo rm -rf ~/.dart*
-          sudo rm -rf /tmp/flutter_*
-
-      - name: Install Flutter (Official Method)
+      - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
           cache: true
-          cache-key: 'flutter-v3.16.9'
-          cache-path: ${{ env.FLUTTER_HOME }}
 
-      - name: Verify Correct Versions
-        run: |
-          echo "=== Version Verification ==="
-          flutter --version
-          dart --version
-          
-          FLUTTER_ACTUAL=$(flutter --version | grep 'Flutter' | awk '{print $2}')
-          DART_ACTUAL=$(dart --version | awk '{print $4}')
-          
-          if [ "$FLUTTER_ACTUAL" != "${{ env.FLUTTER_VERSION }}" ]; then
-            echo "::error::Flutter version mismatch! Actual: $FLUTTER_ACTUAL, Expected: ${{ env.FLUTTER_VERSION }}"
-            exit 1
-          fi
-          
-          if [ "$DART_ACTUAL" != "${{ env.DART_VERSION }}" ]; then
-            echo "::error::Dart version mismatch! Actual: $DART_ACTUAL, Expected: ${{ env.DART_VERSION }}"
-            exit 1
-          fi
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
 
-      - name: Setup Android (Robust Method)
+      - name: Accept Android Licenses
         run: |
           mkdir -p ~/.android
           touch ~/.android/repositories.cfg
-          
-          # Accept licenses non-interactively
-          yes | sdkmanager --licenses >/dev/null 2>&1 || true
-          yes | flutter doctor --android-licenses >/dev/null 2>&1 || true
-          
-          # Verify Android tools
-          sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.0"
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
+          yes | flutter doctor --android-licenses
 
-      - name: Precache Dependencies
-        run: flutter precache --android --force
+      - name: Install Android Build Tools
+        run: |
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            "platform-tools" \
+            "platforms;android-33" \
+            "build-tools;33.0.0"
 
-      - name: Doctor Check
-        run: flutter doctor -v
+      - name: Verify Setup
+        run: |
+          flutter doctor -v
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list_installed
 
-      - name: Build APK (With Fallbacks)
+      - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          # Clean and get dependencies
-          flutter clean
           flutter pub get
-          
-          # Build with verbose logging
-          flutter build apk --release --shrink --verbose
-          
-          # Verify APK exists
-          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "::error::APK not found after build!"
-            ls -la build/app/outputs/flutter-apk/
-            exit 1
-          fi
+          flutter build apk --release --shrink
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 7
