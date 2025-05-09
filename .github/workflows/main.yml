@@ -33,29 +33,55 @@ jobs:
           flutter-version: '3.22.0' # Latest stable version as of May 2025
           channel: 'stable'
 
-      # Verify working directory
+      # Verify Flutter environment
+      - name: Verify Flutter setup
+        run: |
+          flutter doctor -v || { echo "Error: Flutter setup failed"; exit 1; }
+
+      # Verify working directory and project root
       - name: Verify directory
         run: |
           pwd
           ls -la .
-          ls -la ./aurore_frontend || { echo "Error: aurore_frontend directory not found"; exit 1; }
-          ls -la ./aurore_frontend/pubspec.yaml || { echo "Error: pubspec.yaml not found in aurore_frontend"; exit 1; }
+          if [ -d "./aurore-FRONTEND" ]; then
+            echo "Found aurore-FRONTEND directory"
+            cd ./aurore-FRONTEND
+            ls -la .
+            if [ -f "pubspec.yaml" ]; then
+              echo "Found pubspec.yaml in aurore-FRONTEND"
+            else
+              echo "Error: pubspec.yaml not found in aurore-FRONTEND"; exit 1
+            fi
+          else
+            echo "Error: aurore-FRONTEND directory not found"; exit 1
+          fi
 
       # Get Flutter dependencies
       - name: Install dependencies
-        working-directory: ./aurore_frontend
-        run: flutter pub get
+        working-directory: ./aurore-FRONTEND
+        run: |
+          flutter pub get || { echo "Error: Failed to get dependencies"; exit 1; }
+
+      # Set up Android SDK (anticipate Android build issues)
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v2
+        with:
+          sdk-level: '33' # Use a recent SDK level
+          ndk-version: '25.1.8937393' # Use a compatible NDK version
 
       # Build the APK
       - name: Build APK
-        working-directory: ./aurore_frontend
+        working-directory: ./aurore-FRONTEND
         run: |
-          flutter build apk --release
-          ls -la build/app/outputs/flutter-apk/ || { echo "Error: APK build failed or output not found"; exit 1; }
+          flutter build apk --release || { echo "Error: APK build failed"; exit 1; }
+          ls -la build/app/outputs/flutter-apk/ || { echo "Error: APK output directory not found"; exit 1; }
+          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
+            echo "Error: app-release.apk not generated"; exit 1
+          fi
 
       # Upload the APK as an artifact
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release.apk
-          path: aurore-FRONTEND/aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
+          path: aurore-FRONTEND/aurore-FRONTEND/build/app/outputs/flutter-apk/app-release.apk
