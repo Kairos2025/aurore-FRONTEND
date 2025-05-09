@@ -26,19 +26,10 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      # Set up Flutter with a specific version
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2.8.0
-        with:
-          flutter-version: '3.31.0' # Retry with a likely candidate
-          channel: 'stable'
-          architecture: 'x64'
-
-      # Fallback to latest stable if specified version fails
-      - name: Fallback to latest stable Flutter version
-        if: failure()
+      # Fetch the latest stable Flutter version
+      - name: Fetch latest stable Flutter version
         run: |
-          echo "Specified Flutter version failed, attempting to fetch the latest stable version..."
+          echo "Fetching the latest stable Flutter version..."
           git clone --depth 1 --branch stable https://github.com/flutter/flutter.git flutter_latest
           cd flutter_latest
           ./bin/flutter --version
@@ -48,9 +39,8 @@ jobs:
           cd ..
           rm -rf flutter_latest
 
-      # Retry Flutter setup with the latest stable version if fallback was triggered
-      - name: Retry Flutter setup with latest stable version
-        if: env.FLUTTER_VERSION != ''
+      # Set up Flutter with the latest stable version
+      - name: Set up Flutter
         uses: subosito/flutter-action@v2.8.0
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
