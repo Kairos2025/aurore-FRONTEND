@@ -44,17 +44,26 @@ jobs:
         run: |
           yes | flutter doctor --android-licenses
 
+      # Change directory to aurore_frontend
+      - name: Navigate to project directory
+        run: |
+          cd aurore_frontend
+          echo "Current directory: $(pwd)"
+          ls -la
+
       # Verify project structure
       - name: Verify project structure
+        working-directory: ./aurore_frontend
         run: |
           if [ ! -f "pubspec.yaml" ]; then
-            echo "Error: pubspec.yaml not found in root directory"
+            echo "Error: pubspec.yaml not found in aurore_frontend directory"
             exit 1
           fi
           echo "Project structure verified"
 
       # Update pubspec.yaml if needed
       - name: Update pubspec constraints
+        working-directory: ./aurore_frontend
         run: |
           # Backup original pubspec
           cp pubspec.yaml pubspec.yaml.bak
@@ -71,6 +80,7 @@ jobs:
 
       # Get dependencies with retry logic
       - name: Install dependencies
+        working-directory: ./aurore_frontend
         run: |
           for i in {1..3}; do
             flutter pub get && break || {
@@ -94,6 +104,7 @@ jobs:
 
       # Build the APK
       - name: Build APK
+        working-directory: ./aurore_frontend
         run: |
           flutter build apk --release --no-sound-null-safety
           ls -la build/app/outputs/flutter-apk/
@@ -103,4 +114,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-release.apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
