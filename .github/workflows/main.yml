@@ -87,16 +87,23 @@ jobs:
             echo "Error: aurore-FRONTEND directory not found"; exit 1
           fi
 
-      # Modify pubspec.yaml to allow Dart 3.7.2
-      - name: Update Dart SDK constraint in pubspec.yaml
+      # Modify pubspec.yaml to allow Dart 3.7.2 and Flutter 3.29.0
+      - name: Update Dart and Flutter SDK constraints in pubspec.yaml
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
-          # Check if the original constraint exists within the environment section
+          # Update Dart SDK constraint
           if grep -A 1 "environment:" pubspec.yaml | grep -q "sdk: \">=3.8.0 <4.0.0\""; then
             sed -i "/environment:/,/^[^ ]/ s/sdk: \">=3.8.0 <4.0.0\"/sdk: \">=3.7.0 <4.0.0\"/" pubspec.yaml
             echo "Successfully updated Dart SDK constraint to >=3.7.0 <4.0.0"
           else
-            echo "Original Dart SDK constraint not found or already updated"
+            echo "Dart SDK constraint already updated or not found as expected"
+          fi
+          # Update Flutter SDK constraint
+          if grep -A 2 "environment:" pubspec.yaml | grep -q "flutter: \">=3.36.0\""; then
+            sed -i "/environment:/,/^[^ ]/ s/flutter: \">=3.36.0\"/flutter: \">=3.29.0\"/" pubspec.yaml
+            echo "Successfully updated Flutter SDK constraint to >=3.29.0"
+          else
+            echo "Flutter SDK constraint already updated or not found as expected"
           fi
 
       # Verify pubspec.yaml content
@@ -108,6 +115,11 @@ jobs:
             echo "pubspec.yaml successfully updated with Dart >=3.7.0 <4.0.0"
           else
             echo "Error: Failed to update pubspec.yaml Dart SDK constraint"; exit 1
+          fi
+          if grep -A 2 "environment:" pubspec.yaml | grep -q "flutter: \">=3.29.0\""; then
+            echo "pubspec.yaml successfully updated with Flutter >=3.29.0"
+          else
+            echo "Error: Failed to update pubspec.yaml Flutter SDK constraint"; exit 1
           fi
 
       # Get Flutter dependencies
