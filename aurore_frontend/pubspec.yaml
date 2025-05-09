@@ -3,23 +3,23 @@ description: A Flutter application for Aurore School management
 version: 1.0.1+2
 
 environment:
-  sdk: ">=3.8.0 <4.0.0"
-  flutter: ">=3.36.0"
+  sdk: ">=3.7.0 <4.0.0"  # Matches Dart 3.7.2 from Flutter 3.29.3
+  flutter: ">=3.29.0"    # Matches Flutter 3.29.3
 
 dependencies:
   flutter:
     sdk: flutter
-  firebase_core: ^4.3.0
-  firebase_auth: ^6.3.0
-  firebase_analytics: ^11.4.5
-  google_sign_in: ^6.3.0
+  firebase_core: ^2.32.0  # Compatible with Flutter 3.29.3
+  firebase_auth: ^4.15.0  # Compatible with Flutter 3.29.3
+  firebase_analytics: ^10.10.7  # Compatible with Flutter 3.29.3
+  google_sign_in: ^6.2.1  # Stable version as of early 2025
   flutter_secure_storage: ^9.2.4
   crypto: ^3.0.6
   path_provider: ^2.1.5
   mobile_scanner: ^6.0.10
   qr_flutter: ^4.1.0
   dio: ^5.8.0+1
-  http: ^1.0.0  # Changed to be compatible with flutter_svg
+  http: ^1.0.0  # Compatible with flutter_svg
   provider: ^6.1.5
   get_it: ^8.0.3
   google_mlkit_text_recognition: ^0.15.0
@@ -34,7 +34,7 @@ dependencies:
   intl: ^0.20.2
   flutter_svg: ^2.1.0
   async: 2.12.0  # Pinned to match Flutter SDK
-  material_color_utilities: ^0.12.0
+  material_color_utilities: ^0.11.1  # Downgraded to match flutter_test requirement
 
 dependency_overrides:
   vector_math: 2.1.4
