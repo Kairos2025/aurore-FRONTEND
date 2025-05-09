@@ -1,4 +1,4 @@
-name: Flutter APK Builder (Exact Dart 3.8.6)
+name: Flutter APK Builder (Fixed Dart SDK Download)
 
 on:
   push:
@@ -7,10 +7,9 @@ on:
 
 env:
   PROJECT_DIR: 'aurore_frontend'
-  FLUTTER_VERSION: '3.19.5'  # This version includes Dart 3.8.6
+  FLUTTER_VERSION: '3.19.5'  # Matches Dart 3.8.6
   FLUTTER_HOME: '/opt/flutter'
   DART_VERSION: '3.8.6'
-  ANDROID_HOME: '/usr/local/lib/android/sdk'
   DART_SDK_URL: 'https://storage.googleapis.com/dart-archive/channels/stable/release/3.8.6/sdk/dartsdk-linux-x64-release.zip'
 
 jobs:
@@ -35,36 +34,52 @@ jobs:
             libglu1-mesa build-essential \
             libstdc++6 clang cmake ninja-build
 
-      - name: Nuclear Clean
+      - name: Clean Environment
         run: |
           sudo rm -rf /usr/local/flutter
           sudo rm -rf /opt/hostedtoolcache/flutter
           sudo rm -rf ${{ env.FLUTTER_HOME }}
-          sudo rm -rf ~/.flutter
-          sudo rm -rf ~/.dart*
 
       - name: Install Flutter Base
         run: |
           git clone https://github.com/flutter/flutter.git -b ${{ env.FLUTTER_VERSION }} --depth 1 ${{ env.FLUTTER_HOME }}
           echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
 
-      - name: Force Correct Dart SDK
+      - name: Download Dart SDK (With Retries)
         run: |
-          # Remove existing Dart SDK
-          rm -rf ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk
-          
-          # Download and install specific Dart version
-          echo "Downloading Dart SDK from: ${{ env.DART_SDK_URL }}"
-          curl -L ${{ env.DART_SDK_URL }} -o dart-sdk.zip
-          unzip -q dart-sdk.zip -d ${{ env.FLUTTER_HOME }}/bin/cache/
-          rm dart-sdk.zip
-          
-          # Fix directory structure
-          if [ -d "${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk" ]; then
-            mv ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk-old
+          echo "Downloading Dart SDK (attempt 1/3)..."
+          if ! curl -L ${{ env.DART_SDK_URL }} -o dart-sdk.zip; then
+            echo "Download failed, retrying (attempt 2/3)..."
+            sleep 5
+            if ! curl -L ${{ env.DART_SDK_URL }} -o dart-sdk.zip; then
+              echo "Download failed, retrying (attempt 3/3)..."
+              sleep 5
+              curl -L ${{ env.DART_SDK_URL }} -o dart-sdk.zip || exit 1
+            fi
           fi
-          mv ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk* ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk
+
+          echo "Verifying download..."
+          if ! unzip -t dart-sdk.zip; then
+            echo "::error::Downloaded Dart SDK is corrupt"
+            exit 1
+          fi
+
+      - name: Install Dart SDK
+        run: |
+          echo "Installing Dart SDK..."
+          rm -rf ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk
+          mkdir -p ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk
+          unzip -q dart-sdk.zip -d ${{ env.FLUTTER_HOME }}/bin/cache/
           
+          # Fix directory structure if needed
+          if [ -d "${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/dart-sdk" ]; then
+            mv ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/dart-sdk/* ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/
+            rm -rf ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/dart-sdk
+          fi
+          
+          rm dart-sdk.zip
+          echo "${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/bin" >> $GITHUB_PATH
+
           # Verify version
           DART_ACTUAL=$(${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/bin/dart --version 2>&1 | awk '{print $4}')
           echo "Installed Dart version: $DART_ACTUAL"
@@ -76,32 +91,13 @@ jobs:
 
       - name: Disable Auto-Update
         run: |
-          # Prevent Flutter from replacing our Dart SDK
-          echo "Creating dummy update files..."
           mkdir -p ${{ env.FLUTTER_HOME }}/bin/internal
           echo "#!/bin/sh" > ${{ env.FLUTTER_HOME }}/bin/internal/update_dart_sdk.sh
           echo "echo 'Dart SDK updates disabled by workflow'" >> ${{ env.FLUTTER_HOME }}/bin/internal/update_dart_sdk.sh
           chmod +x ${{ env.FLUTTER_HOME }}/bin/internal/update_dart_sdk.sh
-          echo "3.19.5" > ${{ env.FLUTTER_HOME }}/version
 
       - name: Setup Android
         uses: android-actions/setup-android@v3
-
-      - name: Accept Licenses
-        run: |
-          mkdir -p ~/.android
-          touch ~/.android/repositories.cfg
-          yes | ${{ env.ANDROID_HOME }}/cmdline-tools/latest/bin/sdkmanager --licenses
-          yes | flutter doctor --android-licenses
-
-      - name: Verify Environment
-        run: |
-          echo "=== Flutter Version ==="
-          flutter --version
-          echo "=== Dart Version ==="
-          dart --version
-          echo "=== Doctor ==="
-          flutter doctor -v
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
