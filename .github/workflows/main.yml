@@ -47,10 +47,17 @@ jobs:
             echo "Found aurore-FRONTEND directory"
             cd ./aurore-FRONTEND
             ls -la .
-            if [ -f "pubspec.yaml" ]; then
-              echo "Found pubspec.yaml in aurore-FRONTEND"
+            if [ -d "./aurore_frontend" ]; then
+              echo "Found aurore_frontend directory"
+              cd ./aurore_frontend
+              ls -la .
+              if [ -f "pubspec.yaml" ]; then
+                echo "Found pubspec.yaml in aurore_frontend"
+              else
+                echo "Error: pubspec.yaml not found in aurore_frontend"; exit 1
+              fi
             else
-              echo "Error: pubspec.yaml not found in aurore-FRONTEND"; exit 1
+              echo "Error: aurore_frontend directory not found"; exit 1
             fi
           else
             echo "Error: aurore-FRONTEND directory not found"; exit 1
@@ -58,7 +65,7 @@ jobs:
 
       # Get Flutter dependencies
       - name: Install dependencies
-        working-directory: ./aurore-FRONTEND
+        working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
           flutter pub get || { echo "Error: Failed to get dependencies"; exit 1; }
 
@@ -71,7 +78,7 @@ jobs:
 
       # Build the APK
       - name: Build APK
-        working-directory: ./aurore-FRONTEND
+        working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
           flutter build apk --release || { echo "Error: APK build failed"; exit 1; }
           ls -la build/app/outputs/flutter-apk/ || { echo "Error: APK output directory not found"; exit 1; }
@@ -84,4 +91,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-release.apk
-          path: aurore-FRONTEND/aurore-FRONTEND/build/app/outputs/flutter-apk/app-release.apk
+          path: aurore-FRONTEND/aurore-FRONTEND/aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
