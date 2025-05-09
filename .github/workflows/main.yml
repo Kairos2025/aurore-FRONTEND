@@ -1,4 +1,4 @@
-name: Flutter APK Builder (Exact Dart Version)
+name: Flutter APK Builder (Guaranteed Version Match)
 
 on:
   push:
@@ -7,11 +7,10 @@ on:
 
 env:
   PROJECT_DIR: 'aurore_frontend'
-  FLUTTER_VERSION: '3.16.9'
+  FLUTTER_VERSION: '3.16.9'  # Updated to stable channel version
   FLUTTER_HOME: '/opt/flutter'
-  DART_VERSION: '3.8.6'
+  DART_VERSION: '3.2.6'      # Matching Dart version for Flutter 3.16.9
   ENGINE_VERSION: 'f40e976bedff57e69e1b3d89a7c2a3c617a03dad'
-  DART_SDK_URL: 'https://storage.googleapis.com/flutter_infra_release/flutter/${{ env.ENGINE_VERSION }}/dart-sdk-linux-x64.zip'
 
 jobs:
   build:
@@ -30,92 +29,87 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y curl git unzip xz-utils libglu1-mesa
+          sudo apt-get install -y \
+            curl git unzip xz-utils \
+            libglu1-mesa build-essential \
+            libstdc++6 clang cmake ninja-build \
+            pkg-config libgtk-3-dev
 
-      - name: Nuclear Clean
+      - name: Nuclear Environment Clean
         run: |
           sudo rm -rf /usr/local/flutter
           sudo rm -rf /opt/hostedtoolcache/flutter
           sudo rm -rf ${{ env.FLUTTER_HOME }}
           sudo rm -rf ~/.flutter
-          sudo rm -rf ~/.dart
-          sudo rm -rf ~/.dart_server
+          sudo rm -rf ~/.dart*
+          sudo rm -rf /tmp/flutter_*
 
-      - name: Install Dart SDK First
+      - name: Install Flutter (Official Method)
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+          cache-key: 'flutter-v3.16.9'
+          cache-path: ${{ env.FLUTTER_HOME }}
+
+      - name: Verify Correct Versions
         run: |
-          mkdir -p ${{ env.FLUTTER_HOME }}/bin/cache
-          echo "Downloading Dart SDK from: ${{ env.DART_SDK_URL }}"
+          echo "=== Version Verification ==="
+          flutter --version
+          dart --version
           
-          # Download with checksum verification
-          for i in {1..5}; do
-            curl -L ${{ env.DART_SDK_URL }} -o dart-sdk.zip && \
-            unzip -t dart-sdk.zip && break || sleep 30
-          done
+          FLUTTER_ACTUAL=$(flutter --version | grep 'Flutter' | awk '{print $2}')
+          DART_ACTUAL=$(dart --version | awk '{print $4}')
           
-          # Completely clean and install
-          rm -rf ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk
-          unzip -q dart-sdk.zip -d ${{ env.FLUTTER_HOME }}/bin/cache/
-          
-          # Force correct directory structure
-          if [ -d "${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/dart-sdk" ]; then
-            mv ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/dart-sdk ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk-temp
-            rm -rf ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk
-            mv ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk-temp ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk
+          if [ "$FLUTTER_ACTUAL" != "${{ env.FLUTTER_VERSION }}" ]; then
+            echo "::error::Flutter version mismatch! Actual: $FLUTTER_ACTUAL, Expected: ${{ env.FLUTTER_VERSION }}"
+            exit 1
           fi
-          
-          # Verify version from actual binary
-          DART_ACTUAL=$(${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/bin/dart --version 2>&1 | head -1 | awk '{print $4}')
-          echo "Extracted Dart version: $DART_ACTUAL"
           
           if [ "$DART_ACTUAL" != "${{ env.DART_VERSION }}" ]; then
-            echo "::error::Downloaded SDK contains wrong Dart version! Actual: $DART_ACTUAL, Expected: ${{ env.DART_VERSION }}"
-            echo "::error::Verify ENGINE_VERSION matches Flutter ${{ env.FLUTTER_VERSION }} requirements"
-            exit 1
-          fi
-          
-          rm dart-sdk.zip
-          echo "${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/bin" >> $GITHUB_PATH
-
-      - name: Install Flutter
-        run: |
-          git clone https://github.com/flutter/flutter.git -b ${{ env.FLUTTER_VERSION }} --depth 1 ${{ env.FLUTTER_HOME }}
-          
-          # Create version lock files
-          echo "${{ env.FLUTTER_VERSION }}" > ${{ env.FLUTTER_HOME }}/version
-          echo "engine.version=${{ env.ENGINE_VERSION }}" > ${{ env.FLUTTER_HOME }}/bin/internal/engine.version
-          
-          # Disable all updates
-          cat > ${{ env.FLUTTER_HOME }}/bin/internal/update_dart_sdk.sh << 'EOL'
-          #!/bin/sh
-          echo "Dart SDK updates disabled by CI configuration"
-          exit 0
-          EOL
-          chmod +x ${{ env.FLUTTER_HOME }}/bin/internal/update_dart_sdk.sh
-          
-          echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
-
-      - name: Force Dart Version
-        run: |
-          # Create direct symlinks to bypass any Flutter path logic
-          ln -sf ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/bin/dart /usr/local/bin/dart
-          ln -sf ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/bin/dart ${{ env.FLUTTER_HOME }}/bin/dart
-          
-          # Final verification
-          echo "Final Dart version check:"
-          dart --version
-          if ! dart --version 2>&1 | grep -q "${{ env.DART_VERSION }}"; then
-            echo "::error::Critical version mismatch after installation!"
+            echo "::error::Dart version mismatch! Actual: $DART_ACTUAL, Expected: ${{ env.DART_VERSION }}"
             exit 1
           fi
 
-      - name: Build APK
+      - name: Setup Android (Robust Method)
+        run: |
+          mkdir -p ~/.android
+          touch ~/.android/repositories.cfg
+          
+          # Accept licenses non-interactively
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          yes | flutter doctor --android-licenses >/dev/null 2>&1 || true
+          
+          # Verify Android tools
+          sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.0"
+
+      - name: Precache Dependencies
+        run: flutter precache --android --force
+
+      - name: Doctor Check
+        run: flutter doctor -v
+
+      - name: Build APK (With Fallbacks)
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
+          # Clean and get dependencies
+          flutter clean
           flutter pub get
-          flutter build apk --release --shrink
+          
+          # Build with verbose logging
+          flutter build apk --release --shrink --verbose
+          
+          # Verify APK exists
+          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
+            echo "::error::APK not found after build!"
+            ls -la build/app/outputs/flutter-apk/
+            exit 1
+          fi
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
