@@ -87,11 +87,11 @@ jobs:
             echo "Error: aurore-FRONTEND directory not found"; exit 1
           fi
 
-      # Get Flutter dependencies
-      - name: Install dependencies
+      # Get Flutter dependencies (initial run to ensure compatibility)
+      - name: Install initial dependencies
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
-          flutter pub get || { echo "Error: Failed to get dependencies"; echo "pubspec.yaml content:"; cat pubspec.yaml; exit 1; }
+          flutter pub get || { echo "Error: Failed to get initial dependencies"; echo "pubspec.yaml content:"; cat pubspec.yaml; exit 1; }
 
       # Regenerate Android project structure
       - name: Regenerate Android project
@@ -106,7 +106,7 @@ jobs:
           flutter create -t app . --platforms android
           # Restore pubspec.yaml
           cp pubspec.yaml pubspec.yaml.bak  # Backup new pubspec.yaml
-          cp ../pubspec.yaml .  # Restore original pubspec.yaml with updated dependencies
+          cp ./pubspec.yaml .  # Restore original pubspec.yaml from current directory
           # Restore lib directory (Dart code)
           if [ -d "../lib" ]; then
             rm -rf lib
@@ -131,6 +131,12 @@ jobs:
           else
             echo "Warning: fonts directory not found in parent, using default"
           fi
+
+      # Get Flutter dependencies (after migration)
+      - name: Install dependencies
+        working-directory: ./aurore-FRONTEND/aurore_frontend
+        run: |
+          flutter pub get || { echo "Error: Failed to get dependencies"; echo "pubspec.yaml content:"; cat pubspec.yaml; exit 1; }
 
       # Set up Android SDK
       - name: Set up Android SDK
