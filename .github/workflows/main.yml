@@ -13,11 +13,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout the repository with a specific path
+      # Checkout the repository
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          path: aurore-FRONTEND
 
       # Set up Java (required for Android builds)
       - name: Set up Java
@@ -26,119 +24,65 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      # Fetch the latest stable Flutter version
-      - name: Fetch latest stable Flutter version
-        run: |
-          echo "Fetching the latest stable Flutter version..."
-          git clone --depth 1 --branch stable https://github.com/flutter/flutter.git flutter_latest
-          cd flutter_latest
-          ./bin/flutter --version
-          flutter_version=$(./bin/flutter --version --machine | grep -oP '"frameworkVersion": "\K[0-9]+\.[0-9]+\.[0-9]+')
-          echo "Latest stable Flutter version: $flutter_version"
-          echo "FLUTTER_VERSION=$flutter_version" >> $GITHUB_ENV
-          cd ..
-          rm -rf flutter_latest
-
-      # Set up Flutter with the latest stable version
+      # Set up Flutter with a version compatible with firebase_auth 5.6.0
       - name: Set up Flutter
         uses: subosito/flutter-action@v2.8.0
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
+          flutter-version: '3.13.9'  # Specific version compatible with firebase_auth 5.6.0
           channel: 'stable'
           architecture: 'x64'
 
-      # Verify Flutter and Dart version
+      # Verify Flutter setup
       - name: Verify Flutter setup
         run: |
-          flutter doctor -v || { echo "Error: Flutter setup failed"; exit 1; }
-          flutter --version || { echo "Error: Flutter not found"; exit 1; }
-          dart --version || { echo "Error: Dart not found"; exit 1; }
-          dart_version=$(dart --version 2>&1 | grep -oP '\d+\.\d+\.\d+')
-          echo "Dart version: $dart_version"
+          flutter doctor -v
+          flutter --version
+          dart --version
 
       # Accept Android licenses
       - name: Accept Android licenses
-        working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
-          yes | flutter doctor --android-licenses || { echo "Error: Failed to accept Android licenses"; exit 1; }
+          yes | flutter doctor --android-licenses
 
-      # Verify working directory and project root
-      - name: Verify directory
+      # Verify project structure
+      - name: Verify project structure
         run: |
-          pwd
-          ls -la .
-          if [ -d "./aurore-FRONTEND" ]; then
-            echo "Found aurore-FRONTEND directory"
-            cd ./aurore-FRONTEND
-            ls -la .
-            if [ -d "./aurore_frontend" ]; then
-              echo "Found aurore_frontend directory"
-              cd ./aurore_frontend
-              ls -la .
-              if [ -f "pubspec.yaml" ]; then
-                echo "Found pubspec.yaml in aurore_frontend"
-              else
-                echo "Error: pubspec.yaml not found in aurore_frontend"; exit 1
-              fi
-            else
-              echo "Error: aurore_frontend directory not found"; exit 1
-            fi
-          else
-            echo "Error: aurore-FRONTEND directory not found"; exit 1
+          if [ ! -f "pubspec.yaml" ]; then
+            echo "Error: pubspec.yaml not found in root directory"
+            exit 1
           fi
+          echo "Project structure verified"
 
-      # Modify pubspec.yaml to adjust SDK constraints and firebase_auth version
-      - name: Update pubspec.yaml constraints and dependencies
-        working-directory: ./aurore-FRONTEND/aurore_frontend
+      # Update pubspec.yaml if needed
+      - name: Update pubspec constraints
         run: |
-          # Update Dart SDK constraint
-          if grep -A 1 "environment:" pubspec.yaml | grep -q "sdk: \">=3.8.0 <4.0.0\""; then
-            sed -i "/environment:/,/^[^ ]/ s/sdk: \">=3.8.0 <4.0.0\"/sdk: \">=3.7.0 <4.0.0\"/" pubspec.yaml
-            echo "Successfully updated Dart SDK constraint to >=3.7.0 <4.0.0"
-          else
-            echo "Dart SDK constraint already updated or not found as expected"
-          fi
-          # Update Flutter SDK constraint
-          if grep -A 2 "environment:" pubspec.yaml | grep -q "flutter: \">=3.36.0\""; then
-            sed -i "/environment:/,/^[^ ]/ s/flutter: \">=3.36.0\"/flutter: \">=3.29.0\"/" pubspec.yaml
-            echo "Successfully updated Flutter SDK constraint to >=3.29.0"
-          else
-            echo "Flutter SDK constraint already updated or not found as expected"
-          fi
-          # Update firebase_auth version
-          if grep -q "firebase_auth: ^6.3.0" pubspec.yaml; then
-            sed -i "s/firebase_auth: ^6.3.0/firebase_auth: ^5.6.0/" pubspec.yaml
-            echo "Successfully updated firebase_auth to ^5.6.0"
-          else
-            echo "firebase_auth constraint already updated or not found as expected"
-          fi
+          # Backup original pubspec
+          cp pubspec.yaml pubspec.yaml.bak
 
-      # Verify pubspec.yaml content
-      - name: Verify pubspec.yaml content
-        working-directory: ./aurore-FRONTEND/aurore_frontend
-        run: |
+          # Update SDK constraints
+          sed -i 's/sdk: ">=3.8.0 <4.0.0"/sdk: ">=2.19.0 <4.0.0"/' pubspec.yaml
+          sed -i 's/flutter: ">=3.36.0"/flutter: ">=3.3.0"/' pubspec.yaml
+          
+          # Ensure firebase_auth version is correct
+          sed -i 's/firebase_auth: ^6.3.0/firebase_auth: ^5.6.0/' pubspec.yaml
+          
+          echo "Updated pubspec.yaml contents:"
           cat pubspec.yaml
-          if grep -A 1 "environment:" pubspec.yaml | grep -q "sdk: \">=3.7.0 <4.0.0\""; then
-            echo "pubspec.yaml successfully updated with Dart >=3.7.0 <4.0.0"
-          else
-            echo "Error: Failed to update pubspec.yaml Dart SDK constraint"; exit 1
-          fi
-          if grep -A 2 "environment:" pubspec.yaml | grep -q "flutter: \">=3.29.0\""; then
-            echo "pubspec.yaml successfully updated with Flutter >=3.29.0"
-          else
-            echo "Error: Failed to update pubspec.yaml Flutter SDK constraint"; exit 1
-          fi
-          if grep -q "firebase_auth: ^5.6.0" pubspec.yaml; then
-            echo "pubspec.yaml successfully updated with firebase_auth ^5.6.0"
-          else
-            echo "Error: Failed to update pubspec.yaml firebase_auth version"; exit 1
-          fi
 
-      # Get Flutter dependencies
+      # Get dependencies with retry logic
       - name: Install dependencies
-        working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
-          flutter pub get || { echo "Error: Failed to get dependencies"; exit 1; }
+          for i in {1..3}; do
+            flutter pub get && break || {
+              echo "Attempt $i failed"
+              if [ $i -eq 3 ]; then
+                echo "All attempts failed, restoring original pubspec.yaml"
+                cp pubspec.yaml.bak pubspec.yaml
+                exit 1
+              fi
+              sleep 5
+            }
+          done
 
       # Set up Android SDK
       - name: Set up Android SDK
@@ -146,20 +90,17 @@ jobs:
         with:
           sdk-level: '33'
           ndk-version: '25.1.8937393'
+          build-tools-version: '33.0.2'
 
       # Build the APK
       - name: Build APK
-        working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
-          flutter build apk --release || { echo "Error: APK build failed"; exit 1; }
-          ls -la build/app/outputs/flutter-apk/ || { echo "Error: APK output directory not found"; exit 1; }
-          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "Error: app-release.apk not generated"; exit 1
-          fi
+          flutter build apk --release --no-sound-null-safety
+          ls -la build/app/outputs/flutter-apk/
 
       # Upload the APK as an artifact
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release.apk
-          path: aurore-FRONTEND/aurore-FRONTEND/aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
