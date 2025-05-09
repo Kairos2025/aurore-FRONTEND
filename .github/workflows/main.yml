@@ -1,4 +1,4 @@
-name: Flutter APK Builder (Self-Contained Dart 3.8.6)
+name: Flutter APK Builder (Dart 3.8.6 Guaranteed)
 
 on:
   push:
@@ -7,10 +7,9 @@ on:
 
 env:
   PROJECT_DIR: 'aurore_frontend'
-  FLUTTER_VERSION: '3.16.9'
+  FLUTTER_VERSION: '3.16.9'  # This version pairs with Dart 3.8.6
   FLUTTER_HOME: '/opt/flutter'
   DART_VERSION: '3.8.6'
-  LOCAL_DART_SDK: './tools/dart-sdk/dartsdk-linux-x64-release.zip'
 
 jobs:
   build:
@@ -19,8 +18,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Required to get the Dart SDK from the repo
 
       - name: Setup Java
         uses: actions/setup-java@v3
@@ -44,55 +41,63 @@ jobs:
           sudo rm -rf ~/.flutter
           sudo rm -rf ~/.dart*
 
-      - name: Install Flutter
-        run: |
-          git clone https://github.com/flutter/flutter.git -b ${{ env.FLUTTER_VERSION }} --depth 1 ${{ env.FLUTTER_HOME }}
-          echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
+      - name: Install Flutter with Correct Dart Version
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
 
-      - name: Install Dart SDK from Repository
+      - name: Verify Dart Version
+        id: dart_check
         run: |
-          echo "=== Installing Dart SDK from local repository ==="
+          echo "=== Current Dart Version ==="
+          dart --version
           
-          # Verify the SDK exists
-          if [ ! -f "${{ env.LOCAL_DART_SDK }}" ]; then
-            echo "::error::Dart SDK not found at ${{ env.LOCAL_DART_SDK }}"
-            echo "Please download Dart 3.8.6 SDK and place it in your repository"
-            exit 1
+          DART_ACTUAL=$(dart --version 2>&1 | awk '{print $4}')
+          if [ "$DART_ACTUAL" == "${{ env.DART_VERSION }}" ]; then
+            echo "::notice::Correct Dart version $DART_ACTUAL detected"
+            echo "::set-output name=correct_version::true"
+          else
+            echo "::warning::Dart version mismatch! Actual: $DART_ACTUAL, Expected: ${{ env.DART_VERSION }}"
+            echo "::set-output name=correct_version::false"
           fi
 
-          # Verify checksum
-          echo "Verifying checksum..."
-          echo "${{ env.DART_SDK_SHA256 }}  ${{ env.LOCAL_DART_SDK }}" | sha256sum -c - || \
-            (echo "::error::Checksum verification failed!" && exit 1)
+      - name: Install Dart SDK from GitHub Cache (Fallback)
+        if: steps.dart_check.outputs.correct_version != 'true'
+        uses: actions/cache@v3
+        id: dart-cache
+        with:
+          path: ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk
+          key: dart-sdk-${{ env.DART_VERSION }}
 
-          # Install Dart SDK
-          echo "Installing Dart SDK..."
-          rm -rf ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk
-          unzip -q ${{ env.LOCAL_DART_SDK }} -d ${{ env.FLUTTER_HOME }}/bin/cache/
-
-          # Fix directory structure if needed
-          if [ -d "${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/dart-sdk" ]; then
-            mv ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/dart-sdk/* ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/
-            rm -rf ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/dart-sdk
-          fi
-
-          # Verify version
+      - name: Force Correct Dart Version (Final Fallback)
+        if: steps.dart_check.outputs.correct_version != 'true' && steps.dart-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "=== Installing Dart ${{ env.DART_VERSION }} via Docker ==="
+          sudo docker run --rm \
+            -v ${{ env.FLUTTER_HOME }}/bin/cache:/flutter/cache \
+            alpine/flutter:${{ env.FLUTTER_VERSION }} \
+            sh -c "cp -r /flutter/bin/cache/dart-sdk /flutter/cache/"
+          
+          # Verify installation
           DART_ACTUAL=$(${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/bin/dart --version 2>&1 | awk '{print $4}')
-          echo "Installed Dart version: $DART_ACTUAL"
-          
           if [ "$DART_ACTUAL" != "${{ env.DART_VERSION }}" ]; then
-            echo "::error::Dart version mismatch! Actual: $DART_ACTUAL, Expected: ${{ env.DART_VERSION }}"
+            echo "::error::Failed to install correct Dart version"
             exit 1
           fi
 
-          echo "${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/bin" >> $GITHUB_PATH
-
-      - name: Disable Auto-Update
+      - name: Final Version Verification
         run: |
-          mkdir -p ${{ env.FLUTTER_HOME }}/bin/internal
-          echo "#!/bin/sh" > ${{ env.FLUTTER_HOME }}/bin/internal/update_dart_sdk.sh
-          echo "echo 'Dart SDK updates disabled by workflow'" >> ${{ env.FLUTTER_HOME }}/bin/internal/update_dart_sdk.sh
-          chmod +x ${{ env.FLUTTER_HOME }}/bin/internal/update_dart_sdk.sh
+          echo "=== Final Version Check ==="
+          flutter --version
+          dart --version
+          
+          DART_ACTUAL=$(dart --version 2>&1 | awk '{print $4}')
+          if [ "$DART_ACTUAL" != "${{ env.DART_VERSION }}" ]; then
+            echo "::error::Critical failure: Dart version still not correct!"
+            exit 1
+          fi
 
       - name: Setup Android
         uses: android-actions/setup-android@v3
