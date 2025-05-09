@@ -87,7 +87,7 @@ jobs:
             echo "Error: aurore-FRONTEND directory not found"; exit 1
           fi
 
-      # Modify pubspec.yaml to adjust SDK constraints and firebase_auth version
+      # Modify pubspec.yaml to adjust SDK constraints and dependencies
       - name: Update pubspec.yaml constraints and dependencies
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
@@ -107,17 +107,25 @@ jobs:
           else
             echo "Flutter SDK constraint already updated or not found as expected"
           fi
-          # Update firebase_auth version with fallback
-          if grep -q "firebase_auth: ^6.3.0" pubspec.yaml; then
-            sed -i "s/firebase_auth: ^6.3.0/firebase_auth: ^5.6.0/" pubspec.yaml
-            echo "Successfully updated firebase_auth to ^5.6.0"
-          elif ! grep -q "firebase_auth: ^[0-9]\+\.[0-9]\+\.[0-9]" pubspec.yaml; then
-            echo "Error: firebase_auth entry not found or already modified unexpectedly"
-            exit 1
+          # Update firebase_core version
+          if grep -q "firebase_core: ^4.3.0" pubspec.yaml; then
+            sed -i "s/firebase_core: ^4.3.0/firebase_core: ^2.32.0/" pubspec.yaml
+            echo "Successfully updated firebase_core to ^2.32.0"
           fi
-          if ! grep -q "firebase_auth: ^5.6.0" pubspec.yaml; then
-            sed -i "s/firebase_auth: ^[0-9]\+\.[0-9]\+\.[0-9]/firebase_auth: ^4.15.0/" pubspec.yaml
-            echo "Falling back to firebase_auth ^4.15.0"
+          # Update firebase_auth version
+          if grep -q "firebase_auth: ^6.3.0" pubspec.yaml; then
+            sed -i "s/firebase_auth: ^6.3.0/firebase_auth: ^4.15.0/" pubspec.yaml
+            echo "Successfully updated firebase_auth to ^4.15.0"
+          fi
+          # Update firebase_analytics version
+          if grep -q "firebase_analytics: ^11.4.5" pubspec.yaml; then
+            sed -i "s/firebase_analytics: ^11.4.5/firebase_analytics: ^10.10.7/" pubspec.yaml
+            echo "Successfully updated firebase_analytics to ^10.10.7"
+          fi
+          # Update google_sign_in version
+          if grep -q "google_sign_in: ^6.3.0" pubspec.yaml; then
+            sed -i "s/google_sign_in: ^6.3.0/google_sign_in: ^6.2.1/" pubspec.yaml
+            echo "Successfully updated google_sign_in to ^6.2.1"
           fi
 
       # Verify pubspec.yaml content
@@ -135,10 +143,25 @@ jobs:
           else
             echo "Error: Failed to update pubspec.yaml Flutter SDK constraint"; exit 1
           fi
-          if grep -q "firebase_auth: ^[4-5]\+\.[0-9]\+\.[0-9]" pubspec.yaml; then
-            echo "pubspec.yaml successfully updated with firebase_auth ^4.x.x or ^5.x.x"
+          if grep -q "firebase_core: ^2.32.0" pubspec.yaml; then
+            echo "pubspec.yaml successfully updated with firebase_core ^2.32.0"
+          else
+            echo "Error: Failed to update pubspec.yaml firebase_core version"; exit 1
+          fi
+          if grep -q "firebase_auth: ^4.15.0" pubspec.yaml; then
+            echo "pubspec.yaml successfully updated with firebase_auth ^4.15.0"
           else
             echo "Error: Failed to update pubspec.yaml firebase_auth version"; exit 1
+          fi
+          if grep -q "firebase_analytics: ^10.10.7" pubspec.yaml; then
+            echo "pubspec.yaml successfully updated with firebase_analytics ^10.10.7"
+          else
+            echo "Error: Failed to update pubspec.yaml firebase_analytics version"; exit 1
+          fi
+          if grep -q "google_sign_in: ^6.2.1" pubspec.yaml; then
+            echo "pubspec.yaml successfully updated with google_sign_in ^6.2.1"
+          else
+            echo "Error: Failed to update pubspec.yaml google_sign_in version"; exit 1
           fi
 
       # Get Flutter dependencies
