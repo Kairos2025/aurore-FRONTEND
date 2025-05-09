@@ -15,22 +15,20 @@ jobs:
     steps:
       # Checkout the repository with a specific path
       - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          path: aurore-FRONTEND
+        uses: actions/checkout@v4 # Updated to v4
 
       # Set up Java (required for Android builds)
       - name: Set up Java
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4 # Updated to v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
       # Set up Flutter
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2.2.0 # Updated to a newer version
+        uses: subosito/flutter-action@v2.8.0 # Updated to a newer version (v2.8.0 as of May 2025)
         with:
-          flutter-version: '3.24.0' # Fallback to a known stable version with Dart >=3.8.0
+          flutter-version: '3.24.0' # Known stable version with Dart >=3.8.0
           channel: 'stable'
 
       # Verify Flutter and Dart version
@@ -76,12 +74,12 @@ jobs:
         run: |
           flutter pub get || { echo "Error: Failed to get dependencies"; exit 1; }
 
-      # Set up Android SDK (anticipate Android build issues)
+      # Set up Android SDK
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v2
+        uses: android-actions/setup-android@v3 # Updated to v3
         with:
-          sdk-level: '33' # Use a recent SDK level
-          ndk-version: '25.1.8937393' # Use a compatible NDK version
+          sdk-level: '33'
+          ndk-version: '25.1.8937393'
 
       # Build the APK
       - name: Build APK
