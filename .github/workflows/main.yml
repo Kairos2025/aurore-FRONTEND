@@ -30,24 +30,24 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.0' # Updated to a recent stable version as of May 2025
+          flutter-version: '3.22.0' # Latest stable version as of May 2025
           channel: 'stable'
 
       # Verify working directory
       - name: Verify directory
         run: |
           pwd
-          ls -la ./auroe-FRONTEND
-          ls -la ./auroe-FRONTEND/auroe_frontend || { echo "Error: auroe_frontend directory not found"; exit 1; }
+          ls -la .
+          ls -la ./aurore_frontend || { echo "Error: aurore_frontend directory not found"; exit 1; }
 
       # Get Flutter dependencies
       - name: Install dependencies
-        working-directory: ./auroe-FRONTEND/auroe_frontend
+        working-directory: ./aurore_frontend
         run: flutter pub get
 
       # Build the APK
       - name: Build APK
-        working-directory: ./auroe-FRONTEND/auroe_frontend
+        working-directory: ./aurore_frontend
         run: |
           flutter build apk --release
           ls -la build/app/outputs/flutter-apk/ || { echo "Error: APK build failed or output not found"; exit 1; }
@@ -57,4 +57,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-release.apk
-          path: aurore-FRONTEND/auroe_frontend/build/app/outputs/flutter-apk/app-release.apk
+          path: aurore-FRONTEND/aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
