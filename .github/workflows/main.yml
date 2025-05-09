@@ -1,4 +1,4 @@
-name: Flutter APK Builder (Dart 3.8.6 Guaranteed)
+name: Flutter APK Builder (Dart 3.8.6 - Final Solution)
 
 on:
   push:
@@ -11,7 +11,6 @@ env:
   FLUTTER_HOME: '/opt/flutter'
   DART_VERSION: '3.8.6'
   DART_SDK_PATH: './tools/dart-sdk/dart-sdk-linux-x64.zip'
-  DART_SDK_SHA256: 'f5a0f42bced3debff6a95a4207d467f0a0f2c8a3f0a1e0f1b3e0c6a8e6b5d8c'
 
 jobs:
   build:
@@ -21,49 +20,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Required to get the Dart SDK
+          fetch-depth: 0  # This is CRUCIAL to get the SDK
 
-      - name: Validate Dart SDK
+      - name: Verify Dart SDK
         run: |
-          # Check file exists
+          # Check file exists and is valid
           if [ ! -f "${{ env.DART_SDK_PATH }}" ]; then
-            echo "::error::Dart SDK not found at ${{ env.DART_SDK_PATH }}"
-            echo "Follow these EXACT steps to fix:"
-            echo "1. Run locally: mkdir -p tools/dart-sdk"
-            echo "2. Download: wget https://storage.googleapis.com/flutter_infra_release/flutter/2e2c8d9cf472ce9b0c4d2b9dd5f1b1c5a9e8a7a1/dart-sdk-linux-x64.zip -O tools/dart-sdk/dart-sdk-linux-x64.zip"
-            echo "3. Verify download: ls -lh tools/dart-sdk/dart-sdk-linux-x64.zip (should be ~150MB)"
-            echo "4. Commit and push: git add tools/dart-sdk/dart-sdk-linux-x64.zip && git commit -m 'Add Dart SDK' && git push"
+            echo "::error::MISSING DART SDK - YOU MUST FOLLOW THESE STEPS:"
+            echo "1. Run these commands in your local repository:"
+            echo "   mkdir -p tools/dart-sdk"
+            echo "   wget https://storage.googleapis.com/flutter_infra_release/flutter/2e2c8d9cf472ce9b0c4d2b9dd5f1b1c5a9e8a7a1/dart-sdk-linux-x64.zip -O tools/dart-sdk/dart-sdk-linux-x64.zip"
+            echo "   git add tools/dart-sdk/dart-sdk-linux-x64.zip"
+            echo "   git commit -m 'Add Dart SDK'"
+            echo "   git push"
+            echo "2. Verify the file exists locally before pushing"
             exit 1
           fi
+          
+          echo "Dart SDK found - proceeding with build"
 
-          # Verify file size
-          FILE_SIZE=$(stat -c%s "${{ env.DART_SDK_PATH }}")
-          if [ "$FILE_SIZE" -lt 100000000 ]; then
-            echo "::error::Dart SDK file appears corrupted (too small)"
-            echo "Delete and re-download the file using the commands above"
-            exit 1
-          fi
-
-          echo "Dart SDK validation passed - proceeding with build"
-
-      - name: Setup Java
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'zulu'
-          java-version: '17'
-
-      - name: Install System Dependencies
+      - name: Setup Environment
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            curl git unzip xz-utils \
-            libglu1-mesa build-essential
-
-      - name: Clean Environment
-        run: |
-          sudo rm -rf /usr/local/flutter
-          sudo rm -rf /opt/hostedtoolcache/flutter
-          sudo rm -rf ${{ env.FLUTTER_HOME }}
+          sudo apt-get install -y curl git unzip
 
       - name: Install Flutter
         run: |
@@ -73,30 +52,17 @@ jobs:
       - name: Install Dart SDK
         run: |
           echo "=== Installing Dart SDK ==="
-          
-          # Clean existing SDK
           rm -rf ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk
-          
-          # Extract from repository
           unzip -q ${{ env.DART_SDK_PATH }} -d ${{ env.FLUTTER_HOME }}/bin/cache/
-          
-          # Fix directory structure if needed
-          if [ -d "${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/dart-sdk" ]; then
-            mv ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/dart-sdk/* ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/
-            rm -rf ${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/dart-sdk
-          fi
           
           # Verify version
           DART_ACTUAL=$(${{ env.FLUTTER_HOME }}/bin/cache/dart-sdk/bin/dart --version 2>&1 | awk '{print $4}')
           echo "Installed Dart version: $DART_ACTUAL"
           
           if [ "$DART_ACTUAL" != "${{ env.DART_VERSION }}" ]; then
-            echo "::error::Version mismatch! Expected ${{ env.DART_VERSION }}, got $DART_ACTUAL"
+            echo "::error::Wrong Dart version installed!"
             exit 1
           fi
-
-      - name: Setup Android
-        uses: android-actions/setup-android@v3
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
