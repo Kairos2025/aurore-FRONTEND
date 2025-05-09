@@ -30,13 +30,19 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.0' # Latest stable version as of May 2025
+          flutter-version: '3.28.0' # Use a version that includes Dart >=3.8.0 (as of May 2025)
           channel: 'stable'
 
-      # Verify Flutter environment
+      # Verify Flutter and Dart version
       - name: Verify Flutter setup
         run: |
           flutter doctor -v || { echo "Error: Flutter setup failed"; exit 1; }
+          dart --version || { echo "Error: Dart not found"; exit 1; }
+          dart_version=$(dart --version 2>&1 | grep -oP '\d+\.\d+\.\d+')
+          echo "Dart version: $dart_version"
+          if [[ "$(echo $dart_version | cut -d'.' -f1)" -eq 3 && "$(echo $dart_version | cut -d'.' -f2)" -lt 8 ]]; then
+            echo "Error: Dart version must be >=3.8.0, found $dart_version"; exit 1
+          fi
 
       # Verify working directory and project root
       - name: Verify directory
