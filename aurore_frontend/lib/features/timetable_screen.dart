@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
+import 'package:aurore_school/core/constants/app_colors.dart';
+import 'package:aurore_school/core/constants/app_text_styles.dart';
 import 'package:aurore_school/core/providers/timetable_controller.dart';
 import 'package:aurore_school/models/schedule.dart';
 import 'package:aurore_school/widgets/aurore_app_bar.dart';
@@ -45,7 +47,10 @@ class _TimetableScreenState extends State<TimetableScreen> {
         title: 'Timetable',
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: Icon(
+              Icons.refresh,
+              color: AppColors.iconPrimary,
+            ),
             onPressed: _refresh,
           ),
         ],
@@ -62,9 +67,9 @@ class _TimetableScreenState extends State<TimetableScreen> {
                 value: _selectedDay,
                 items: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
                     .map((day) => DropdownMenuItem(
-                  value: day,
-                  child: Text(day),
-                ))
+                          value: day,
+                          child: Text(day, style: AppTextStyles.body),
+                        ))
                     .toList(),
                 onChanged: (value) {
                   setState(() {
@@ -75,9 +80,9 @@ class _TimetableScreenState extends State<TimetableScreen> {
               const SizedBox(height: 16),
               TimetableWidget(schedules: filteredSchedules),
               const SizedBox(height: 24),
-              const Text(
+              Text(
                 'Schedule Distribution',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: AppTextStyles.subheader,
               ),
               const SizedBox(height: 16),
               SizedBox(
@@ -90,7 +95,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
                         barRods: [
                           BarChartRodData(
                             toY: controller.schedules.where((s) => s.day == 'Monday').length.toDouble(),
-                            color: Colors.blue,
+                            color: AppColors.primary,
                           ),
                         ],
                       ),
@@ -99,7 +104,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
                         barRods: [
                           BarChartRodData(
                             toY: controller.schedules.where((s) => s.day == 'Tuesday').length.toDouble(),
-                            color: Colors.blue,
+                            color: AppColors.primary,
                           ),
                         ],
                       ),
@@ -108,7 +113,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
                         barRods: [
                           BarChartRodData(
                             toY: controller.schedules.where((s) => s.day == 'Wednesday').length.toDouble(),
-                            color: Colors.blue,
+                            color: AppColors.primary,
                           ),
                         ],
                       ),
@@ -117,7 +122,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
                         barRods: [
                           BarChartRodData(
                             toY: controller.schedules.where((s) => s.day == 'Thursday').length.toDouble(),
-                            color: Colors.blue,
+                            color: AppColors.primary,
                           ),
                         ],
                       ),
@@ -126,7 +131,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
                         barRods: [
                           BarChartRodData(
                             toY: controller.schedules.where((s) => s.day == 'Friday').length.toDouble(),
-                            color: Colors.blue,
+                            color: AppColors.primary,
                           ),
                         ],
                       ),
@@ -140,7 +145,10 @@ class _TimetableScreenState extends State<TimetableScreen> {
                           showTitles: true,
                           getTitlesWidget: (value, meta) {
                             const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-                            return Text(days[value.toInt()]);
+                            return Text(
+                              days[value.toInt()],
+                              style: AppTextStyles.caption,
+                            );
                           },
                         ),
                       ),
@@ -157,6 +165,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
                   controller.fetchSchedules('user-id', 'student');
                 },
                 icon: Icons.refresh,
+                iconColor: AppColors.iconPrimary,
               ),
             ],
           ),
