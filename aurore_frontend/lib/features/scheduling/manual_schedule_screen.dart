@@ -11,8 +11,8 @@ import 'package:aurore_school/aurore_responsive_layout.dart';
 import 'package:aurore_school/widgets/aurore_app_bar.dart';
 import 'package:aurore_school/widgets/aurore_button.dart';
 import 'package:aurore_school/widgets/aurore_header.dart';
-import 'package:animations/animations.dart'; // For fade-in animations
-import 'package:fl_chart/fl_chart.dart'; // For analytics chart
+import 'package:animations/animations.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 class ManualScheduleScreen extends StatefulWidget {
   const ManualScheduleScreen({super.key});
@@ -22,28 +22,25 @@ class ManualScheduleScreen extends StatefulWidget {
 }
 
 class _ManualScheduleScreenState extends State<ManualScheduleScreen> {
-  String selectedFilter = 'All'; // Default filter for conflict type
+  String selectedFilter = 'All';
 
   @override
   void initState() {
     super.initState();
-    // Fetch conflicts and load offline data
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final controller = context.read<TimetableController>();
       controller.fetchConflicts();
-      controller.loadOfflineConflicts(); // Load cached conflicts
+      controller.loadOfflineConflicts();
     });
   }
 
-  // Filter conflicts by type
   List<ScheduleConflict> _filterConflicts(List<ScheduleConflict> conflicts, String filter) {
     if (filter == 'All') return conflicts;
     return conflicts.where((conflict) => conflict.reason.toLowerCase().contains(filter.toLowerCase())).toList();
   }
 
-  // Show confirmation after resolving conflict
   void _showResolutionConfirmation(BuildContext context, ScheduleConflict conflict, ResolutionType resolution) async {
-    await Vibration.vibrate(duration: 200); // Haptic feedback
+    await Vibration.vibrate(duration: 200);
     if (!context.mounted) return;
     showDialog(
       context: context,
@@ -56,7 +53,7 @@ class _ManualScheduleScreenState extends State<ManualScheduleScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('OK', style: AppTextStyles.body.copyWith(color: AppColors.primary)),
+            child: Text('OK', style: AppTextStyles.button),
           ),
         ],
       ),
@@ -70,7 +67,10 @@ class _ManualScheduleScreenState extends State<ManualScheduleScreen> {
         title: 'Resolve Conflicts',
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: AppColors.primary),
+            icon: Icon(
+              Icons.refresh,
+              color: AppColors.iconPrimary,
+            ),
             onPressed: () => context.read<TimetableController>().fetchConflicts(),
           ),
         ],
@@ -106,7 +106,6 @@ class _ManualScheduleScreenState extends State<ManualScheduleScreen> {
             child: const AuroreHeader(title: 'Timetable Conflict Resolution'),
           ),
         ),
-        // Filter Dropdown
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -115,15 +114,15 @@ class _ManualScheduleScreenState extends State<ManualScheduleScreen> {
               isExpanded: true,
               items: ['All', 'Time slot', 'Room', 'Teacher']
                   .map((filter) => DropdownMenuItem(
-                value: filter,
-                child: Text(filter, style: AppTextStyles.body),
-              ))
+                        value: filter,
+                        child: Text(filter, style: AppTextStyles.body),
+                      ))
                   .toList(),
               onChanged: (value) {
                 setState(() {
                   selectedFilter = value!;
                 });
-                Vibration.vibrate(duration: 100); // Haptic feedback
+                Vibration.vibrate(duration: 100);
               },
               underline: Container(
                 height: 2,
@@ -132,12 +131,10 @@ class _ManualScheduleScreenState extends State<ManualScheduleScreen> {
             ),
           ),
         ),
-        // Conflict Analytics Chart
         SliverToBoxAdapter(
           child: Consumer<TimetableController>(
             builder: (context, controller, _) {
               if (controller.conflicts.isEmpty) return Container();
-              // Mock chart data: Conflicts by type
               final conflictCounts = {
                 'Time': controller.conflicts.where((c) => c.reason.contains('Time')).length,
                 'Room': controller.conflicts.where((c) => c.reason.contains('Room')).length,
@@ -183,16 +180,16 @@ class _ManualScheduleScreenState extends State<ManualScheduleScreen> {
                                 .entries
                                 .map(
                                   (e) => BarChartGroupData(
-                                x: e.key,
-                                barRods: [
-                                  BarChartRodData(
-                                    toY: e.value.value.toDouble(),
-                                    color: AppColors.primary,
-                                    width: 12,
+                                    x: e.key,
+                                    barRods: [
+                                      BarChartRodData(
+                                        toY: e.value.value.toDouble(),
+                                        color: AppColors.primary,
+                                        width: 12,
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                            )
+                                )
                                 .toList(),
                           ),
                         ),
@@ -204,7 +201,6 @@ class _ManualScheduleScreenState extends State<ManualScheduleScreen> {
             },
           ),
         ),
-        // Conflict List
         SliverToBoxAdapter(
           child: Consumer<TimetableController>(
             builder: (context, controller, _) {
@@ -216,7 +212,7 @@ class _ManualScheduleScreenState extends State<ManualScheduleScreen> {
                   padding: const EdgeInsets.all(16.0),
                   child: Text(
                     controller.error!,
-                    style: AppTextStyles.body.copyWith(color: AppColors.error),
+                    style: AppTextStyles.error,
                   ),
                 );
               }
@@ -255,7 +251,7 @@ class _ManualScheduleScreenState extends State<ManualScheduleScreen> {
                       child: InkWell(
                         borderRadius: BorderRadius.circular(12.0),
                         onTap: () {
-                          Vibration.vibrate(duration: 100); // Haptic feedback
+                          Vibration.vibrate(duration: 100);
                           showDialog(
                             context: context,
                             builder: (context) => ConflictResolutionDialog(
@@ -304,17 +300,17 @@ class _ManualScheduleScreenState extends State<ManualScheduleScreen> {
             },
           ),
         ),
-        // Navigation Button
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
             child: AuroreButton(
               text: 'Back to Timetable',
               onPressed: () {
-                Vibration.vibrate(duration: 100); // Haptic feedback
+                Vibration.vibrate(duration: 100);
                 Navigator.pushNamed(context, '/timetable');
               },
-              icon: const Icon(Icons.schedule, color: Colors.white),
+              icon: Icons.schedule,
+              iconColor: AppColors.iconPrimary,
             ),
           ),
         ),
