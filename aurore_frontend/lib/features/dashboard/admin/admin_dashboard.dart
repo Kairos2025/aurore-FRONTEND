@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:aurore_school/core/constants/app_colors.dart';
+import 'package:aurore_school/core/constants/app_text_styles.dart';
 import 'package:aurore_school/core/providers/timetable_controller.dart';
 import 'package:aurore_school/models/schedule.dart';
 import 'package:aurore_school/models/schedule_conflict.dart';
@@ -41,7 +43,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
         title: 'Admin Dashboard',
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: Icon(
+              Icons.refresh,
+              color: AppColors.iconPrimary,
+            ),
             onPressed: _refresh,
           ),
         ],
@@ -52,9 +57,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Schedule Overview',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: AppTextStyles.subheader,
               ),
               const SizedBox(height: 16),
               ListView.builder(
@@ -74,9 +79,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 },
               ),
               const SizedBox(height: 24),
-              const Text(
+              Text(
                 'Conflict Analytics',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: AppTextStyles.subheader,
               ),
               const SizedBox(height: 16),
               SizedBox(
@@ -86,12 +91,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     sections: [
                       PieChartSectionData(
                         value: timetableController.conflicts.length.toDouble(),
-                        color: Colors.red,
+                        color: AppColors.error,
                         title: 'Conflicts',
                       ),
                       PieChartSectionData(
                         value: timetableController.schedules.length.toDouble(),
-                        color: Colors.green,
+                        color: AppColors.secondary,
                         title: 'Resolved',
                       ),
                     ],
@@ -99,21 +104,24 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 ),
               ),
               const SizedBox(height: 24),
-              const Text(
+              Text(
                 'Manage Timetable',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: AppTextStyles.subheader,
               ),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: timetableController.conflicts.isEmpty
                     ? () {
-                  timetableController.generateTimetable({
-                    'startDate': DateTime.now().toIso8601String(),
-                    'endDate': DateTime.now().add(const Duration(days: 7)).toIso8601String(),
-                  });
-                }
+                        timetableController.generateTimetable({
+                          'startDate': DateTime.now().toIso8601String(),
+                          'endDate': DateTime.now().add(const Duration(days: 7)).toIso8601String(),
+                        });
+                      }
                     : null,
-                child: const Text('Generate New Timetable'),
+                child: Text(
+                  'Generate New Timetable',
+                  style: AppTextStyles.button,
+                ),
               ),
               const SizedBox(height: 16),
               _buildConflictResolutionSection(timetableController),
@@ -127,15 +135,18 @@ class _AdminDashboardState extends State<AdminDashboard> {
   Widget _buildConflictResolutionSection(TimetableController timetableController) {
     final conflicts = timetableController.conflicts;
     if (conflicts.isEmpty) {
-      return const Text('No conflicts to resolve.');
+      return Text(
+        'No conflicts to resolve.',
+        style: AppTextStyles.body,
+      );
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Resolve Conflicts',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          style: AppTextStyles.subheader,
         ),
         const SizedBox(height: 16),
         ListView.builder(
@@ -144,7 +155,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           itemCount: conflicts.length,
           itemBuilder: (context, index) {
             final conflict = conflicts[index];
-            final schedule = timetableController.schedules.firstWhere(
+            final schedule = protagonistController.schedules.firstWhere(
                   (s) => s.id == conflict.scheduleId,
               orElse: () => Schedule(
                 id: '',
@@ -165,22 +176,34 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 showDialog(
                   context: context,
                   builder: (context) => AlertDialog(
-                    title: Text('Resolve Conflict: ${schedule.subject}'),
-                    content: Text(conflict.reason),
+                    title: Text(
+                      'Resolve Conflict: ${schedule.subject}',
+                      style: AppTextStyles.header,
+                    ),
+                    content: Text(
+                      conflict.reason,
+                      style: AppTextStyles.body,
+                    ),
                     actions: [
                       TextButton(
                         onPressed: () {
                           timetableController.resolveConflict(conflict, 'manual');
                           Navigator.pop(context);
                         },
-                        child: const Text('Resolve Manually'),
+                        child: Text(
+                          'Resolve Manually',
+                          style: AppTextStyles.button,
+                        ),
                       ),
                       TextButton(
                         onPressed: () {
                           timetableController.resolveConflict(conflict, 'auto');
                           Navigator.pop(context);
                         },
-                        child: const Text('Auto Resolve'),
+                        child: Text(
+                          'Auto Resolve',
+                          style: AppTextStyles.button,
+                        ),
                       ),
                     ],
                   ),
