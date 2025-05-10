@@ -45,7 +45,7 @@ jobs:
         run: |
           echo "Installing Android SDK command-line tools"
           mkdir -p "$ANDROID_HOME/cmdline-tools"
-          curl -o cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          curl -o cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-12269904_latest.zip
           unzip -o cmdline-tools.zip -d "$ANDROID_HOME/cmdline-tools"
           mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest"
           rm cmdline-tools.zip
@@ -58,6 +58,8 @@ jobs:
             echo "Error: sdkmanager not found at $sdkmanager"
             exit 1
           fi
+          echo "Adding sdkmanager to PATH"
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
           ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
@@ -66,12 +68,14 @@ jobs:
         run: |
           echo "Accepting Android licenses"
           sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          yes | $sdkmanager --licenses --sdk_root=$ANDROID_HOME || { echo "Error: Failed to accept licenses"; exit 1; }
+          yes | $sdkmanager --licenses --sdk_root=$ANDROID_HOME || echo "sdkmanager --licenses failed, trying flutter doctor"
+          flutter doctor --android-licenses --accept || { echo "Error: Failed to accept licenses"; exit 1; }
           echo "Verifying licenses"
-          if $sdkmanager --list --sdk_root=$ANDROID_HOME | grep -q "licenses"; then
+          if ls "$ANDROID_HOME/licenses" | grep -q "android-sdk"; then
             echo "Licenses accepted successfully"
+            ls -la "$ANDROID_HOME/licenses"
           else
-            echo "Error: Licenses not accepted"
+            echo "Error: License files not found in $ANDROID_HOME/licenses"
             exit 1
           fi
         env:
@@ -101,6 +105,7 @@ jobs:
 
       - name: Verify directory
         run: |
+          echo "Verifying directory structure"
           pwd
           ls -la .
           if [ -d "./aurore-FRONTEND" ]; then
@@ -113,23 +118,28 @@ jobs:
               ls -la .
               if [ -f "pubspec.yaml" ]; then
                 echo "Found pubspec.yaml in aurore_frontend"
+                cat pubspec.yaml
               else
                 echo "Error: pubspec.yaml not found in aurore_frontend"
+                ls -la .
                 exit 1
               fi
             else
               echo "Error: aurore_frontend directory not found"
+              ls -la .
               exit 1
             fi
           else
             echo "Error: aurore-FRONTEND directory not found"
+            ls -la .
             exit 1
           fi
 
       - name: Install dependencies
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
-          flutter pub get || { echo "Error: Failed to get dependencies"; echo "pubspec.yaml content:"; cat pubspec.yaml; exit 1; }
+          echo "Installing Flutter dependencies"
+          flutter pub get || { echo "Error: Failed to get dependencies"; echo "pubspec.yaml content:"; cat pubspec.yaml; flutter pub get --verbose; exit 1; }
 
       - name: Set up Android signing
         working-directory: ./aurore-FRONTEND/aurore_frontend
@@ -209,7 +219,7 @@ jobs:
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
           echo "Building APK"
-          flutter build apk --release || { echo "Error: APK build failed"; cat android/app/build.gradle.kts; exit 1; }
+          flutter build apk --release || { echo "Error: APK build failed"; cat android/app/build.gradle.kts; flutter build apk --release --verbose; exit 1; }
           echo "APK built at build/app/outputs/flutter-apk/app-release.apk"
 
       - name: Upload APK
@@ -239,8 +249,12 @@ jobs:
           echo "Running flutter doctor for iOS"
           flutter doctor -v > flutter_doctor.log
           cat flutter_doctor.log
-          if ! grep -q "Xcode - develop for iOS and macOS" flutter_doctor.log || ! grep -q "CocoaPods" flutter_doctor.log; then
-            echo "Error: Xcode or CocoaPods not properly configured"
+          if ! grep -q "Xcode - develop for iOS and macOS" flutter_doctor.log; then
+            echo "Error: Xcode not properly configured"
+            exit 1
+          fi
+          if ! grep -q "CocoaPods" flutter_doctor.log; then
+            echo "Error: CocoaPods not properly configured"
             exit 1
           fi
           if grep -q "Some Android licenses not accepted" flutter_doctor.log; then
@@ -253,6 +267,7 @@ jobs:
 
       - name: Verify directory
         run: |
+          echo "Verifying directory structure"
           pwd
           ls -la .
           if [ -d "./aurore-FRONTEND" ]; then
@@ -265,16 +280,20 @@ jobs:
               ls -la .
               if [ -f "pubspec.yaml" ]; then
                 echo "Found pubspec.yaml in aurore_frontend"
+                cat pubspec.yaml
               else
                 echo "Error: pubspec.yaml not found in aurore_frontend"
+                ls -la .
                 exit 1
               fi
             else
               echo "Error: aurore_frontend directory not found"
+              ls -la .
               exit 1
             fi
           else
             echo "Error: aurore-FRONTEND directory not found"
+            ls -la .
             exit 1
           fi
 
@@ -282,7 +301,7 @@ jobs:
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
           echo "Installing Flutter dependencies"
-          flutter pub get || { echo "Error: Failed to get dependencies"; echo "pubspec.yaml content:"; cat pubspec.yaml; exit 1; }
+          flutter pub get || { echo "Error: Failed to get dependencies"; echo "pubspec.yaml content:"; cat pubspec.yaml; flutter pub get --verbose; exit 1; }
 
       - name: Set up Ruby and CocoaPods
         run: |
@@ -294,7 +313,7 @@ jobs:
         working-directory: ./aurore-FRONTEND/aurore_frontend/ios
         run: |
           echo "Running pod install"
-          pod install || { echo "Error: Failed to install CocoaPods dependencies"; exit 1; }
+          pod install || { echo "Error: Failed to install CocoaPods dependencies"; pod install --verbose; exit 1; }
           echo "CocoaPods dependencies installed"
 
       - name: Set up code signing
@@ -321,12 +340,12 @@ jobs:
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
           echo "Building iOS app"
-          flutter build ios --release --no-codesign || { echo "Error: iOS build failed"; exit 1; }
+          flutter build ios --release --no-codesign || { echo "Error: iOS build failed"; flutter build ios --release --no-codesign --verbose; exit 1; }
           cd ios
           echo "Archiving with xcodebuild"
-          xcodebuild -workspace Runner.xcworkspace -scheme Runner -sdk iphoneos -configuration Release archive -archivePath build/Runner.xcarchive || { echo "Error: xcodebuild archive failed"; exit 1; }
+          xcodebuild -workspace Runner.xcworkspace -scheme Runner -sdk iphoneos -configuration Release archive -archivePath build/Runner.xcarchive || { echo "Error: xcodebuild archive failed"; xcodebuild -workspace Runner.xcworkspace -scheme Runner -sdk iphoneos -configuration Release archive -archivePath build/Runner.xcarchive -verbose; exit 1; }
           echo "Exporting IPA"
-          xcodebuild -exportArchive -archivePath build/Runner.xcarchive -exportOptionsPlist ../exportOptions.plist -exportPath build/ipa || { echo "Error: xcodebuild export failed"; exit 1; }
+          xcodebuild -exportArchive -archivePath build/Runner.xcarchive -exportOptionsPlist ../exportOptions.plist -exportPath build/ipa || { echo "Error: xcodebuild export failed"; xcodebuild -exportArchive -archivePath build/Runner.xcarchive -exportOptionsPlist ../exportOptions.plist -exportPath build/ipa -verbose; exit 1; }
           echo "IPA built at build/ipa/Runner.ipa"
 
       - name: Create exportOptions.plist
