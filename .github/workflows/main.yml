@@ -41,23 +41,45 @@ jobs:
           sdk-level: '36'
           ndk-version: '27.0.12077973'
 
-      - name: Install SDK command-line tools
+      - name: Install Android SDK command-line tools
         run: |
-          sdkmanager="\$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          echo "Installing SDK command-line tools"
-          \$sdkmanager --install "cmdline-tools;latest" --sdk_root=\$ANDROID_HOME
-          \$sdkmanager --list --sdk_root=\$ANDROID_HOME
+          echo "Installing Android SDK command-line tools"
+          mkdir -p "$ANDROID_HOME/cmdline-tools"
+          curl -o cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -o cmdline-tools.zip -d "$ANDROID_HOME/cmdline-tools"
+          mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest"
+          rm cmdline-tools.zip
+          echo "Verifying sdkmanager"
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ -x "$sdkmanager" ]; then
+            echo "sdkmanager found at $sdkmanager"
+            $sdkmanager --version
+          else
+            echo "Error: sdkmanager not found at $sdkmanager"
+            exit 1
+          fi
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
+          ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
 
       - name: Accept Android licenses
         run: |
-          sdkmanager="\$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           echo "Accepting Android licenses"
-          yes | \$sdkmanager --licenses --sdk_root=\$ANDROID_HOME || { echo "Error: Failed to accept Android licenses"; exit 1; }
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | $sdkmanager --licenses --sdk_root=$ANDROID_HOME || { echo "Error: Failed to accept licenses"; exit 1; }
           echo "Verifying licenses"
-          \$sdkmanager --list --sdk_root=\$ANDROID_HOME | grep "licenses" || { echo "Error: Licenses not accepted"; exit 1; }
+          if $sdkmanager --list --sdk_root=$ANDROID_HOME | grep -q "licenses"; then
+            echo "Licenses accepted successfully"
+          else
+            echo "Error: Licenses not accepted"
+            exit 1
+          fi
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
+          ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2.8.0
+        uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ needs.fetch-flutter-version.outputs.flutter_version }}
           channel: 'stable'
@@ -65,7 +87,13 @@ jobs:
 
       - name: Verify Flutter setup
         run: |
-          flutter doctor -v || { echo "Error: Flutter setup failed"; exit 1; }
+          echo "Running flutter doctor"
+          flutter doctor -v > flutter_doctor.log
+          cat flutter_doctor.log
+          if grep -q "Some Android licenses not accepted" flutter_doctor.log; then
+            echo "Error: Android licenses still not accepted"
+            exit 1
+          fi
           flutter --version || { echo "Error: Flutter not found"; exit 1; }
           dart --version || { echo "Error: Dart not found"; exit 1; }
           dart_version=$(dart --version 2>&1 | grep -o '[0-9]+\.[0-9]+\.[0-9]+')
@@ -86,13 +114,16 @@ jobs:
               if [ -f "pubspec.yaml" ]; then
                 echo "Found pubspec.yaml in aurore_frontend"
               else
-                echo "Error: pubspec.yaml not found in aurore_frontend"; exit 1
+                echo "Error: pubspec.yaml not found in aurore_frontend"
+                exit 1
               fi
             else
-              echo "Error: aurore_frontend directory not found"; exit 1
+              echo "Error: aurore_frontend directory not found"
+              exit 1
             fi
           else
-            echo "Error: aurore-FRONTEND directory not found"; exit 1
+            echo "Error: aurore-FRONTEND directory not found"
+            exit 1
           fi
 
       - name: Install dependencies
@@ -108,6 +139,7 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          echo "Setting up Android signing"
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/keystore.jks
           cat > android/key.properties <<EOF
           storePassword=$ANDROID_KEYSTORE_PASSWORD
@@ -120,6 +152,7 @@ jobs:
       - name: Update build.gradle.kts for release signing
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
+          echo "Updating android/app/build.gradle.kts"
           cat > android/app/build.gradle.kts <<EOF
           plugins {
               id("com.android.application")
@@ -170,11 +203,14 @@ jobs:
           }
           EOF
           echo "Updated android/app/build.gradle.kts with release signing"
+          cat android/app/build.gradle.kts
 
       - name: Build APK
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
+          echo "Building APK"
           flutter build apk --release || { echo "Error: APK build failed"; cat android/app/build.gradle.kts; exit 1; }
+          echo "APK built at build/app/outputs/flutter-apk/app-release.apk"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -192,7 +228,7 @@ jobs:
           path: aurore-FRONTEND
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2.8.0
+        uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ needs.fetch-flutter-version.outputs.flutter_version }}
           channel: 'stable'
@@ -200,26 +236,66 @@ jobs:
 
       - name: Verify Flutter setup
         run: |
-          flutter doctor --no-android || { echo "Error: Flutter setup failed for iOS"; exit 1; }
+          echo "Running flutter doctor for iOS"
+          flutter doctor -v > flutter_doctor.log
+          cat flutter_doctor.log
+          if ! grep -q "Xcode - develop for iOS and macOS" flutter_doctor.log || ! grep -q "CocoaPods" flutter_doctor.log; then
+            echo "Error: Xcode or CocoaPods not properly configured"
+            exit 1
+          fi
+          if grep -q "Some Android licenses not accepted" flutter_doctor.log; then
+            echo "Warning: Android licenses not accepted (ignoring for iOS build)"
+          fi
           flutter --version || { echo "Error: Flutter not found"; exit 1; }
           dart --version || { echo "Error: Dart not found"; exit 1; }
           dart_version=$(dart --version 2>&1 | grep -o '[0-9]+\.[0-9]+\.[0-9]+')
           echo "Dart version: $dart_version"
 
+      - name: Verify directory
+        run: |
+          pwd
+          ls -la .
+          if [ -d "./aurore-FRONTEND" ]; then
+            echo "Found aurore-FRONTEND directory"
+            cd ./aurore-FRONTEND
+            ls -la .
+            if [ -d "./aurore_frontend" ]; then
+              echo "Found aurore_frontend directory"
+              cd ./aurore_frontend
+              ls -la .
+              if [ -f "pubspec.yaml" ]; then
+                echo "Found pubspec.yaml in aurore_frontend"
+              else
+                echo "Error: pubspec.yaml not found in aurore_frontend"
+                exit 1
+              fi
+            else
+              echo "Error: aurore_frontend directory not found"
+              exit 1
+            fi
+          else
+            echo "Error: aurore-FRONTEND directory not found"
+            exit 1
+          fi
+
       - name: Install dependencies
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
+          echo "Installing Flutter dependencies"
           flutter pub get || { echo "Error: Failed to get dependencies"; echo "pubspec.yaml content:"; cat pubspec.yaml; exit 1; }
 
       - name: Set up Ruby and CocoaPods
         run: |
+          echo "Installing CocoaPods"
           gem install cocoapods
           pod --version
 
       - name: Install CocoaPods dependencies
         working-directory: ./aurore-FRONTEND/aurore_frontend/ios
         run: |
+          echo "Running pod install"
           pod install || { echo "Error: Failed to install CocoaPods dependencies"; exit 1; }
+          echo "CocoaPods dependencies installed"
 
       - name: Set up code signing
         working-directory: ./aurore-FRONTEND/aurore_frontend
@@ -229,6 +305,7 @@ jobs:
           IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
+          echo "Setting up iOS code signing"
           security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
@@ -243,15 +320,19 @@ jobs:
       - name: Build IPA
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
+          echo "Building iOS app"
           flutter build ios --release --no-codesign || { echo "Error: iOS build failed"; exit 1; }
           cd ios
-          xcodebuild -workspace Runner.xcworkspace -scheme Runner -sdk iphoneos -configuration Release archive -archivePath build/Runner.xcarchive
-          xcodebuild -exportArchive -archivePath build/Runner.xcarchive -exportOptionsPlist ../exportOptions.plist -exportPath build/ipa
+          echo "Archiving with xcodebuild"
+          xcodebuild -workspace Runner.xcworkspace -scheme Runner -sdk iphoneos -configuration Release archive -archivePath build/Runner.xcarchive || { echo "Error: xcodebuild archive failed"; exit 1; }
+          echo "Exporting IPA"
+          xcodebuild -exportArchive -archivePath build/Runner.xcarchive -exportOptionsPlist ../exportOptions.plist -exportPath build/ipa || { echo "Error: xcodebuild export failed"; exit 1; }
           echo "IPA built at build/ipa/Runner.ipa"
 
       - name: Create exportOptions.plist
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
+          echo "Creating exportOptions.plist"
           cat > exportOptions.plist << EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -269,6 +350,7 @@ jobs:
           </plist>
           EOF
           echo "Created exportOptions.plist"
+          cat exportOptions.plist
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
