@@ -3,6 +3,8 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:aurore_school/core/constants/app_colors.dart';
+import 'package:aurore_school/core/constants/app_text_styles.dart';
 import 'package:aurore_school/core/providers/qr_provider.dart';
 import 'package:aurore_school/widgets/aurore_app_bar.dart';
 import 'package:aurore_school/widgets/aurore_button.dart';
@@ -38,7 +40,10 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
         title: 'Teacher Dashboard',
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: Icon(
+              Icons.refresh,
+              color: AppColors.iconPrimary,
+            ),
             onPressed: _refresh,
           ),
         ],
@@ -61,7 +66,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                     height: 200,
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey),
+                      border: Border.all(color: AppColors.neutral),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: MobileScanner(
@@ -71,7 +76,12 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                         qrProvider.scanQrCode(barcode).then((success) {
                           if (success) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('QR Code Scanned: ${barcode.rawValue}')),
+                              SnackBar(
+                                content: Text(
+                                  'QR Code Scanned: ${barcode.rawValue}',
+                                  style: AppTextStyles.body,
+                                ),
+                              ),
                             );
                           }
                         });
@@ -85,19 +95,20 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                         ? qrProvider.stopScanning
                         : qrProvider.startScanning,
                     icon: qrProvider.isScanning ? Icons.stop : Icons.qr_code_scanner,
+                    iconColor: AppColors.iconPrimary,
                   ),
                   if (qrProvider.error != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 16),
                       child: Text(
                         'Error: ${qrProvider.error}',
-                        style: const TextStyle(color: Colors.red),
+                        style: AppTextStyles.error,
                       ),
                     ),
                   const SizedBox(height: 24),
-                  const Text(
+                  Text(
                     'Attendance Overview',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: AppTextStyles.subheader,
                   ),
                   const SizedBox(height: 16),
                   if (qrProvider.isLoading)
@@ -113,7 +124,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                               barRods: [
                                 BarChartRodData(
                                   toY: 5,
-                                  color: Colors.blue,
+                                  color: AppColors.primary,
                                 ),
                               ],
                             ),
@@ -122,7 +133,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                               barRods: [
                                 BarChartRodData(
                                   toY: 8,
-                                  color: Colors.blue,
+                                  color: AppColors.primary,
                                 ),
                               ],
                             ),
@@ -136,7 +147,10 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                                 showTitles: true,
                                 getTitlesWidget: (value, meta) {
                                   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-                                  return Text(days[value.toInt()]);
+                                  return Text(
+                                    days[value.toInt()],
+                                    style: AppTextStyles.caption,
+                                  );
                                 },
                               ),
                             ),
@@ -147,9 +161,9 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                       ),
                     ),
                   const SizedBox(height: 24),
-                  const Text(
+                  Text(
                     'Recent Scans',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: AppTextStyles.subheader,
                   ),
                   const SizedBox(height: 16),
                   ListView.builder(
@@ -169,6 +183,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                     text: 'View All Scans',
                     onPressed: () {},
                     icon: Icons.history,
+                    iconColor: AppColors.iconPrimary,
                   ),
                 ],
               ),
