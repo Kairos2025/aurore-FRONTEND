@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:aurore_school/core/constants/app_text_styles.dart';
 import 'package:aurore_school/core/providers/auth_provider.dart';
 import 'package:aurore_school/widgets/aurore_app_bar.dart';
 
@@ -30,17 +31,18 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text(
+            Text(
               'Enter your email to receive a password reset link.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16),
+              style: AppTextStyles.body,
             ),
             const SizedBox(height: 16),
             TextField(
               controller: _emailController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Email',
-                border: OutlineInputBorder(),
+                labelStyle: AppTextStyles.label,
+                border: const OutlineInputBorder(),
               ),
               keyboardType: TextInputType.emailAddress,
             ),
@@ -58,14 +60,17 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     Navigator.pop(context);
                   }
                 },
-                child: const Text('Send Reset Link'),
+                child: Text(
+                  'Send Reset Link',
+                  style: AppTextStyles.button,
+                ),
               ),
             if (authProvider.error != null)
               Padding(
                 padding: const EdgeInsets.only(top: 16),
                 child: Text(
                   authProvider.error!,
-                  style: const TextStyle(color: Colors.red),
+                  style: AppTextStyles.error,
                 ),
               ),
           ],
