@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:aurore_school/core/constants/app_text_styles.dart';
 import 'package:aurore_school/widgets/aurore_app_bar.dart';
 
 class SupportScreen extends StatefulWidget {
@@ -8,7 +9,7 @@ class SupportScreen extends StatefulWidget {
   State<SupportScreen> createState() => _SupportScreenState();
 }
 
-class _SupportScreenState extends State<SupportScreen> {
+class SupportScreenState extends State<SupportScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _messageController = TextEditingController();
@@ -31,33 +32,36 @@ class _SupportScreenState extends State<SupportScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Contact Support',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: AppTextStyles.subheader,
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: _nameController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Full Name',
-                  border: OutlineInputBorder(),
+                  labelStyle: AppTextStyles.label,
+                  border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: _emailController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Email',
-                  border: OutlineInputBorder(),
+                  labelStyle: AppTextStyles.label,
+                  border: const OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.emailAddress,
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: _messageController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Message',
-                  border: OutlineInputBorder(),
+                  labelStyle: AppTextStyles.label,
+                  border: const OutlineInputBorder(),
                 ),
                 maxLines: 5,
               ),
@@ -65,11 +69,19 @@ class _SupportScreenState extends State<SupportScreen> {
               ElevatedButton(
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Message sent to support!')),
+                    SnackBar(
+                      content: Text(
+                        'Message sent to support!',
+                        style: AppTextStyles.body,
+                      ),
+                    ),
                   );
                   Navigator.pop(context);
                 },
-                child: const Text('Submit'),
+                child: Text(
+                  'Submit',
+                  style: AppTextStyles.button,
+                ),
               ),
             ],
           ),
