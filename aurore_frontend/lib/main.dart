@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:provider/provider.dart';
 import 'package:aurore_school/core/constants/app_colors.dart';
+import 'package:aurore_school/core/constants/app_text_styles.dart';
 import 'package:aurore_school/core/providers/auth_provider.dart' as app_auth;
 import 'package:aurore_school/core/providers/qr_provider.dart';
 import 'package:aurore_school/core/providers/api_service.dart';
@@ -20,6 +21,7 @@ import 'package:aurore_school/features/dashboard/admin/admin_dashboard.dart';
 import 'package:aurore_school/features/dashboard/support/support_screen.dart';
 import 'package:aurore_school/features/timetable_screen.dart';
 import 'package:aurore_school/utils/secure_storage.dart';
+import 'package:aurore_school/widgets/aurore_button.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -56,54 +58,37 @@ class AuroreApp extends StatelessWidget {
         title: 'Aurore School',
         theme: ThemeData(
           useMaterial3: true,
-          fontFamily: 'Inter',
+          fontFamily: 'Roboto',
           colorScheme: const ColorScheme.light(
             primary: AppColors.primary,
             secondary: AppColors.secondary,
-            surface: AppColors.background,
+            surface: Colors.white,
             brightness: Brightness.light,
           ),
-          textTheme: const TextTheme(
-            displayLarge: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w700,
-              color: AppColors.primary,
-            ),
-            headlineMedium: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w600,
-              color: AppColors.primary,
-            ),
-            bodyLarge: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              color: AppColors.darkGrey,
-            ),
-            labelLarge: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
-            ),
-          ),
-          appBarTheme: const AppBarTheme(
-            backgroundColor: Colors.white,
-            foregroundColor: AppColors.primary,
+          appBarTheme: AppBarTheme(
+            backgroundColor: AppColors.primary,
+            foregroundColor: AppColors.iconPrimary,
             elevation: 0,
             centerTitle: true,
-            titleTextStyle: TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              color: AppColors.primary,
-            ),
+            titleTextStyle: AppTextStyles.appBarTitle,
+            iconTheme: const IconThemeData(color: AppColors.iconPrimary),
           ),
           elevatedButtonTheme: ElevatedButtonThemeData(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
+              foregroundColor: AppColors.iconPrimary,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              textStyle: AppTextStyles.button,
+            ),
+          ),
+          outlinedButtonTheme: OutlinedButtonThemeData(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.primary,
+              side: BorderSide(color: AppColors.primary),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              textStyle: AppTextStyles.button,
             ),
           ),
           cardTheme: CardTheme(
@@ -265,7 +250,7 @@ class _LoadingScreenState extends State<LoadingScreen> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       body: Center(
         child: FadeTransition(
           opacity: _fadeAnimation,
@@ -281,25 +266,21 @@ class _LoadingScreenState extends State<LoadingScreen> with SingleTickerProvider
                   semanticLabel: 'Aurore School Logo',
                 ),
                 const SizedBox(height: 24),
-                const CircularProgressIndicator(
+                CircularProgressIndicator(
                   valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
                   semanticsLabel: 'Loading Aurore School',
                 ),
                 const SizedBox(height: 16),
                 Text(
                   _errorMessage ?? 'Loading Aurore School...',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.darkGrey,
-                  ),
+                  style: AppTextStyles.body,
                   semanticsLabel: _errorMessage ?? 'Loading Aurore School',
                 ),
                 if (_errorMessage != null) ...[
                   const SizedBox(height: 16),
-                  ElevatedButton(
+                  AuroreButton(
+                    text: 'Retry',
                     onPressed: _checkAuthState,
-                    child: const Text('Retry'),
                   ),
                 ],
               ],
