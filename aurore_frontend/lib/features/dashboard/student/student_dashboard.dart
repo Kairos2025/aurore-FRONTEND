@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:mobile_scanner/mobile_scanner.dart'; // Added for Barcode and BarcodeFormat
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:aurore_school/core/constants/app_colors.dart';
+import 'package:aurore_school/core/constants/app_text_styles.dart';
 import 'package:aurore_school/core/providers/auth_provider.dart';
 import 'package:aurore_school/core/providers/qr_provider.dart';
 import 'package:aurore_school/widgets/aurore_app_bar.dart';
@@ -34,7 +36,10 @@ class _StudentDashboardState extends State<StudentDashboard> {
         title: 'Student Dashboard',
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: Icon(
+              Icons.logout,
+              color: AppColors.iconPrimary,
+            ),
             onPressed: _logout,
           ),
         ],
@@ -47,17 +52,21 @@ class _StudentDashboardState extends State<StudentDashboard> {
             children: [
               Text(
                 'Welcome, ${authProvider.user?.displayName ?? 'Student'}!',
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                style: AppTextStyles.header,
               ),
               const SizedBox(height: 16),
-              const Text(
+              Text(
                 'Your QR Code',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: AppTextStyles.subheader,
               ),
               const SizedBox(height: 16),
               Center(
                 child: IconButton(
-                  icon: const Icon(Icons.qr_code, size: 48),
+                  icon: Icon(
+                    Icons.qr_code,
+                    size: 48,
+                    color: AppColors.iconPrimary,
+                  ),
                   onPressed: () {
                     qrProvider.scanQrCode(Barcode(
                       rawValue: 'student-id-123',
@@ -80,13 +89,13 @@ class _StudentDashboardState extends State<StudentDashboard> {
                 const Divider(),
                 Text(
                   'Generated: ${DateFormat.yMMMd().add_jm().format(DateTime.now())}',
-                  style: const TextStyle(color: Colors.grey),
+                  style: AppTextStyles.caption,
                 ),
               ],
               const SizedBox(height: 24),
-              const Text(
+              Text(
                 'Recent Activity',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: AppTextStyles.subheader,
               ),
               const SizedBox(height: 16),
               ListView.builder(
