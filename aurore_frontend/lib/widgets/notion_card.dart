@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:animations/animations.dart';
+import 'package:aurore_school/core/constants/app_colors.dart';
+import 'package:aurore_school/core/constants/app_text_styles.dart';
 import 'package:aurore_school/models/schedule_conflict.dart';
 import 'package:aurore_school/utils/secure_storage.dart';
-import 'package:aurore_school/utils/app_text_styles.dart';
+import 'package:aurore_school/widgets/aurore_app_bar.dart';
 import 'package:vibration/vibration.dart';
 
 class NotionCard extends StatefulWidget {
@@ -100,9 +102,9 @@ class _NotionCardState extends State<NotionCard> with SingleTickerProviderStateM
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (widget.hasConflict) ...[
-                    const Icon(
+                    Icon(
                       Icons.warning,
-                      color: Colors.red,
+                      color: AppColors.error,
                       size: 24,
                     ),
                     const SizedBox(width: 8),
@@ -115,7 +117,7 @@ class _NotionCardState extends State<NotionCard> with SingleTickerProviderStateM
                           children: [
                             Text(
                               widget.title,
-                              style: AppTextStyles.bodyBold,
+                              style: AppTextStyles.bodyBold.copyWith(color: AppColors.primary),
                             ),
                             if (widget.isNew) ...[
                               const SizedBox(width: 8),
@@ -125,14 +127,13 @@ class _NotionCardState extends State<NotionCard> with SingleTickerProviderStateM
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.green,
+                                  color: AppColors.secondary,
                                   borderRadius: BorderRadius.circular(12),
                                 ),
-                                child: const Text(
+                                child: Text(
                                   'NEW',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: AppColors.iconPrimary,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -143,47 +144,34 @@ class _NotionCardState extends State<NotionCard> with SingleTickerProviderStateM
                         const SizedBox(height: 4),
                         Text(
                           widget.description,
-                          style: const TextStyle(
-                            color: Colors.black54,
-                          ),
+                          style: AppTextStyles.body,
                         ),
                         if (widget.timestamp != null) ...[
                           const SizedBox(height: 4),
                           Text(
                             DateFormat.yMMMd().add_jm().format(widget.timestamp!),
-                            style: const TextStyle(
-                              color: Colors.grey,
-                              fontSize: 12,
-                            ),
+                            style: AppTextStyles.caption,
                           ),
                         ],
                         if (widget.category != null) ...[
                           const SizedBox(height: 4),
                           Text(
                             'Category: ${widget.category}',
-                            style: const TextStyle(
-                              color: Colors.grey,
-                              fontSize: 12,
-                            ),
+                            style: AppTextStyles.caption,
                           ),
                         ],
                         if (widget.priority != null) ...[
                           const SizedBox(height: 4),
                           Text(
                             'Priority: ${widget.priority}',
-                            style: const TextStyle(
-                              color: Colors.grey,
-                              fontSize: 12,
-                            ),
+                            style: AppTextStyles.caption,
                           ),
                         ],
                         if (widget.conflict != null) ...[
                           const SizedBox(height: 8),
                           Text(
                             'Conflict: ${widget.conflict!.reason}',
-                            style: const TextStyle(
-                              color: Colors.red,
-                            ),
+                            style: AppTextStyles.error,
                           ),
                         ],
                       ],
@@ -197,11 +185,14 @@ class _NotionCardState extends State<NotionCard> with SingleTickerProviderStateM
       },
       openBuilder: (context, _) {
         return Scaffold(
-          appBar: AppBar(
-            title: Text(widget.title),
+          appBar: AuroreAppBar(
+            title: widget.title,
           ),
           body: Center(
-            child: Text(widget.description),
+            child: Text(
+              widget.description,
+              style: AppTextStyles.body,
+            ),
           ),
         );
       },
