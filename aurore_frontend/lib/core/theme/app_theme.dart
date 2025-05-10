@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:aurore_school/core/constants/app_colors.dart';
+import 'package:aurore_school/core/constants/app_text_styles.dart';
 
 ThemeData getAppTheme() {
   return ThemeData(
@@ -12,61 +13,32 @@ ThemeData getAppTheme() {
       secondary: AppColors.secondary,
       surface: Colors.white,
       background: AppColors.background,
-      onPrimary: Colors.white,
+      onPrimary: AppColors.iconPrimary,
       onSecondary: AppColors.darkGrey,
       onSurface: AppColors.darkGrey,
     ),
-    textTheme: const TextTheme(
-      displayLarge: TextStyle(
-        fontSize: 28,
-        fontWeight: FontWeight.w700,
-        color: AppColors.primary,
-      ),
-      headlineMedium: TextStyle(
-        fontSize: 24,
-        fontWeight: FontWeight.w600,
-        color: AppColors.primary,
-      ),
-      bodyLarge: TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.w500,
-        color: AppColors.darkGrey,
-      ),
-      bodyMedium: TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w400,
-        color: AppColors.darkGrey,
-      ),
-      labelLarge: TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
-        color: Colors.white,
-      ),
+    textTheme: TextTheme(
+      displayLarge: AppTextStyles.display,
+      headlineMedium: AppTextStyles.header,
+      bodyLarge: AppTextStyles.bodyBold,
+      bodyMedium: AppTextStyles.body,
+      labelLarge: AppTextStyles.button,
     ),
-    appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.white,
-      foregroundColor: AppColors.primary,
+    appBarTheme: AppBarTheme(
+      backgroundColor: AppColors.primary,
+      foregroundColor: AppColors.iconPrimary,
       elevation: 0,
       centerTitle: true,
-      titleTextStyle: TextStyle(
-        fontFamily: 'Inter',
-        fontSize: 20,
-        fontWeight: FontWeight.w600,
-        color: AppColors.primary,
-      ),
-      iconTheme: IconThemeData(color: AppColors.primary),
+      titleTextStyle: AppTextStyles.appBarTitle,
+      iconTheme: IconThemeData(color: AppColors.iconPrimary),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
+        foregroundColor: AppColors.iconPrimary,
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        textStyle: const TextStyle(
-          fontFamily: 'Inter',
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-        ),
+        textStyle: AppTextStyles.button,
       ),
     ),
     cardTheme: CardTheme(
@@ -88,11 +60,7 @@ ThemeData getAppTheme() {
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: AppColors.primary, width: 2),
       ),
-      labelStyle: const TextStyle(
-        fontFamily: 'Inter',
-        fontSize: 14,
-        color: AppColors.darkGrey,
-      ),
+      labelStyle: AppTextStyles.label,
       hintStyle: TextStyle(
         fontFamily: 'Inter',
         fontSize: 14,
