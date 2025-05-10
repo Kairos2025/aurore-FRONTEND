@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:aurore_school/core/constants/app_colors.dart';
+import 'package:aurore_school/core/constants/app_text_styles.dart';
 import 'package:aurore_school/core/providers/timetable_controller.dart';
 import 'package:aurore_school/models/schedule.dart';
 import 'package:aurore_school/models/schedule_conflict.dart';
-import 'package:aurore_school/utils/app_text_styles.dart';
 import 'package:aurore_school/utils/secure_storage.dart';
 import 'package:aurore_school/widgets/conflict_resolution_dialog.dart';
 import 'package:aurore_school/widgets/notion_card.dart';
@@ -41,7 +41,7 @@ class _TimetableWidgetState extends State<TimetableWidget> {
   void _showConflictDialog(BuildContext context, Schedule schedule) {
     final timetableController = Provider.of<TimetableController>(context, listen: false);
     final conflict = timetableController.conflicts.firstWhere(
-          (c) => c.scheduleId == schedule.id,
+      (c) => c.scheduleId == schedule.id,
       orElse: () => const ScheduleConflict(
         scheduleId: '',
         reason: 'Unknown conflict',
@@ -60,10 +60,10 @@ class _TimetableWidgetState extends State<TimetableWidget> {
     final timetableController = Provider.of<TimetableController>(context);
 
     if (widget.schedules.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
           'No schedules available for this day.',
-          style: TextStyle(fontSize: 16, color: Colors.grey),
+          style: AppTextStyles.body,
         ),
       );
     }
@@ -85,9 +85,9 @@ class _TimetableWidgetState extends State<TimetableWidget> {
           hasConflict: hasConflict,
           onTap: hasConflict
               ? () {
-            Vibration.vibrate(duration: 50);
-            _showConflictDialog(context, schedule);
-          }
+                  Vibration.vibrate(duration: 50);
+                  _showConflictDialog(context, schedule);
+                }
               : null,
         );
       },
