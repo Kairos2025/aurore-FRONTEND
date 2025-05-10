@@ -35,6 +35,27 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          sdk-level: '36'
+          ndk-version: '27.0.12077973'
+
+      - name: Install SDK command-line tools
+        run: |
+          sdkmanager="\$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          echo "Installing SDK command-line tools"
+          \$sdkmanager --install "cmdline-tools;latest" --sdk_root=\$ANDROID_HOME
+          \$sdkmanager --list --sdk_root=\$ANDROID_HOME
+
+      - name: Accept Android licenses
+        run: |
+          sdkmanager="\$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          echo "Accepting Android licenses"
+          yes | \$sdkmanager --licenses --sdk_root=\$ANDROID_HOME || { echo "Error: Failed to accept Android licenses"; exit 1; }
+          echo "Verifying licenses"
+          \$sdkmanager --list --sdk_root=\$ANDROID_HOME | grep "licenses" || { echo "Error: Licenses not accepted"; exit 1; }
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2.8.0
         with:
@@ -49,16 +70,6 @@ jobs:
           dart --version || { echo "Error: Dart not found"; exit 1; }
           dart_version=$(dart --version 2>&1 | grep -o '[0-9]+\.[0-9]+\.[0-9]+')
           echo "Dart version: $dart_version"
-
-      - name: Check Flutter doctor for Android issues
-        run: |
-          flutter doctor --android-licenses
-          flutter doctor | grep -i "android" || { echo "Error: Android toolchain issues detected"; exit 1; }
-
-      - name: Accept Android licenses
-        working-directory: ./aurore-FRONTEND/aurore_frontend
-        run: |
-          yes | flutter doctor --android-licenses || { echo "Error: Failed to accept Android licenses"; exit 1; }
 
       - name: Verify directory
         run: |
@@ -189,7 +200,7 @@ jobs:
 
       - name: Verify Flutter setup
         run: |
-          flutter doctor -v || { echo "Error: Flutter setup failed"; exit 1; }
+          flutter doctor --no-android || { echo "Error: Flutter setup failed for iOS"; exit 1; }
           flutter --version || { echo "Error: Flutter not found"; exit 1; }
           dart --version || { echo "Error: Dart not found"; exit 1; }
           dart_version=$(dart --version 2>&1 | grep -o '[0-9]+\.[0-9]+\.[0-9]+')
