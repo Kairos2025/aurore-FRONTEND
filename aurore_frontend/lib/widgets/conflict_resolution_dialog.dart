@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:aurore_school/core/constants/app_colors.dart';
+import 'package:aurore_school/core/constants/app_text_styles.dart';
 import 'package:aurore_school/core/providers/timetable_controller.dart';
 import 'package:aurore_school/models/schedule_conflict.dart';
-import 'package:aurore_school/utils/app_text_styles.dart';
 import 'package:vibration/vibration.dart';
 
 class ConflictResolutionDialog extends StatefulWidget {
@@ -24,16 +25,22 @@ class _ConflictResolutionDialogState extends State<ConflictResolutionDialog> {
     return AlertDialog(
       title: Text(
         'Resolve Conflict',
-        style: AppTextStyles.title,
+        style: AppTextStyles.header,
       ),
       content: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Reason: ${widget.conflict.reason}'),
+            Text(
+              'Reason: ${widget.conflict.reason}',
+              style: AppTextStyles.body,
+            ),
             const SizedBox(height: 16),
-            Text('Severity: ${widget.conflict.severity}'),
+            Text(
+              'Severity: ${widget.conflict.severity}',
+              style: AppTextStyles.body,
+            ),
             const SizedBox(height: 16),
             TextField(
               onChanged: (value) {
@@ -41,26 +48,30 @@ class _ConflictResolutionDialogState extends State<ConflictResolutionDialog> {
                   _manualResolutionInput = value;
                 });
               },
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Manual Resolution',
-                border: OutlineInputBorder(),
+                labelStyle: AppTextStyles.label,
                 hintText: 'Enter resolution details',
+                hintStyle: AppTextStyles.label,
+                border: const OutlineInputBorder(),
               ),
               maxLines: 3,
               enabled: !_isLoading,
             ),
             const SizedBox(height: 16),
             if (_isLoading)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: Center(child: CircularProgressIndicator()),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Center(
+                  child: CircularProgressIndicator(color: AppColors.primary),
+                ),
               ),
             if (_error != null && !_isLoading)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
                   _error!,
-                  style: const TextStyle(color: Colors.red),
+                  style: AppTextStyles.error,
                 ),
               ),
           ],
@@ -71,24 +82,32 @@ class _ConflictResolutionDialogState extends State<ConflictResolutionDialog> {
           onPressed: _isLoading ? null : () => Navigator.pop(context),
           child: Text(
             'Cancel',
-            style: AppTextStyles.bodyBold.copyWith(color: Colors.grey),
+            style: AppTextStyles.button.copyWith(color: AppColors.neutral),
           ),
         ),
         OutlinedButton(
           onPressed: _isLoading ? null : () => _submitResolution('auto', ''),
           style: OutlinedButton.styleFrom(
-            side: const BorderSide(color: Colors.grey),
+            foregroundColor: AppColors.primary,
+            side: BorderSide(color: AppColors.primary),
           ),
-          child: const Text('Auto Resolve'),
+          child: Text(
+            'Auto Resolve',
+            style: AppTextStyles.button,
+          ),
         ),
         OutlinedButton(
           onPressed: _isLoading
               ? null
               : () => _submitResolution('manual', _manualResolutionInput),
           style: OutlinedButton.styleFrom(
-            side: const BorderSide(color: Colors.grey),
+            foregroundColor: AppColors.primary,
+            side: BorderSide(color: AppColors.primary),
           ),
-          child: const Text('Resolve Manually'),
+          child: Text(
+            'Resolve Manually',
+            style: AppTextStyles.button,
+          ),
         ),
       ],
     );
@@ -117,7 +136,12 @@ class _ConflictResolutionDialogState extends State<ConflictResolutionDialog> {
       if (context.mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Conflict resolved successfully!')),
+          SnackBar(
+            content: Text(
+              'Conflict resolved successfully!',
+              style: AppTextStyles.body,
+            ),
+          ),
         );
       }
     } catch (e) {
