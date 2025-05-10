@@ -149,12 +149,51 @@ jobs:
             echo "Warning: fonts_backup directory not found, using default"
           fi
 
-      # Fix imports in all Dart files to use relative paths
+      # List directory structure to confirm layout
+      - name: List lib directory structure
+        working-directory: ./aurore-FRONTEND/aurore_frontend
+        run: |
+          ls -R lib
+
+      # Fix imports in all Dart files to use correct relative paths
       - name: Update imports in Dart files
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
+          # For files in lib/core/providers/
+          find lib/core/providers -type f -name "*.dart" -exec sed -i 's|import "utils/|import "../utils/|g' {} +
+          find lib/core/providers -type f -name "*.dart" -exec sed -i 's|import "models/|import "../models/|g' {} +
+          find lib/core/providers -type f -name "*.dart" -exec sed -i 's|import "core/providers/|import "./|g' {} +
+          
+          # For files in lib/features/auth/
+          find lib/features/auth -type f -name "*.dart" -exec sed -i 's|import "core/|import "../../core/|g' {} +
+          find lib/features/auth -type f -name "*.dart" -exec sed -i 's|import "utils/|import "../../utils/|g' {} +
+          find lib/features/auth -type f -name "*.dart" -exec sed -i 's|import "widgets/|import "../../widgets/|g' {} +
+          
+          # For files in lib/features/dashboard/teacher/
+          find lib/features/dashboard/teacher -type f -name "*.dart" -exec sed -i 's|import "core/|import "../../../core/|g' {} +
+          find lib/features/dashboard/teacher -type f -name "*.dart" -exec sed -i 's|import "widgets/|import "../../../widgets/|g' {} +
+          
+          # For files in lib/features/dashboard/student/
+          find lib/features/dashboard/student -type f -name "*.dart" -exec sed -i 's|import "core/|import "../../../core/|g' {} +
+          find lib/features/dashboard/student -type f -name "*.dart" -exec sed -i 's|import "widgets/|import "../../../widgets/|g' {} +
+          
+          # For files in lib/features/dashboard/admin/
+          find lib/features/dashboard/admin -type f -name "*.dart" -exec sed -i 's|import "core/|import "../../../core/|g' {} +
+          find lib/features/dashboard/admin -type f -name "*.dart" -exec sed -i 's|import "models/|import "../../../models/|g' {} +
+          find lib/features/dashboard/admin -type f -name "*.dart" -exec sed -i 's|import "widgets/|import "../../../widgets/|g' {} +
+          
+          # For files in lib/features/dashboard/support/
+          find lib/features/dashboard/support -type f -name "*.dart" -exec sed -i 's|import "widgets/|import "../../../widgets/|g' {} +
+          
+          # For files in lib/features/ (e.g., timetable_screen.dart)
+          find lib/features -type f -name "*.dart" -not -path "lib/features/*/*" -exec sed -i 's|import "core/|import "../core/|g' {} +
+          find lib/features -type f -name "*.dart" -not -path "lib/features/*/*" -exec sed -i 's|import "models/|import "../models/|g' {} +
+          find lib/features -type f -name "*.dart" -not -path "lib/features/*/*" -exec sed -i 's|import "widgets/|import "../widgets/|g' {} +
+          
+          # Remove any remaining package:aurore_school/ references (in case any were missed)
           find lib -type f -name "*.dart" -exec sed -i 's|package:aurore_school/||g' {} +
-          echo "Updated imports in all Dart files to use relative paths"
+          
+          echo "Updated imports in all Dart files to use correct relative paths"
           find lib -type f -name "*.dart" -exec cat {} \;
 
       # Get Flutter dependencies (after migration)
