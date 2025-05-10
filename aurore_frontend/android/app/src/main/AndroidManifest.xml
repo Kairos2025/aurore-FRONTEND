@@ -2,6 +2,9 @@
     <!-- Camera permissions for mobile_scanner and image_picker -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="true" />
+    <!-- Storage permissions for image_picker on Android <10 (API <= 28) -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
 
     <application
         android:label="Aurore School"
