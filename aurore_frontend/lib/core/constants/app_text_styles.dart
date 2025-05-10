@@ -22,11 +22,20 @@ class AppTextStyles {
     height: 1.3,
   );
 
+  static const TextStyle appBarTitle = TextStyle(
+    fontFamily: 'Inter',
+    fontSize: 20,
+    fontWeight: FontWeight.w600,
+    color: AppColors.iconPrimary,
+    letterSpacing: -0.2,
+    height: 1.3,
+  );
+
   static const TextStyle subheader = TextStyle(
     fontFamily: 'Inter',
     fontSize: 18,
     fontWeight: FontWeight.w600,
-    color: AppColors.onBackground,
+    color: AppColors.textSecondary,
     letterSpacing: 0.0,
     height: 1.4,
   );
@@ -36,7 +45,7 @@ class AppTextStyles {
     fontFamily: 'Inter',
     fontSize: 16,
     fontWeight: FontWeight.w400,
-    color: AppColors.onBackground,
+    color: AppColors.textSecondary,
     letterSpacing: 0.2,
     height: 1.5,
   );
@@ -45,7 +54,7 @@ class AppTextStyles {
     fontFamily: 'Inter',
     fontSize: 16,
     fontWeight: FontWeight.w600,
-    color: AppColors.onBackground,
+    color: AppColors.textSecondary,
     letterSpacing: 0.2,
     height: 1.5,
   );
@@ -54,7 +63,7 @@ class AppTextStyles {
     fontFamily: 'Inter',
     fontSize: 14,
     fontWeight: FontWeight.w400,
-    color: AppColors.grey,
+    color: AppColors.neutral,
     letterSpacing: 0.3,
     height: 1.4,
   );
@@ -64,7 +73,7 @@ class AppTextStyles {
     fontFamily: 'Inter',
     fontSize: 16,
     fontWeight: FontWeight.w600,
-    color: AppColors.onPrimary,
+    color: AppColors.iconPrimary,
     letterSpacing: 0.5,
     height: 1.3,
   );
@@ -73,7 +82,7 @@ class AppTextStyles {
     fontFamily: 'Inter',
     fontSize: 14,
     fontWeight: FontWeight.w500,
-    color: AppColors.onBackground,
+    color: AppColors.textSecondary,
     letterSpacing: 0.2,
     height: 1.4,
   );
@@ -83,7 +92,7 @@ class AppTextStyles {
     fontFamily: 'Inter',
     fontSize: 14,
     fontWeight: FontWeight.w500,
-    color: AppColors.errorRed,
+    color: AppColors.error,
     letterSpacing: 0.2,
     height: 1.4,
   );
@@ -92,7 +101,7 @@ class AppTextStyles {
     fontFamily: 'Inter',
     fontSize: 16,
     fontWeight: FontWeight.w400,
-    color: AppColors.disabled,
+    color: AppColors.neutral,
     letterSpacing: 0.2,
     height: 1.5,
   );
