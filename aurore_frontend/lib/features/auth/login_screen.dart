@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:aurore_school/core/constants/app_colors.dart';
+import 'package:aurore_school/core/constants/app_text_styles.dart';
 import 'package:aurore_school/core/providers/auth_provider.dart';
-import 'package:aurore_school/utils/app_text_styles.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -86,7 +86,21 @@ class _LoginScreenState extends State<LoginScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Login'),
+        backgroundColor: AppColors.primary,
+        leading: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Image.asset(
+            'assets/images/aurore_logo.png',
+            height: 32,
+            width: 32,
+            fit: BoxFit.contain,
+          ),
+        ),
+        title: const Text(
+          'Login',
+          style: AppTextStyles.appBarTitle,
+        ),
+        centerTitle: true,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -96,16 +110,17 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Welcome Back!',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  style: AppTextStyles.header,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _emailController,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Email',
-                    border: OutlineInputBorder(),
+                    labelStyle: AppTextStyles.label,
+                    border: const OutlineInputBorder(),
                   ),
                   keyboardType: TextInputType.emailAddress,
                   validator: (value) {
@@ -123,10 +138,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   controller: _passwordController,
                   decoration: InputDecoration(
                     labelText: 'Password',
+                    labelStyle: AppTextStyles.label,
                     border: const OutlineInputBorder(),
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                        color: AppColors.iconPrimary,
                       ),
                       onPressed: () {
                         setState(() {
@@ -153,33 +170,48 @@ class _LoginScreenState extends State<LoginScreen> {
                     onPressed: () {
                       Navigator.pushNamed(context, '/reset-password');
                     },
-                    child: const Text('Forgot Password?'),
+                    child: Text(
+                      'Forgot Password?',
+                      style: AppTextStyles.label,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
                 authProvider.isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : ElevatedButton(
-                  onPressed: () => _login(context),
-                  child: const Text('Login'),
-                ),
+                        onPressed: () => _login(context),
+                        child: Text(
+                          'Login',
+                          style: AppTextStyles.button,
+                        ),
+                      ),
                 const SizedBox(height: 16),
                 authProvider.isLoading
                     ? const SizedBox.shrink()
                     : OutlinedButton(
-                  onPressed: () => _googleSignIn(context),
-                  child: const Text('Sign in with Google'),
-                ),
+                        onPressed: () => _googleSignIn(context),
+                        child: Text(
+                          'Sign in with Google',
+                          style: AppTextStyles.button,
+                        ),
+                      ),
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text("Don't have an account?"),
+                    Text(
+                      "Don't have an account?",
+                      style: AppTextStyles.body,
+                    ),
                     TextButton(
                       onPressed: () {
                         Navigator.pushNamed(context, '/signup');
                       },
-                      child: const Text('Sign Up'),
+                      child: Text(
+                        'Sign Up',
+                        style: AppTextStyles.label,
+                      ),
                     ),
                   ],
                 ),
@@ -188,7 +220,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     padding: const EdgeInsets.only(top: 16),
                     child: Text(
                       authProvider.error!,
-                      style: const TextStyle(color: Colors.red),
+                      style: AppTextStyles.error,
                     ),
                   ),
               ],
