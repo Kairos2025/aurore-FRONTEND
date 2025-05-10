@@ -1,4 +1,4 @@
-name: Build APK
+name: Build APK and IPA
 
 on:
   push:
@@ -9,25 +9,13 @@ on:
       - update-gradle
 
 jobs:
-  build:
+  fetch-flutter-version:
     runs-on: ubuntu-latest
-
+    outputs:
+      flutter_version: ${{ steps.set-flutter-version.outputs.flutter_version }}
     steps:
-      # Checkout the repository with a specific path
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          path: aurore-FRONTEND
-
-      # Set up Java (required for Android builds)
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      # Fetch the latest stable Flutter version
       - name: Fetch latest stable Flutter version
+        id: set-flutter-version
         run: |
           echo "Fetching the latest stable Flutter version..."
           git clone --depth 1 --branch stable https://github.com/flutter/flutter.git flutter_latest
@@ -35,19 +23,32 @@ jobs:
           ./bin/flutter --version
           flutter_version=$(./bin/flutter --version --machine | grep -oP '"frameworkVersion": "\K[0-9]+\.[0-9]+\.[0-9]+')
           echo "Latest stable Flutter version: $flutter_version"
-          echo "FLUTTER_VERSION=$flutter_version" >> $GITHUB_ENV
+          echo "flutter_version=$flutter_version" >> $GITHUB_OUTPUT
           cd ..
           rm -rf flutter_latest
 
-      # Set up Flutter with the latest stable version
+  build-android:
+    needs: fetch-flutter-version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          path: aurore-FRONTEND
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2.8.0
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
+          flutter-version: ${{ needs.fetch-flutter-version.outputs.flutter_version }}
           channel: 'stable'
           architecture: 'x64'
 
-      # Verify Flutter and Dart version
       - name: Verify Flutter setup
         run: |
           flutter doctor -v || { echo "Error: Flutter setup failed"; exit 1; }
@@ -56,13 +57,11 @@ jobs:
           dart_version=$(dart --version 2>&1 | grep -oP '\d+\.\d+\.\d+')
           echo "Dart version: $dart_version"
 
-      # Accept Android licenses
       - name: Accept Android licenses
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
           yes | flutter doctor --android-licenses || { echo "Error: Failed to accept Android licenses"; exit 1; }
 
-      # Verify working directory and project root
       - name: Verify directory
         run: |
           pwd
@@ -87,25 +86,20 @@ jobs:
             echo "Error: aurore-FRONTEND directory not found"; exit 1
           fi
 
-      # Get Flutter dependencies (initial run to ensure compatibility)
       - name: Install initial dependencies
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
           flutter pub get || { echo "Error: Failed to get initial dependencies"; echo "pubspec.yaml content:"; cat pubspec.yaml; exit 1; }
 
-      # Regenerate Android project structure
       - name: Regenerate Android project
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
-          # Backup original pubspec.yaml
           cp pubspec.yaml pubspec.yaml.original
           echo "Backed up original pubspec.yaml to pubspec.yaml.original"
-          # Backup existing android directory
           if [ -d "android" ]; then
             mv android android_backup
             echo "Backed up existing android directory to android_backup"
           fi
-          # Backup lib, assets, and fonts directories
           if [ -d "lib" ]; then
             cp -r lib lib_backup
             echo "Backed up lib directory to lib_backup"
@@ -118,13 +112,10 @@ jobs:
             cp -r fonts fonts_backup
             echo "Backed up fonts directory to fonts_backup"
           fi
-          # Create new project structure
           flutter create -t app . --platforms android
-          # Restore pubspec.yaml
           mv pubspec.yaml pubspec.yaml.new
           mv pubspec.yaml.original pubspec.yaml
           echo "Restored original pubspec.yaml"
-          # Restore lib directory (Dart code)
           if [ -d "lib_backup" ]; then
             rm -rf lib
             mv lib_backup lib
@@ -132,7 +123,6 @@ jobs:
           else
             echo "Error: lib_backup directory not found"; exit 1
           fi
-          # Restore assets
           if [ -d "assets_backup" ]; then
             rm -rf assets
             mv assets_backup assets
@@ -140,7 +130,6 @@ jobs:
           else
             echo "Warning: assets_backup directory not found, using default"
           fi
-          # Restore fonts (if any)
           if [ -d "fonts_backup" ]; then
             rm -rf fonts
             mv fonts_backup fonts
@@ -149,67 +138,46 @@ jobs:
             echo "Warning: fonts_backup directory not found, using default"
           fi
 
-      # List directory structure to confirm layout
       - name: List lib directory structure
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
           ls -R lib
 
-      # Fix imports in all Dart files to use correct relative paths
       - name: Update imports in Dart files
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
-          # For files in lib/core/providers/
           find lib/core/providers -type f -name "*.dart" -exec sed -i 's|import "utils/|import "../utils/|g' {} +
           find lib/core/providers -type f -name "*.dart" -exec sed -i 's|import "models/|import "../models/|g' {} +
           find lib/core/providers -type f -name "*.dart" -exec sed -i 's|import "core/providers/|import "./|g' {} +
-          
-          # For files in lib/features/auth/
           find lib/features/auth -type f -name "*.dart" -exec sed -i 's|import "core/|import "../../core/|g' {} +
           find lib/features/auth -type f -name "*.dart" -exec sed -i 's|import "utils/|import "../../utils/|g' {} +
           find lib/features/auth -type f -name "*.dart" -exec sed -i 's|import "widgets/|import "../../widgets/|g' {} +
-          
-          # For files in lib/features/dashboard/teacher/
           find lib/features/dashboard/teacher -type f -name "*.dart" -exec sed -i 's|import "core/|import "../../../core/|g' {} +
           find lib/features/dashboard/teacher -type f -name "*.dart" -exec sed -i 's|import "widgets/|import "../../../widgets/|g' {} +
-          
-          # For files in lib/features/dashboard/student/
           find lib/features/dashboard/student -type f -name "*.dart" -exec sed -i 's|import "core/|import "../../../core/|g' {} +
           find lib/features/dashboard/student -type f -name "*.dart" -exec sed -i 's|import "widgets/|import "../../../widgets/|g' {} +
-          
-          # For files in lib/features/dashboard/admin/
           find lib/features/dashboard/admin -type f -name "*.dart" -exec sed -i 's|import "core/|import "../../../core/|g' {} +
           find lib/features/dashboard/admin -type f -name "*.dart" -exec sed -i 's|import "models/|import "../../../models/|g' {} +
           find lib/features/dashboard/admin -type f -name "*.dart" -exec sed -i 's|import "widgets/|import "../../../widgets/|g' {} +
-          
-          # For files in lib/features/dashboard/support/
           find lib/features/dashboard/support -type f -name "*.dart" -exec sed -i 's|import "widgets/|import "../../../widgets/|g' {} +
-          
-          # For files in lib/features/ (e.g., timetable_screen.dart)
           find lib/features -type f -name "*.dart" -not -path "lib/features/*/*" -exec sed -i 's|import "core/|import "../core/|g' {} +
           find lib/features -type f -name "*.dart" -not -path "lib/features/*/*" -exec sed -i 's|import "models/|import "../models/|g' {} +
           find lib/features -type f -name "*.dart" -not -path "lib/features/*/*" -exec sed -i 's|import "widgets/|import "../widgets/|g' {} +
-          
-          # Remove any remaining package:aurore_school/ references (in case any were missed)
           find lib -type f -name "*.dart" -exec sed -i 's|package:aurore_school/||g' {} +
-          
           echo "Updated imports in all Dart files to use correct relative paths"
           find lib -type f -name "*.dart" -exec cat {} \;
 
-      # Get Flutter dependencies (after migration)
       - name: Install dependencies
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
           flutter pub get || { echo "Error: Failed to get dependencies"; echo "pubspec.yaml content:"; cat pubspec.yaml; exit 1; }
 
-      # Set up Android SDK with updated NDK version
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
           sdk-level: '33'
           ndk-version: '27.0.12077973'
 
-      # Update NDK version in build.gradle.kts and remove conflicting line
       - name: Update NDK version in build.gradle.kts
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
@@ -218,15 +186,111 @@ jobs:
           echo "Updated NDK version in android/app/build.gradle.kts"
           cat android/app/build.gradle.kts
 
-      # Build the APK
       - name: Build APK
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
           flutter build apk --release || { echo "Error: APK build failed"; cat android/app/build.gradle.kts; exit 1; }
 
-      # Upload the APK as an artifact
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release.apk
-          path: aurore-FRONTEND/aurore-FRONTEND/aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
+          path: aurore-FRONTEND/aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
+
+  build-ios:
+    needs: fetch-flutter-version
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          path: aurore-FRONTEND
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2.8.0
+        with:
+          flutter-version: ${{ needs.fetch-flutter-version.outputs.flutter_version }}
+          channel: 'stable'
+          architecture: 'x64'
+
+      - name: Verify Flutter setup
+        run: |
+          flutter doctor -v || { echo "Error: Flutter setup failed"; exit 1; }
+          flutter --version || { echo "Error: Flutter not found"; exit 1; }
+          dart --version || { echo "Error: Dart not found"; exit 1; }
+          dart_version=$(dart --version 2>&1 | grep -oP '\d+\.\d+\.\d+')
+          echo "Dart version: $dart_version"
+
+      - name: Install dependencies
+        working-directory: ./aurore-FRONTEND/aurore_frontend
+        run: |
+          flutter pub get || { echo "Error: Failed to get dependencies"; echo "pubspec.yaml content:"; cat pubspec.yaml; exit 1; }
+
+      - name: Set up Ruby and CocoaPods
+        run: |
+          gem install cocoapods
+          pod --version
+
+      - name: Install CocoaPods dependencies
+        working-directory: ./aurore-FRONTEND/aurore_frontend/ios
+        run: |
+          pod install || { echo "Error: Failed to install CocoaPods dependencies"; exit 1; }
+
+      - name: Set up code signing
+        working-directory: ./aurore-FRONTEND/aurore_frontend
+        env:
+          IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          # Create a custom keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          # Import certificate
+          echo "$IOS_CERTIFICATE_BASE64" | base64 --decode > certificate.p12
+          security import certificate.p12 -k build.keychain -P "$IOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          # Install provisioning profile
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode > profile.mobileprovision
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+          # Update Xcode project for manual signing
+          sed -i '' 's/Automatic/Manual/' ios/Runner.xcodeproj/project.pbxproj
+          echo "Code signing setup complete"
+
+      - name: Build IPA
+        working-directory: ./aurore-FRONTEND/aurore_frontend
+        run: |
+          flutter build ios --release --no-codesign || { echo "Error: iOS build failed"; exit 1; }
+          cd ios
+          xcodebuild -workspace Runner.xcworkspace -scheme Runner -sdk iphoneos -configuration Release archive -archivePath build/Runner.xcarchive
+          xcodebuild -exportArchive -archivePath build/Runner.xcarchive -exportOptionsPlist ../exportOptions.plist -exportPath build/ipa
+          echo "IPA built at build/ipa/Runner.ipa"
+
+      - name: Create exportOptions.plist
+        working-directory: ./aurore-FRONTEND/aurore_frontend
+        run: |
+          cat > exportOptions.plist << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>development</string>
+            <key>teamID</key>
+            <string>${{ secrets.APPLE_TEAM_ID }}</string>
+            <key>uploadBitcode</key>
+            <false/>
+            <key>uploadSymbols</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
+          echo "Created exportOptions.plist"
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Runner.ipa
+          path: aurore-FRONTEND/aurore_frontend/ios/build/ipa/Runner.ipa
