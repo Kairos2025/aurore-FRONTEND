@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:aurore_school/core/constants/app_text_styles.dart';
 
 class AuroreHeader extends StatelessWidget {
   final String title;
@@ -11,10 +12,7 @@ class AuroreHeader extends StatelessWidget {
       padding: const EdgeInsets.all(16.0),
       child: Text(
         title,
-        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-          fontWeight: FontWeight.bold,
-          color: Theme.of(context).primaryColor,
-        ),
+        style: AppTextStyles.header,
       ),
     );
   }
