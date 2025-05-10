@@ -14,18 +14,11 @@ jobs:
     outputs:
       flutter_version: ${{ steps.set-flutter-version.outputs.flutter_version }}
     steps:
-      - name: Fetch latest stable Flutter version
+      - name: Set Flutter version
         id: set-flutter-version
         run: |
-          echo "Fetching the latest stable Flutter version..."
-          git clone --depth 1 --branch stable https://github.com/flutter/flutter.git flutter_latest
-          cd flutter_latest
-          ./bin/flutter --version
-          flutter_version=$(./bin/flutter --version --machine | grep -oP '"frameworkVersion": "\K[0-9]+\.[0-9]+\.[0-9]+')
-          echo "Latest stable Flutter version: $flutter_version"
-          echo "flutter_version=$flutter_version" >> $GITHUB_OUTPUT
-          cd ..
-          rm -rf flutter_latest
+          echo "Using Flutter version 3.29.3 (matches pubspec.yaml and logs)"
+          echo "flutter_version=3.29.3" >> $GITHUB_OUTPUT
 
   build-android:
     needs: fetch-flutter-version
@@ -54,8 +47,13 @@ jobs:
           flutter doctor -v || { echo "Error: Flutter setup failed"; exit 1; }
           flutter --version || { echo "Error: Flutter not found"; exit 1; }
           dart --version || { echo "Error: Dart not found"; exit 1; }
-          dart_version=$(dart --version 2>&1 | grep -oP '\d+\.\d+\.\d+')
+          dart_version=$(dart --version 2>&1 | grep -o '[0-9]+\.[0-9]+\.[0-9]+')
           echo "Dart version: $dart_version"
+
+      - name: Check Flutter doctor for Android issues
+        run: |
+          flutter doctor --android-licenses
+          flutter doctor | grep -i "android" || { echo "Error: Android toolchain issues detected"; exit 1; }
 
       - name: Accept Android licenses
         working-directory: ./aurore-FRONTEND/aurore_frontend
@@ -86,105 +84,81 @@ jobs:
             echo "Error: aurore-FRONTEND directory not found"; exit 1
           fi
 
-      - name: Install initial dependencies
-        working-directory: ./aurore-FRONTEND/aurore_frontend
-        run: |
-          flutter pub get || { echo "Error: Failed to get initial dependencies"; echo "pubspec.yaml content:"; cat pubspec.yaml; exit 1; }
-
-      - name: Regenerate Android project
-        working-directory: ./aurore-FRONTEND/aurore_frontend
-        run: |
-          cp pubspec.yaml pubspec.yaml.original
-          echo "Backed up original pubspec.yaml to pubspec.yaml.original"
-          if [ -d "android" ]; then
-            mv android android_backup
-            echo "Backed up existing android directory to android_backup"
-          fi
-          if [ -d "lib" ]; then
-            cp -r lib lib_backup
-            echo "Backed up lib directory to lib_backup"
-          fi
-          if [ -d "assets" ]; then
-            cp -r assets assets_backup
-            echo "Backed up assets directory to assets_backup"
-          fi
-          if [ -d "fonts" ]; then
-            cp -r fonts fonts_backup
-            echo "Backed up fonts directory to fonts_backup"
-          fi
-          flutter create -t app . --platforms android
-          mv pubspec.yaml pubspec.yaml.new
-          mv pubspec.yaml.original pubspec.yaml
-          echo "Restored original pubspec.yaml"
-          if [ -d "lib_backup" ]; then
-            rm -rf lib
-            mv lib_backup lib
-            echo "Restored lib directory"
-          else
-            echo "Error: lib_backup directory not found"; exit 1
-          fi
-          if [ -d "assets_backup" ]; then
-            rm -rf assets
-            mv assets_backup assets
-            echo "Restored assets directory"
-          else
-            echo "Warning: assets_backup directory not found, using default"
-          fi
-          if [ -d "fonts_backup" ]; then
-            rm -rf fonts
-            mv fonts_backup fonts
-            echo "Restored fonts directory"
-          else
-            echo "Warning: fonts_backup directory not found, using default"
-          fi
-
-      - name: List lib directory structure
-        working-directory: ./aurore-FRONTEND/aurore_frontend
-        run: |
-          ls -R lib
-
-      - name: Update imports in Dart files
-        working-directory: ./aurore-FRONTEND/aurore_frontend
-        run: |
-          find lib/core/providers -type f -name "*.dart" -exec sed -i 's|import "utils/|import "../utils/|g' {} +
-          find lib/core/providers -type f -name "*.dart" -exec sed -i 's|import "models/|import "../models/|g' {} +
-          find lib/core/providers -type f -name "*.dart" -exec sed -i 's|import "core/providers/|import "./|g' {} +
-          find lib/features/auth -type f -name "*.dart" -exec sed -i 's|import "core/|import "../../core/|g' {} +
-          find lib/features/auth -type f -name "*.dart" -exec sed -i 's|import "utils/|import "../../utils/|g' {} +
-          find lib/features/auth -type f -name "*.dart" -exec sed -i 's|import "widgets/|import "../../widgets/|g' {} +
-          find lib/features/dashboard/teacher -type f -name "*.dart" -exec sed -i 's|import "core/|import "../../../core/|g' {} +
-          find lib/features/dashboard/teacher -type f -name "*.dart" -exec sed -i 's|import "widgets/|import "../../../widgets/|g' {} +
-          find lib/features/dashboard/student -type f -name "*.dart" -exec sed -i 's|import "core/|import "../../../core/|g' {} +
-          find lib/features/dashboard/student -type f -name "*.dart" -exec sed -i 's|import "widgets/|import "../../../widgets/|g' {} +
-          find lib/features/dashboard/admin -type f -name "*.dart" -exec sed -i 's|import "core/|import "../../../core/|g' {} +
-          find lib/features/dashboard/admin -type f -name "*.dart" -exec sed -i 's|import "models/|import "../../../models/|g' {} +
-          find lib/features/dashboard/admin -type f -name "*.dart" -exec sed -i 's|import "widgets/|import "../../../widgets/|g' {} +
-          find lib/features/dashboard/support -type f -name "*.dart" -exec sed -i 's|import "widgets/|import "../../../widgets/|g' {} +
-          find lib/features -type f -name "*.dart" -not -path "lib/features/*/*" -exec sed -i 's|import "core/|import "../core/|g' {} +
-          find lib/features -type f -name "*.dart" -not -path "lib/features/*/*" -exec sed -i 's|import "models/|import "../models/|g' {} +
-          find lib/features -type f -name "*.dart" -not -path "lib/features/*/*" -exec sed -i 's|import "widgets/|import "../widgets/|g' {} +
-          find lib -type f -name "*.dart" -exec sed -i 's|package:aurore_school/||g' {} +
-          echo "Updated imports in all Dart files to use correct relative paths"
-          find lib -type f -name "*.dart" -exec cat {} \;
-
       - name: Install dependencies
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
           flutter pub get || { echo "Error: Failed to get dependencies"; echo "pubspec.yaml content:"; cat pubspec.yaml; exit 1; }
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          sdk-level: '33'
-          ndk-version: '27.0.12077973'
+      - name: Set up Android signing
+        working-directory: ./aurore-FRONTEND/aurore_frontend
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/keystore.jks
+          cat > android/key.properties <<EOF
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyPassword=$ANDROID_KEY_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          storeFile=keystore.jks
+          EOF
+          echo "Android signing setup complete"
 
-      - name: Update NDK version in build.gradle.kts
+      - name: Update build.gradle.kts for release signing
         working-directory: ./aurore-FRONTEND/aurore_frontend
         run: |
-          sed -i '/ndkVersion = flutter.ndkVersion/d' android/app/build.gradle.kts
-          sed -i '/android {/a \        ndkVersion = "27.0.12077973"' android/app/build.gradle.kts
-          echo "Updated NDK version in android/app/build.gradle.kts"
-          cat android/app/build.gradle.kts
+          cat > android/app/build.gradle.kts <<EOF
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+              id("com.google.gms.google-services")
+          }
+
+          android {
+              namespace = "com.example.aurore_frontend"
+              compileSdk = flutter.compileSdkVersion
+              ndkVersion = "27.0.12077973"
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_11
+                  targetCompatibility = JavaVersion.VERSION_11
+              }
+
+              kotlinOptions {
+                  jvmTarget = JavaVersion.VERSION_11.toString()
+              }
+
+              defaultConfig {
+                  applicationId = "com.example.aurore_frontend"
+                  minSdk = flutter.minSdkVersion
+                  targetSdk = flutter.targetSdkVersion
+                  versionCode = flutter.versionCode
+                  versionName = flutter.versionName
+              }
+
+              signingConfigs {
+                  register("release") {
+                      keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                      keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+                      storeFile = file("keystore.jks")
+                      storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                  }
+              }
+
+              buildTypes {
+                  release {
+                      signingConfig = signingConfigs.getByName("release")
+                  }
+              }
+          }
+
+          flutter {
+              source = "../.."
+          }
+          EOF
+          echo "Updated android/app/build.gradle.kts with release signing"
 
       - name: Build APK
         working-directory: ./aurore-FRONTEND/aurore_frontend
@@ -218,7 +192,7 @@ jobs:
           flutter doctor -v || { echo "Error: Flutter setup failed"; exit 1; }
           flutter --version || { echo "Error: Flutter not found"; exit 1; }
           dart --version || { echo "Error: Dart not found"; exit 1; }
-          dart_version=$(dart --version 2>&1 | grep -oP '\d+\.\d+\.\d+')
+          dart_version=$(dart --version 2>&1 | grep -o '[0-9]+\.[0-9]+\.[0-9]+')
           echo "Dart version: $dart_version"
 
       - name: Install dependencies
@@ -244,18 +218,14 @@ jobs:
           IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
-          # Create a custom keychain
           security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-          # Import certificate
           echo "$IOS_CERTIFICATE_BASE64" | base64 --decode > certificate.p12
           security import certificate.p12 -k build.keychain -P "$IOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-          # Install provisioning profile
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           echo "$IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode > profile.mobileprovision
           cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
-          # Update Xcode project for manual signing
           sed -i '' 's/Automatic/Manual/' ios/Runner.xcodeproj/project.pbxproj
           echo "Code signing setup complete"
 
