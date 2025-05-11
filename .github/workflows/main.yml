@@ -67,14 +67,31 @@ jobs:
         run: flutter pub get
         working-directory: aurore_frontend
 
+      # Set NDK version (if needed)
+      - name: Set NDK version
+        run: |
+          sed -i '' 's/ndkVersion.*/ndkVersion "27.0.12077973"/' android/app/build.gradle.kts
+        working-directory: aurore_frontend
+
       # Build APK
       - name: Build APK
-        run: flutter build apk --release
+        run: flutter build apk --release --no-debug
         working-directory: aurore_frontend
+        env:
+          FLUTTER_BUILD_MODE: release
 
       # Build IPA
       - name: Build IPA
-        run: flutter build ios --release --no-codesign
+        run: flutter build ios --release --no-codesign --no-debug
+        working-directory: aurore_frontend
+        env:
+          FLUTTER_BUILD_MODE: release
+
+      # Log build configuration
+      - name: Log build details
+        run: |
+          echo "Build mode: $FLUTTER_BUILD_MODE"
+          flutter analyze
         working-directory: aurore_frontend
 
       # Upload APK artifact
