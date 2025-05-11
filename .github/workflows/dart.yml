@@ -18,6 +18,7 @@ jobs:
           echo "Runner OS: $(uname -a)"
           echo "Initial PATH: $PATH"
           which flutter || echo "Flutter not found initially"
+          which sdkmanager || echo "sdkmanager not found initially"
           sudo apt-get update
           sudo apt-get install -y curl unzip
 
@@ -28,9 +29,18 @@ jobs:
           distribution: 'temurin'
 
       - name: Set up Android SDK
+        id: android-setup
         uses: android-actions/setup-android@v3
         with:
-          cmdline-tools-version: '13.0'
+          cmdline-tools-version: '11.0' # Use a known stable version
+        continue-on-error: true
+
+      - name: Verify Android SDK setup
+        run: |
+          echo "ANDROID_HOME: $ANDROID_HOME"
+          ls -la $ANDROID_HOME/cmdline-tools || echo "cmdline-tools directory not found"
+          sdkmanager --version || echo "sdkmanager not found"
+          sdkmanager --list | grep "cmdline-tools" || echo "cmdline-tools listing failed"
 
       - name: Set up Flutter
         id: flutter-setup
@@ -98,11 +108,16 @@ jobs:
         if: failure()
         run: |
           echo "Final PATH: $PATH"
+          echo "ANDROID_HOME: $ANDROID_HOME"
           which flutter || echo "Flutter not found in debug"
+          which sdkmanager || echo "sdkmanager not found in debug"
           flutter --version || echo "Flutter version check failed"
           flutter doctor -v || echo "Flutter doctor failed"
+          sdkmanager --version || echo "sdkmanager version check failed"
+          sdkmanager --list | grep "cmdline-tools" || echo "cmdline-tools listing failed"
+          ls -la $HOME/.flutter/bin 2>/dev/null || echo "Flutter bin directory not found"
+          ls -la $ANDROID_HOME/cmdline-tools 2>/dev/null || echo "cmdline-tools directory not found"
           cd aurore_frontend
           flutter analyze || echo "Flutter analyze failed"
           cat pubspec.yaml
           find . -name "*.dart" | xargs cat
-          ls -la $HOME/.flutter/bin 2>/dev/null || echo "Flutter bin directory not found"
