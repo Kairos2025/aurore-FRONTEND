@@ -43,8 +43,16 @@ jobs:
       # Install Android SDK command-line tools
       - name: Install Android SDK command-line tools
         run: |
+          echo "Installing Android SDK command-line tools"
           sdkmanager --install "cmdline-tools;latest" --sdk_root=$ANDROID_HOME
           sdkmanager --list --sdk_root=$ANDROID_HOME
+
+      # Verify command-line tools installation
+      - name: Verify command-line tools
+        run: |
+          ls -la $ANDROID_HOME/cmdline-tools
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --version
+        continue-on-error: true
 
       # Accept Android SDK licenses
       - name: Accept Android SDK licenses
