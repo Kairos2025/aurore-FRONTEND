@@ -23,6 +23,8 @@ jobs:
           ls -la .github/workflows
           cat .github/workflows/build.yml || echo "Workflow file not found"
           pwd
+          git branch
+          git log --oneline -n 5
 
       # Set up JDK
       - name: Set up JDK 21
@@ -156,5 +158,7 @@ jobs:
           echo "Build failed. Running verbose build for details."
           export PATH="$PATH:/Users/runner/hostedtoolcache/flutter/stable-3.29.3-x64/bin"
           flutter doctor -v
+          flutter analyze
+          flutter pub get
           flutter build apk --release --verbose
         working-directory: aurore_frontend
