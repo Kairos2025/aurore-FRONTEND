@@ -19,8 +19,9 @@ jobs:
           echo "Initial PATH: $PATH"
           which flutter || echo "Flutter not found initially"
           which sdkmanager || echo "sdkmanager not found initially"
-          cat aurore_frontend/pubspec.yaml | grep sdk
-          cat .github/workflows/build.yml | grep flutter-version
+          cat aurore_frontend/pubspec.yaml | grep sdk || echo "pubspec.yaml not found or sdk not defined"
+          ls -la .github/workflows || echo "Workflow directory not found"
+          cat .github/workflows/build.yml | grep flutter-version || echo "build.yml or flutter-version not found"
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -104,4 +105,4 @@ jobs:
           sdkmanager --version || echo "sdkmanager version check failed"
           cd aurore_frontend
           flutter analyze || echo "Flutter analyze failed"
-          cat pubspec.yaml
+          cat pubspec.yaml || echo "pubspec.yaml not found"
