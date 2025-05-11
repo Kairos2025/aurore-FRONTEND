@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:aurore_school/core/constants/app_colors.dart';
-import 'package:aurore_school/core/constants/app_text_styles.dart';
-import 'package:aurore_school/core/providers/timetable_controller.dart';
-import 'package:aurore_school/models/schedule.dart';
-import 'package:aurore_school/models/schedule_conflict.dart';
-import 'package:aurore_school/utils/secure_storage.dart';
-import 'package:aurore_school/widgets/conflict_resolution_dialog.dart';
-import 'package:aurore_school/widgets/notion_card.dart';
+import '../core/constants/app_colors.dart';
+import '../core/constants/app_text_styles.dart';
+import '../core/providers/timetable_controller.dart';
+import '../models/schedule.dart';
+import '../models/schedule_conflict.dart';
+import '../utils/secure_storage.dart';
+import 'conflict_resolution_dialog.dart';
+import 'notion_card.dart';
 import 'package:vibration/vibration.dart';
 
 class TimetableWidget extends StatefulWidget {
