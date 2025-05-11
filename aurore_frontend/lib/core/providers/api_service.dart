@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:aurore_school/utils/secure_storage.dart';
+import '../../utils/secure_storage.dart';
 
 class ApiService {
   final Dio _dio;
