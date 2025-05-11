@@ -32,7 +32,7 @@ jobs:
         id: android-setup
         uses: android-actions/setup-android@v3
         with:
-          cmdline-tools-version: '9477386' # Maps to command-line tools 11.0
+          cmdline-tools-version: '9477386'
         continue-on-error: true
 
       - name: Verify Android SDK setup
@@ -46,9 +46,23 @@ jobs:
         id: flutter-setup
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.28.0'
+          flutter-version: '3.26.0'
           channel: 'stable'
           cache: true
+        continue-on-error: true
+
+      - name: Fallback Flutter setup
+        if: steps.flutter-setup.outcome != 'success'
+        run: |
+          echo "Trying Flutter 3.24.3 as fallback"
+          sudo rm -rf $HOME/.flutter
+          curl -o flutter.tar.xz https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.24.3-stable.tar.xz
+          mkdir -p $HOME/.flutter
+          tar xf flutter.tar.xz -C $HOME/.flutter
+          export PATH="$HOME/.flutter/flutter/bin:$PATH"
+          echo "PATH=$HOME/.flutter/flutter/bin:$PATH" >> $GITHUB_ENV
+          flutter --version
+          flutter doctor -v
 
       - name: Verify Flutter setup
         run: |
