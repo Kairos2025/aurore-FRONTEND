@@ -48,7 +48,6 @@ class _TimetableWidgetState extends State<TimetableWidget> {
       ),
     );
 
-    // Ensure conflict has a valid scheduleId
     if (conflict.scheduleId.isEmpty) return;
 
     showDialog(
