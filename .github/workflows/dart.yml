@@ -1,77 +1,138 @@
-name: Aurore Frontend APK Builder
+name: Build Flutter APK and IPA
 
 on:
   push:
-    branches: [main, master]
-  workflow_dispatch:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
+
     steps:
-      - uses: actions/checkout@v4
+      # Checkout the repository
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Setup Java
-        uses: actions/setup-java@v3
+      # Log workflow file for debugging
+      - name: Log workflow file
+        run: cat .github/workflows/build.yml
+
+      # Set up JDK
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
-          java-version: '11'
+          distribution: 'temurin'
+          java-version: '21'
 
-      # Added step to create flutter version file
-      - name: Create Flutter Version File
-        run: |
-          echo "3.19.3" > .fvm/fvm_config.json
+      # Cache Flutter SDK
+      - name: Cache Flutter SDK
+        uses: actions/cache@v4
+        with:
+          path: /Users/runner/hostedtoolcache/flutter
+          key: flutter-sdk-${{ runner.os }}-3.29.3
+          restore-keys: flutter-sdk-${{ runner.os }}-
 
-      - name: Install Flutter
+      # Set up Flutter
+      - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.3'  # Using specific stable version
-          channel: 'stable'          # Using stable channel instead of beta
+          flutter-version: '3.29.3'
+          channel: 'stable'
           cache: true
-          cache-key: 'flutter-:os:-:channel:-:version:-:arch:-:hash:'
-          cache-path: ${{ runner.tool_cache }}/flutter/:channel:-:version:-:arch:
-          architecture: x64
 
-      - name: Show Flutter and Dart Versions
+      # Cache Gradle dependencies
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      # Install Android SDK command-line tools
+      - name: Install Android SDK command-line tools
         run: |
-          flutter --version
-          dart --version
+          echo "Installing Android SDK command-line tools"
+          sdkmanager --install "cmdline-tools;latest" --sdk_root=$ANDROID_HOME
+          ls -la $ANDROID_HOME/cmdline-tools || echo "Failed to install cmdline-tools"
 
-      - name: Update Flutter
+      # Accept Android SDK licenses
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses --sdk_root=$ANDROID_HOME
+
+      # Verify project directory
+      - name: Verify project directory
         run: |
-          flutter upgrade
+          ls -la aurore_frontend
+          test -f aurore_frontend/pubspec.yaml || echo "pubspec.yaml not found in aurore_frontend"
+        continue-on-error: true
 
-      - name: Fix Pubspec Formatting
-        working-directory: ./aurore_frontend
+      # Navigate to project directory
+      - name: Navigate to project directory
+        run: cd aurore_frontend
+
+      # Get Flutter dependencies
+      - name: Get dependencies
+        run: flutter pub get
+        working-directory: aurore_frontend
+
+      # Fix dependency conflicts
+      - name: Update pubspec.yaml for dependency conflicts
         run: |
-          # Fix SDK constraint formatting
-          sed -i 's/sdk:  >=/sdk: ">=/' pubspec.yaml
-          sed -i 's/ <4.0.0/ <4.0.0"/' pubspec.yaml
-          
-          # Update dependencies if needed
-          sed -i \
-            -e 's/firebase_core: .*/firebase_core: ^4.3.0/' \
-            -e 's/firebase_auth: .*/firebase_auth: ^6.3.0/' \
-            -e 's/http: .*/http: ^2.0.0/' \
-            pubspec.yaml
+          sed -i '' 's/firebase_auth: ^6.3.0/firebase_auth: ^5.6.0/' pubspec.yaml
+          sed -i '' 's/material_color_utilities: ^0.12.0/material_color_utilities: ^0.11.1/' pubspec.yaml
+        working-directory: aurore_frontend
 
-      - name: Silent Analytics Disable
+      # Run flutter pub get again after dependency fixes
+      - name: Get dependencies after fixes
+        run: flutter pub get
+        working-directory: aurore_frontend
+
+      # Set NDK version
+      - name: Set NDK version
         run: |
-          flutter config --no-analytics >/dev/null 2>&1 || true
-          flutter config --no-cli-animations >/dev/null 2>&1 || true
+          sed -i '' 's/ndkVersion.*/ndkVersion "27.0.12077973"/' android/app/build.gradle.kts
+        working-directory: aurore_frontend
 
+      # Build APK
       - name: Build APK
-        working-directory: ./aurore_frontend
-        run: |
-          flutter clean
-          flutter pub get
-          flutter build apk --release \
-            --dart-define=CI_ENV=true \
-            --split-debug-info=/build \
-            --obfuscate
+        run: flutter build apk --release --no-debug
+        working-directory: aurore_frontend
+        env:
+          FLUTTER_BUILD_MODE: release
 
+      # Build IPA
+      - name: Build IPA
+        run: flutter build ios --release --no-codesign --no-debug
+        working-directory: aurore_frontend
+        env:
+          FLUTTER_BUILD_MODE: release
+
+      # Upload APK artifact
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: aurore-app-release
+          name: app-release-apk
           path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
+
+      # Upload IPA artifact
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-ipa
+          path: aurore_frontend/build/ios/ipa/*.ipa
+          retention-days: 7
+
+      # Debug logging on failure
+      - name: Debug on failure
+        if: failure()
+        run: |
+          echo "Build failed. Running verbose build for details."
+          flutter build apk --release --verbose
+        working-directory: aurore_frontend
