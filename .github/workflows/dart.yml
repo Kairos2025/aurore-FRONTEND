@@ -17,11 +17,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Log workflow file to confirm it’s loaded
+      # Log workflow file and directory
       - name: Log workflow file
         run: |
           ls -la .github/workflows
           cat .github/workflows/build.yml || echo "Workflow file not found"
+          pwd
 
       # Set up JDK
       - name: Set up JDK 21
@@ -52,6 +53,7 @@ jobs:
           export PATH="$PATH:/Users/runner/hostedtoolcache/flutter/stable-3.29.3-x64/bin"
           flutter --version
           which flutter
+          flutter doctor -v
         env:
           PATH: /Users/runner/hostedtoolcache/flutter/stable-3.29.3-x64/bin:$PATH
 
@@ -81,6 +83,7 @@ jobs:
         run: |
           ls -la aurore_frontend
           test -f aurore_frontend/pubspec.yaml || echo "pubspec.yaml not found in aurore_frontend"
+          cat aurore_frontend/pubspec.yaml || echo "Failed to read pubspec.yaml"
         continue-on-error: true
 
       # Navigate to project directory
@@ -99,6 +102,7 @@ jobs:
           sed -i '' 's/firebase_auth: ^6.3.0/firebase_auth: ^5.6.0/' pubspec.yaml
           sed -i '' 's/material_color_utilities: ^0.12.0/material_color_utilities: ^0.11.1/' pubspec.yaml
         working-directory: aurore_frontend
+        continue-on-error: true
 
       # Run flutter pub get again after dependency fixes
       - name: Get dependencies after fixes
@@ -111,10 +115,11 @@ jobs:
         run: |
           sed -i '' 's/ndkVersion.*/ndkVersion "27.0.12077973"/' android/app/build.gradle.kts
         working-directory: aurore_frontend
+        continue-on-error: true
 
       # Build APK
       - name: Build APK
-        run: flutter build apk --release --no-debug
+        run: flutter build apk --release --no-debug --verbose
         working-directory: aurore_frontend
         env:
           FLUTTER_BUILD_MODE: release
@@ -122,7 +127,7 @@ jobs:
 
       # Build IPA
       - name: Build IPA
-        run: flutter build ios --release --no-codesign --no-debug
+        run: flutter build ios --release --no-codesign --no-debug --verbose
         working-directory: aurore_frontend
         env:
           FLUTTER_BUILD_MODE: release
@@ -150,5 +155,6 @@ jobs:
         run: |
           echo "Build failed. Running verbose build for details."
           export PATH="$PATH:/Users/runner/hostedtoolcache/flutter/stable-3.29.3-x64/bin"
+          flutter doctor -v
           flutter build apk --release --verbose
         working-directory: aurore_frontend
