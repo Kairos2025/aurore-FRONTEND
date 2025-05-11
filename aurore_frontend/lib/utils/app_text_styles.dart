@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:aurore_school/core/constants/app_colors.dart';
+import 'app_colors.dart';
 
 class AppTextStyles {
   static const TextStyle appBarTitle = TextStyle(
