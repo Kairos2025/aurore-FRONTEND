@@ -24,6 +24,14 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
+      # Cache Flutter SDK
+      - name: Cache Flutter SDK
+        uses: actions/cache@v4
+        with:
+          path: /Users/runner/hostedtoolcache/flutter
+          key: flutter-sdk-${{ runner.os }}-3.29.3
+          restore-keys: flutter-sdk-${{ runner.os }}-
+
       # Set up Flutter
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -32,31 +40,29 @@ jobs:
           channel: 'stable'
           cache: true
 
-      # Verify Flutter setup
-      - name: Run flutter doctor
-        run: flutter doctor -v
-
-      # Navigate to project directory
-      - name: Navigate to project directory
-        run: cd aurore_frontend
+      # Cache Gradle dependencies
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
 
       # Install Android SDK command-line tools
       - name: Install Android SDK command-line tools
         run: |
           echo "Installing Android SDK command-line tools"
           sdkmanager --install "cmdline-tools;latest" --sdk_root=$ANDROID_HOME
-          sdkmanager --list --sdk_root=$ANDROID_HOME
-
-      # Verify command-line tools installation
-      - name: Verify command-line tools
-        run: |
-          ls -la $ANDROID_HOME/cmdline-tools
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --version
-        continue-on-error: true
 
       # Accept Android SDK licenses
       - name: Accept Android SDK licenses
         run: yes | sdkmanager --licenses --sdk_root=$ANDROID_HOME
+
+      # Navigate to project directory
+      - name: Navigate to project directory
+        run: cd aurore_frontend
 
       # Get Flutter dependencies
       - name: Get dependencies
@@ -75,7 +81,7 @@ jobs:
         run: flutter pub get
         working-directory: aurore_frontend
 
-      # Set NDK version (if needed)
+      # Set NDK version
       - name: Set NDK version
         run: |
           sed -i '' 's/ndkVersion.*/ndkVersion "27.0.12077973"/' android/app/build.gradle.kts
@@ -95,13 +101,6 @@ jobs:
         env:
           FLUTTER_BUILD_MODE: release
 
-      # Log build configuration
-      - name: Log build details
-        run: |
-          echo "Build mode: $FLUTTER_BUILD_MODE"
-          flutter analyze
-        working-directory: aurore_frontend
-
       # Upload APK artifact
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -118,10 +117,10 @@ jobs:
           path: aurore_frontend/build/ios/ipa/*.ipa
           retention-days: 7
 
-      # Enable debug logging for troubleshooting
-      - name: Enable debug logging
+      # Debug logging on failure
+      - name: Debug on failure
         if: failure()
         run: |
-          echo "Flutter build failed. Check logs for details."
+          echo "Build failed. Running verbose build for details."
           flutter build apk --release --verbose
         working-directory: aurore_frontend
