@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:aurore_school/core/constants/app_text_styles.dart';
+import '../core/constants/app_text_styles.dart';
 
 class AuroreHeader extends StatelessWidget {
   final String title;
