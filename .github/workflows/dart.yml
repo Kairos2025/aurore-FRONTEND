@@ -13,6 +13,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Pre-setup diagnostics
+        run: |
+          echo "Runner OS: $(uname -a)"
+          echo "Initial PATH: $PATH"
+          which flutter || echo "Flutter not found initially"
+          sudo apt-get update
+          sudo apt-get install -y curl unzip
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -25,34 +33,20 @@ jobs:
           cmdline-tools-version: '13.0'
 
       - name: Set up Flutter
+        id: flutter-setup
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.3' # Fallback to a stable, widely-used version
+          flutter-version: '3.24.3'
           channel: 'stable'
           cache: true
-        continue-on-error: true
-
-      - name: Fallback Flutter installation
-        if: steps.flutter-setup.outputs.success != 'true'
-        run: |
-          echo "Flutter setup via action failed, attempting manual installation"
-          sudo apt-get update
-          sudo apt-get install -y git curl unzip xz-utils libglu1-mesa
-          mkdir -p ~/flutter
-          curl -o flutter.tar.xz https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.24.3-stable.tar.xz
-          tar xf flutter.tar.xz -C ~/flutter
-          export PATH="$HOME/flutter/flutter/bin:$PATH"
-          echo "PATH=$PATH" >> $GITHUB_ENV
-          flutter --version
-          flutter doctor -v
 
       - name: Verify Flutter setup
         run: |
-          flutter --version || { echo "Flutter not found"; exit 1; }
-          which flutter
-          echo $PATH
+          echo "Post-Flutter setup PATH: $PATH"
+          which flutter || { echo "Flutter not found after setup"; exit 1; }
+          flutter --version
           flutter doctor -v
-          ls -la $HOME/flutter/flutter/bin
+          ls -la $HOME/.flutter/bin 2>/dev/null || echo "Flutter bin directory not found"
 
       - name: Verify project directory
         run: |
@@ -103,10 +97,12 @@ jobs:
       - name: Debug on failure
         if: failure()
         run: |
+          echo "Final PATH: $PATH"
+          which flutter || echo "Flutter not found in debug"
+          flutter --version || echo "Flutter version check failed"
+          flutter doctor -v || echo "Flutter doctor failed"
           cd aurore_frontend
-          flutter doctor -v
-          flutter analyze
+          flutter analyze || echo "Flutter analyze failed"
           cat pubspec.yaml
           find . -name "*.dart" | xargs cat
-          echo "PATH=$PATH"
-          which flutter
+          ls -la $HOME/.flutter/bin 2>/dev/null || echo "Flutter bin directory not found"
