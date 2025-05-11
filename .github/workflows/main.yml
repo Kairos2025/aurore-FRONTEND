@@ -55,10 +55,18 @@ jobs:
         run: |
           echo "Installing Android SDK command-line tools"
           sdkmanager --install "cmdline-tools;latest" --sdk_root=$ANDROID_HOME
+          ls -la $ANDROID_HOME/cmdline-tools || echo "Failed to install cmdline-tools"
 
       # Accept Android SDK licenses
       - name: Accept Android SDK licenses
         run: yes | sdkmanager --licenses --sdk_root=$ANDROID_HOME
+
+      # Verify project directory
+      - name: Verify project directory
+        run: |
+          ls -la aurore_frontend
+          test -f aurore_frontend/pubspec.yaml || echo "pubspec.yaml not found in aurore_frontend"
+        continue-on-error: true
 
       # Navigate to project directory
       - name: Navigate to project directory
