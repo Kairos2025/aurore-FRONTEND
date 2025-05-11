@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:aurore_school/core/constants/app_colors.dart';
-import 'package:aurore_school/core/constants/app_text_styles.dart';
-import 'package:aurore_school/core/providers/timetable_controller.dart';
-import 'package:aurore_school/models/schedule_conflict.dart';
+import '../core/constants/app_colors.dart';
+import '../core/constants/app_text_styles.dart';
+import '../core/providers/timetable_controller.dart';
+import '../models/schedule_conflict.dart';
 import 'package:vibration/vibration.dart';
 
 class ConflictResolutionDialog extends StatefulWidget {
