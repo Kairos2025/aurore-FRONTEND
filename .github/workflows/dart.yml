@@ -3,10 +3,10 @@ name: Build Flutter APK and IPA
 on:
   push:
     branches:
-      - main
+      - update-gradle
   pull_request:
     branches:
-      - main
+      - update-gradle
 
 jobs:
   build:
@@ -17,7 +17,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Log workflow file for debugging
+      # Log workflow file to confirm it’s loaded
       - name: Log workflow file
         run: cat .github/workflows/build.yml
 
