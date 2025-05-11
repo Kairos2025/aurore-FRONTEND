@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../core/constants/app_colors.dart';
 import '../core/constants/app_text_styles.dart';
 import '../core/providers/timetable_controller.dart';
 import '../models/schedule.dart';
@@ -49,6 +48,9 @@ class _TimetableWidgetState extends State<TimetableWidget> {
       ),
     );
 
+    // Ensure conflict has a valid scheduleId
+    if (conflict.scheduleId.isEmpty) return;
+
     showDialog(
       context: context,
       builder: (context) => ConflictResolutionDialog(conflict: conflict),
@@ -74,7 +76,7 @@ class _TimetableWidgetState extends State<TimetableWidget> {
       itemCount: widget.schedules.length,
       itemBuilder: (context, index) {
         final schedule = widget.schedules[index];
-        final hasConflict = timetableController.conflicts.any((c) => c.scheduleId == schedule.id);
+        final hasConflict = timetableController.conflicts.any((c) => c.scheduleId == schedule.id && c.scheduleId.isNotEmpty);
 
         return NotionCard(
           title: schedule.subject,
