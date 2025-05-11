@@ -4,161 +4,74 @@ on:
   push:
     branches:
       - update-gradle
-  pull_request:
-    branches:
-      - update-gradle
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
 
     steps:
-      # Checkout the repository
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Log workflow file and directory
-      - name: Log workflow file
-        run: |
-          ls -la .github/workflows
-          cat .github/workflows/build.yml || echo "Workflow file not found"
-          pwd
-          git branch
-          git log --oneline -n 5
-
-      # Set up JDK
-      - name: Set up JDK 21
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
+          java-version: '17'
           distribution: 'temurin'
-          java-version: '21'
 
-      # Cache Flutter SDK
-      - name: Cache Flutter SDK
-        uses: actions/cache@v4
-        with:
-          path: /Users/runner/hostedtoolcache/flutter
-          key: flutter-sdk-${{ runner.os }}-3.29.3
-          restore-keys: flutter-sdk-${{ runner.os }}-
-
-      # Set up Flutter
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.29.3'
           channel: 'stable'
-          cache: true
 
-      # Verify Flutter installation
-      - name: Verify Flutter installation
-        run: |
-          export PATH="$PATH:/Users/runner/hostedtoolcache/flutter/stable-3.29.3-x64/bin"
-          flutter --version
-          which flutter
-          flutter doctor -v
-        env:
-          PATH: /Users/runner/hostedtoolcache/flutter/stable-3.29.3-x64/bin:$PATH
-
-      # Cache Gradle dependencies
-      - name: Cache Gradle dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: gradle-${{ runner.os }}-
-
-      # Install Android SDK command-line tools
-      - name: Install Android SDK command-line tools
-        run: |
-          echo "Installing Android SDK command-line tools"
-          sdkmanager --install "cmdline-tools;latest" --sdk_root=$ANDROID_HOME
-          ls -la $ANDROID_HOME/cmdline-tools || echo "Failed to install cmdline-tools"
-
-      # Accept Android SDK licenses
-      - name: Accept Android SDK licenses
-        run: yes | sdkmanager --licenses --sdk_root=$ANDROID_HOME
-
-      # Verify project directory
       - name: Verify project directory
         run: |
           ls -la aurore_frontend
-          test -f aurore_frontend/pubspec.yaml || echo "pubspec.yaml not found in aurore_frontend"
-          cat aurore_frontend/pubspec.yaml || echo "Failed to read pubspec.yaml"
-        continue-on-error: true
+          cat aurore_frontend/pubspec.yaml
+          ls -la aurore_frontend/lib
+          ls -la aurore_frontend/assets/images
 
-      # Navigate to project directory
-      - name: Navigate to project directory
-        run: cd aurore_frontend
-
-      # Get Flutter dependencies
       - name: Get dependencies
-        run: flutter pub get
-        env:
-          PATH: /Users/runner/hostedtoolcache/flutter/stable-3.29.3-x64/bin:$PATH
-
-      # Fix dependency conflicts
-      - name: Update pubspec.yaml for dependency conflicts
         run: |
-          sed -i '' 's/firebase_auth: ^6.3.0/firebase_auth: ^5.6.0/' pubspec.yaml
-          sed -i '' 's/material_color_utilities: ^0.12.0/material_color_utilities: ^0.11.1/' pubspec.yaml
-        working-directory: aurore_frontend
+          cd aurore_frontend
+          flutter pub get
         continue-on-error: true
 
-      # Run flutter pub get again after dependency fixes
-      - name: Get dependencies after fixes
-        run: flutter pub get
-        env:
-          PATH: /Users/runner/hostedtoolcache/flutter/stable-3.29.3-x64/bin:$PATH
-
-      # Set NDK version
-      - name: Set NDK version
+      - name: Install Android NDK
         run: |
-          sed -i '' 's/ndkVersion.*/ndkVersion "27.0.12077973"/' android/app/build.gradle.kts
-        working-directory: aurore_frontend
-        continue-on-error: true
+          sdkmanager --install "ndk;27.0.12077973" --sdk_root=$ANDROID_HOME
+          echo "ndk.dir=$ANDROID_HOME/ndk/27.0.12077973" >> aurore_frontend/android/local.properties
 
-      # Build APK
       - name: Build APK
-        run: flutter build apk --release --no-debug --verbose
-        working-directory: aurore_frontend
-        env:
-          FLUTTER_BUILD_MODE: release
-          PATH: /Users/runner/hostedtoolcache/flutter/stable-3.29.3-x64/bin:$PATH
+        run: |
+          cd aurore_frontend
+          flutter build apk --release --no-debug --verbose
+          ls -la build/app/outputs/flutter-apk
 
-      # Build IPA
       - name: Build IPA
-        run: flutter build ios --release --no-codesign --no-debug --verbose
-        working-directory: aurore_frontend
-        env:
-          FLUTTER_BUILD_MODE: release
-          PATH: /Users/runner/hostedtoolcache/flutter/stable-3.29.3-x64/bin:$PATH
+        run: |
+          cd aurore_frontend
+          flutter build ios --release --no-codesign --no-debug --verbose
+          ls -la build/ios
 
-      # Upload APK artifact
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
           path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 7
 
-      # Upload IPA artifact
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: app-release-ipa
-          path: aurore_frontend/build/ios/ipa/*.ipa
-          retention-days: 7
+          path: aurore_frontend/build/ios/iphoneos/Runner.app
 
-      # Debug logging on failure
       - name: Debug on failure
         if: failure()
         run: |
-          echo "Build failed. Running verbose build for details."
-          export PATH="$PATH:/Users/runner/hostedtoolcache/flutter/stable-3.29.3-x64/bin"
+          cd aurore_frontend
           flutter doctor -v
           flutter analyze
-          flutter pub get
-          flutter build apk --release --verbose
-        working-directory: aurore_frontend
+          cat pubspec.yaml
+          find . -name "*.dart" | xargs cat
