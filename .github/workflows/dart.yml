@@ -19,8 +19,8 @@ jobs:
           echo "Initial PATH: $PATH"
           which flutter || echo "Flutter not found initially"
           which sdkmanager || echo "sdkmanager not found initially"
-          sudo apt-get update
-          sudo apt-get install -y curl unzip
+          cat aurore_frontend/pubspec.yaml | grep sdk
+          cat .github/workflows/build.yml | grep flutter-version
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -29,40 +29,22 @@ jobs:
           distribution: 'temurin'
 
       - name: Set up Android SDK
-        id: android-setup
         uses: android-actions/setup-android@v3
         with:
           cmdline-tools-version: '9477386'
-        continue-on-error: true
 
       - name: Verify Android SDK setup
         run: |
           echo "ANDROID_HOME: $ANDROID_HOME"
-          ls -la $ANDROID_HOME/cmdline-tools || echo "cmdline-tools directory not found"
           sdkmanager --version || echo "sdkmanager not found"
           sdkmanager --list | grep "cmdline-tools" || echo "cmdline-tools listing failed"
 
       - name: Set up Flutter
-        id: flutter-setup
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.24.3'
           channel: 'stable'
           cache: true
-        continue-on-error: true
-
-      - name: Fallback Flutter setup (beta)
-        if: steps.flutter-setup.outcome != 'success'
-        run: |
-          echo "Trying Flutter 3.26.0-0.2.pre (beta) as fallback"
-          sudo rm -rf $HOME/.flutter
-          curl -o flutter.tar.xz https://storage.googleapis.com/flutter_infra_release/releases/beta/linux/flutter_linux_3.26.0-0.2.pre-beta.tar.xz
-          mkdir -p $HOME/.flutter
-          tar xf flutter.tar.xz -C $HOME/.flutter
-          export PATH="$HOME/.flutter/flutter/bin:$PATH"
-          echo "PATH=$HOME/.flutter/flutter/bin:$PATH" >> $GITHUB_ENV
-          flutter --version
-          flutter doctor -v
 
       - name: Verify Flutter setup
         run: |
@@ -70,14 +52,6 @@ jobs:
           which flutter || { echo "Flutter not found after setup"; exit 1; }
           flutter --version
           flutter doctor -v
-          ls -la $HOME/.flutter/bin 2>/dev/null || echo "Flutter bin directory not found"
-
-      - name: Verify project directory
-        run: |
-          ls -la aurore_frontend
-          cat aurore_frontend/pubspec.yaml
-          ls -la aurore_frontend/lib
-          ls -la aurore_frontend/assets/images
 
       - name: Get dependencies
         run: |
@@ -123,15 +97,11 @@ jobs:
         run: |
           echo "Final PATH: $PATH"
           echo "ANDROID_HOME: $ANDROID_HOME"
-          which flutter || echo "Flutter not found in debug"
-          which sdkmanager || echo "sdkmanager not found in debug"
+          which flutter || echo "Flutter not found"
+          which sdkmanager || echo "sdkmanager not found"
           flutter --version || echo "Flutter version check failed"
           flutter doctor -v || echo "Flutter doctor failed"
           sdkmanager --version || echo "sdkmanager version check failed"
-          sdkmanager --list | grep "cmdline-tools" || echo "cmdline-tools listing failed"
-          ls -la $HOME/.flutter/bin 2>/dev/null || echo "Flutter bin directory not found"
-          ls -la $ANDROID_HOME/cmdline-tools 2>/dev/null || echo "cmdline-tools directory not found"
           cd aurore_frontend
           flutter analyze || echo "Flutter analyze failed"
           cat pubspec.yaml
-          find . -name "*.dart" | xargs cat
