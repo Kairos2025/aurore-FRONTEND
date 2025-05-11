@@ -24,16 +24,19 @@ jobs:
         with:
           cmdline-tools-version: '13.0'
 
-      - name: Install Android NDK
-        run: |
-          sdkmanager --install "ndk;27.0.12077973" --sdk_root=$ANDROID_HOME
-          echo "ndk.dir=$ANDROID_HOME/ndk/27.0.12077973" >> aurore_frontend/android/local.properties
-
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.29.3'
           channel: 'stable'
+          cache: true
+
+      - name: Verify Flutter setup
+        run: |
+          flutter --version
+          which flutter
+          echo $PATH
+          flutter doctor -v
 
       - name: Verify project directory
         run: |
@@ -46,6 +49,16 @@ jobs:
         run: |
           cd aurore_frontend
           flutter pub get
+
+      - name: Run Dart analysis
+        run: |
+          cd aurore_frontend
+          flutter analyze
+
+      - name: Install Android NDK
+        run: |
+          sdkmanager --install "ndk;27.0.12077973" --sdk_root=$ANDROID_HOME
+          echo "ndk.dir=$ANDROID_HOME/ndk/27.0.12077973" >> aurore_frontend/android/local.properties
 
       - name: Build APK
         run: |
