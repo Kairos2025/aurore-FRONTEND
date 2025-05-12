@@ -20,7 +20,6 @@ jobs:
           which flutter || echo "Flutter not found initially"
           which sdkmanager || echo "sdkmanager not found initially"
           cat aurore_frontend/pubspec.yaml | grep sdk || echo "pubspec.yaml not found or sdk not defined"
-          ls -la .github/workflows || echo "Workflow directory not found"
           cat .github/workflows/build.yml | grep flutter-version || echo "build.yml or flutter-version not found"
 
       - name: Set up Java
