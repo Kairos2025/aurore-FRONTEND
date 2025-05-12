@@ -9,11 +9,7 @@ on:
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}  # Allow switching between macOS and Ubuntu
-    strategy:
-      matrix:
-        os: [macos-latest, ubuntu-latest]  # Test both runners
-    continue-on-error: true  # Continue even if one OS fails
+    runs-on: macos-latest  # Focus on macOS for iOS builds
 
     steps:
       # Step 1: Checkout the repository
@@ -25,6 +21,7 @@ jobs:
         run: |
           echo "Runner OS: $RUNNER_OS"
           echo "Runner Name: $RUNNER_NAME"
+          echo "Current directory: $(pwd)"
           echo "GitHub Context: ${{ toJson(github) }}"
           echo "Workflow started at: $(date)"
 
@@ -44,26 +41,28 @@ jobs:
           channel: 'stable'
         continue-on-error: true
 
-      # Step 5: Verify environment and diagnose issues
-      - name: Verify environment
+      # Step 5: Verify environment and pubspec.yaml
+      - name: Verify environment and project
         run: |
           echo "Flutter doctor output:"
           flutter doctor --verbose || echo "Flutter doctor failed, check logs."
           flutter --version || echo "Flutter version check failed."
           flutter pub get --verbose || echo "Dependency installation failed."
-        continue-on-error: true
+          if [ ! -f pubspec.yaml ]; then echo "Error: pubspec.yaml not found in $(pwd)"; exit 1; fi
+          echo "pubspec.yaml found at: $(pwd)/pubspec.yaml"
 
       # Step 6: Run Dart analysis
       - name: Run Dart analysis
         run: |
           flutter analyze --no-fatal-infos > analysis_output.txt 2>&1 || echo "Dart analysis failed, proceeding."
         continue-on-error: true
+        working-directory: ${{ github.workspace }}  # Ensure root directory
 
       # Step 7: Upload analysis output
       - name: Upload Dart analysis output
         uses: actions/upload-artifact@v4
         with:
-          name: dart-analysis-output-${{ matrix.os }}
+          name: dart-analysis-output
           path: analysis_output.txt
           if-no-files-found: warn
         continue-on-error: true
@@ -73,15 +72,16 @@ jobs:
         run: |
           flutter test --coverage || echo "Tests failed or not found."
         continue-on-error: true
+        working-directory: ${{ github.workspace }}
 
       # Step 9: Build APK
       - name: Build APK
         run: flutter build apk --release || echo "APK build failed."
         continue-on-error: true
+        working-directory: ${{ github.workspace }}
 
-      # Step 10: Build IPA (for iOS) with fallback
+      # Step 10: Build IPA with error handling
       - name: Build IPA
-        if: runner.os == 'macOS'  # Only run on macOS
         run: |
           flutter build ios --release --no-codesign || echo "iOS build failed."
           if [ -d "build/ios/iphoneos" ]; then
@@ -93,22 +93,22 @@ jobs:
             echo "iOS build directory not found."
           fi
         continue-on-error: true
+        working-directory: ${{ github.workspace }}
 
       # Step 11: Upload APK artifact
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: aurore-apk-${{ matrix.os }}
+          name: aurore-apk
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: warn
         continue-on-error: true
 
       # Step 12: Upload IPA artifact
       - name: Upload IPA
-        if: runner.os == 'macOS'  # Only run on macOS
         uses: actions/upload-artifact@v4
         with:
-          name: aurore-ipa-${{ matrix.os }}
+          name: aurore-ipa
           path: build/ios/iphoneos/aurore.ipa
           if-no-files-found: ignore
         continue-on-error: true
