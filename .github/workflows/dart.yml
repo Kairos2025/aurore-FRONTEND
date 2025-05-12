@@ -43,11 +43,17 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.10.0'
+          flutter-version: '3.22.0'  # Includes Dart 3.5.0
           channel: 'stable'
         continue-on-error: true
 
-      # Step 5: Verify environment and project
+      # Step 5: Accept Android licenses
+      - name: Accept Android licenses
+        run: |
+          yes | flutter doctor --android-licenses || echo "Android license acceptance failed, proceeding."
+        continue-on-error: true
+
+      # Step 6: Verify environment and project
       - name: Verify environment and project
         run: |
           echo "Flutter doctor output:"
@@ -61,14 +67,14 @@ jobs:
           flutter pub get --verbose || echo "Dependency installation failed."
         working-directory: ${{ github.workspace }}/aurore_frontend
 
-      # Step 6: Run Dart analysis
+      # Step 7: Run Dart analysis
       - name: Run Dart analysis
         run: |
           flutter analyze --no-fatal-infos > analysis_output.txt 2>&1 || echo "Dart analysis failed, proceeding."
         continue-on-error: true
         working-directory: ${{ github.workspace }}/aurore_frontend
 
-      # Step 7: Upload analysis output
+      # Step 8: Upload analysis output
       - name: Upload Dart analysis output
         uses: actions/upload-artifact@v4
         with:
@@ -77,20 +83,20 @@ jobs:
           if-no-files-found: warn
         continue-on-error: true
 
-      # Step 8: Run tests
+      # Step 9: Run tests
       - name: Run tests
         run: |
           flutter test --coverage || echo "Tests failed or not found."
         continue-on-error: true
         working-directory: ${{ github.workspace }}/aurore_frontend
 
-      # Step 9: Build APK
+      # Step 10: Build APK
       - name: Build APK
         run: flutter build apk --release || echo "APK build failed."
         continue-on-error: true
         working-directory: ${{ github.workspace }}/aurore_frontend
 
-      # Step 10: Build IPA
+      # Step 11: Build IPA
       - name: Build IPA
         run: |
           flutter build ios --release --no-codesign || echo "iOS build failed."
@@ -105,7 +111,7 @@ jobs:
         continue-on-error: true
         working-directory: ${{ github.workspace }}/aurore_frontend
 
-      # Step 11: Upload APK artifact
+      # Step 12: Upload APK artifact
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
@@ -114,7 +120,7 @@ jobs:
           if-no-files-found: warn
         continue-on-error: true
 
-      # Step 12: Upload IPA artifact
+      # Step 13: Upload IPA artifact
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
@@ -123,7 +129,7 @@ jobs:
           if-no-files-found: ignore
         continue-on-error: true
 
-      # Step 13: Log completion
+      # Step 14: Log completion
       - name: Log completion
         run: |
           echo "Workflow completed at: $(date)"
