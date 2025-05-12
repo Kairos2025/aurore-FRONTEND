@@ -20,36 +20,38 @@ jobs:
       - name: Set up Java
         uses: actions/setup-java@v3
         with:
-          distribution: 'temurin'  # Fixes distribution error
+          distribution: 'temurin'
           java-version: '17'
 
       # Step 3: Set up Flutter
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.10.0'  # Stable version
+          flutter-version: '3.10.0'
           channel: 'stable'
 
-      # Step 4: Verify Flutter setup and project
+      # Step 4: Verify Flutter environment
       - name: Verify Flutter environment
         run: |
           flutter --version
-          flutter doctor
-          flutter pub get --verbose  # Detailed dependency installation
-          flutter analyze --no-fatal-infos --status  # Initial analysis
+          flutter doctor --verbose
+          flutter pub get --verbose
+          flutter analyze --no-fatal-infos --status
 
       # Step 5: Run Dart analysis with detailed output
       - name: Run Dart analysis
         run: |
           flutter analyze --no-fatal-infos > analysis_output.txt 2>&1 || echo "Dart analysis completed with issues. Review analysis_output.txt for details."
-        continue-on-error: true  # Allow pipeline to continue
+        continue-on-error: true
 
-      # Step 6: Upload analysis output
+      # Step 6: Upload analysis output with retry
       - name: Upload Dart analysis output
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4  # Updated to v4
         with:
           name: dart-analysis-output
           path: analysis_output.txt
+          if-no-files-found: warn
+        retries: 3  # Add retry logic for transient failures
 
       # Step 7: Run tests
       - name: Run tests
@@ -61,7 +63,7 @@ jobs:
       - name: Build APK
         run: flutter build apk --release
 
-      # Step 9: Build IPA (for iOS) with error handling
+      # Step 9: Build IPA with error handling
       - name: Build IPA
         run: |
           flutter build ios --release --no-codesign || echo "iOS build failed, proceeding to archive."
@@ -74,17 +76,20 @@ jobs:
             echo "iOS build directory not found."
           fi
 
-      # Step 10: Upload APK artifact
+      # Step 10: Upload APK artifact with retry
       - name: Upload APK
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4  # Updated to v4
         with:
           name: aurore-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: warn
+        retries: 3
 
-      # Step 11: Upload IPA artifact (if created)
+      # Step 11: Upload IPA artifact with retry
       - name: Upload IPA
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4  # Updated to v4
         with:
           name: aurore-ipa
           path: build/ios/iphoneos/aurore.ipa
-          if-no-files-found: ignore  # Skip if IPA isn’t created
+          if-no-files-found: ignore
+        retries: 3
