@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-latest  # Focus on macOS for iOS builds
+    runs-on: macos-latest  # macOS for iOS and Android builds
 
     steps:
       # Step 1: Checkout the repository
@@ -24,6 +24,8 @@ jobs:
           echo "Current directory: $(pwd)"
           echo "GitHub Context: ${{ toJson(github) }}"
           echo "Workflow started at: $(date)"
+          echo "Listing directory contents:"
+          ls -la
 
       # Step 3: Set up Java for Android builds
       - name: Set up Java
@@ -41,22 +43,29 @@ jobs:
           channel: 'stable'
         continue-on-error: true
 
-      # Step 5: Verify environment and pubspec.yaml
+      # Step 5: Verify environment and project
       - name: Verify environment and project
         run: |
           echo "Flutter doctor output:"
           flutter doctor --verbose || echo "Flutter doctor failed, check logs."
+          echo "Accepting Android licenses:"
+          yes | flutter doctor --android-licenses || echo "Failed to accept Android licenses."
           flutter --version || echo "Flutter version check failed."
-          flutter pub get --verbose || echo "Dependency installation failed."
-          if [ ! -f pubspec.yaml ]; then echo "Error: pubspec.yaml not found in $(pwd)"; exit 1; fi
+          if [ ! -f pubspec.yaml ]; then
+            echo "Error: pubspec.yaml not found in $(pwd)"
+            echo "Trying to find pubspec.yaml in subdirectories:"
+            find . -name pubspec.yaml
+            exit 1
+          fi
           echo "pubspec.yaml found at: $(pwd)/pubspec.yaml"
+          flutter pub get --verbose || echo "Dependency installation failed."
 
       # Step 6: Run Dart analysis
       - name: Run Dart analysis
         run: |
           flutter analyze --no-fatal-infos > analysis_output.txt 2>&1 || echo "Dart analysis failed, proceeding."
         continue-on-error: true
-        working-directory: ${{ github.workspace }}  # Ensure root directory
+        working-directory: ${{ github.workspace }}
 
       # Step 7: Upload analysis output
       - name: Upload Dart analysis output
@@ -80,22 +89,7 @@ jobs:
         continue-on-error: true
         working-directory: ${{ github.workspace }}
 
-      # Step 10: Build IPA with error handling
-      - name: Build IPA
-        run: |
-          flutter build ios --release --no-codesign || echo "iOS build failed."
-          if [ -d "build/ios/iphoneos" ]; then
-            cd build/ios/iphoneos
-            mkdir -p Payload
-            mv Runner.app Payload/ 2>/dev/null || echo "Runner.app not found."
-            zip -r aurore.ipa Payload 2>/dev/null || echo "IPA creation failed."
-          else
-            echo "iOS build directory not found."
-          fi
-        continue-on-error: true
-        working-directory: ${{ github.workspace }}
-
-      # Step 11: Upload APK artifact
+      # Step 10: Upload APK artifact
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
@@ -104,16 +98,7 @@ jobs:
           if-no-files-found: warn
         continue-on-error: true
 
-      # Step 12: Upload IPA artifact
-      - name: Upload IPA
-        uses: actions/upload-artifact@v4
-        with:
-          name: aurore-ipa
-          path: build/ios/iphoneos/aurore.ipa
-          if-no-files-found: ignore
-        continue-on-error: true
-
-      # Step 13: Log completion
+      # Step 11: Log completion
       - name: Log completion
         run: |
           echo "Workflow completed at: $(date)"
