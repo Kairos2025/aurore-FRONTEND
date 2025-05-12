@@ -19,7 +19,7 @@ jobs:
           echo "Initial PATH: $PATH"
           which flutter || echo "Flutter not found initially"
           which sdkmanager || echo "sdkmanager not found initially"
-          cat aurore_frontend/pubspec.yaml | grep sdk || echo "pubspec.yaml not found or sdk not defined"
+          cat aurore_frontend/pubspec.yaml | grep -E 'sdk:|flutter:' || echo "pubspec.yaml not found or sdk/flutter not defined"
           cat .github/workflows/build.yml | grep flutter-version || echo "build.yml or flutter-version not found"
 
       - name: Set up Java
