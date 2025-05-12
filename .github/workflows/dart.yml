@@ -6,9 +6,8 @@ on:
       - update-gradle
 
 jobs:
-  build:
+  build-apk:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -19,7 +18,7 @@ jobs:
           echo "Initial PATH: $PATH"
           which flutter || echo "Flutter not found initially"
           which sdkmanager || echo "sdkmanager not found initially"
-          cat aurore_frontend/pubspec.yaml | grep -E 'sdk:|flutter:|async:|vibration:|vibration_platform_interface:' || echo "pubspec.yaml not found or dependencies not defined"
+          cat aurore_frontend/pubspec.yaml | grep -E 'sdk:|flutter:|async:|vibration:|test:' || echo "pubspec.yaml not found or dependencies not defined"
           cat .github/workflows/build.yml | grep flutter-version || echo "build.yml or flutter-version not found"
 
       - name: Set up Java
@@ -27,6 +26,12 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+
+      - name: Cache Android SDK
+        uses: actions/cache@v3
+        with:
+          path: $ANDROID_HOME
+          key: android-sdk-${{ runner.os }}-${{ hashFiles('**/build.yml') }}
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -38,6 +43,12 @@ jobs:
           echo "ANDROID_HOME: $ANDROID_HOME"
           sdkmanager --version || echo "sdkmanager not found"
           sdkmanager --list | grep "cmdline-tools" || echo "cmdline-tools listing failed"
+
+      - name: Cache Flutter dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.pub-cache
+          key: flutter-pub-${{ hashFiles('aurore_frontend/pubspec.yaml') }}
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -68,29 +79,21 @@ jobs:
           sdkmanager --install "ndk;27.0.12077973" --sdk_root=$ANDROID_HOME
           echo "ndk.dir=$ANDROID_HOME/ndk/27.0.12077973" >> aurore_frontend/android/local.properties
 
+      - name: Verify Firebase configuration
+        run: |
+          test -f aurore_frontend/android/app/google-services.json || echo "google-services.json missing"
+
       - name: Build APK
         run: |
           cd aurore_frontend
           flutter build apk --release --no-debug --verbose
           ls -la build/app/outputs/flutter-apk
 
-      - name: Build IPA
-        run: |
-          cd aurore_frontend
-          flutter build ios --release --no-codesign --no-debug --verbose
-          ls -la build/ios
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
           path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
-
-      - name: Upload IPA
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release-ipa
-          path: aurore_frontend/build/ios/iphoneos/Runner.app
 
       - name: Debug on failure
         if: failure()
@@ -102,6 +105,69 @@ jobs:
           flutter --version || echo "Flutter version check failed"
           flutter doctor -v || echo "Flutter doctor failed"
           sdkmanager --version || echo "sdkmanager version check failed"
+          cd aurore_frontend
+          flutter analyze || echo "Flutter analyze failed"
+          cat pubspec.yaml || echo "pubspec.yaml not found"
+
+  build-ipa:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache Flutter dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.pub-cache
+          key: flutter-pub-${{ hashFiles('aurore_frontend/pubspec.yaml') }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.3'
+          channel: 'stable'
+          cache: true
+
+      - name: Verify Flutter setup
+        run: |
+          echo "Post-Flutter setup PATH: $PATH"
+          which flutter || { echo "Flutter not found after setup"; exit 1; }
+          flutter --version
+          flutter doctor -v
+
+      - name: Get dependencies
+        run: |
+          cd aurore_frontend
+          flutter pub get
+
+      - name: Run Dart analysis
+        run: |
+          cd aurore_frontend
+          flutter analyze
+
+      - name: Verify Firebase configuration
+        run: |
+          test -f aurore_frontend/ios/Runner/GoogleService-Info.plist || echo "GoogleService-Info.plist missing"
+
+      - name: Build IPA
+        run: |
+          cd aurore_frontend
+          flutter build ios --release --no-codesign --verbose
+          ls -la build/ios
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-ipa
+          path: aurore_frontend/build/ios/iphoneos/Runner.app
+
+      - name: Debug on failure
+        if: failure()
+        run: |
+          echo "Final PATH: $PATH"
+          which flutter || echo "Flutter not found"
+          flutter --version || echo "Flutter version check failed"
+          flutter doctor -v || echo "Flutter doctor failed"
           cd aurore_frontend
           flutter analyze || echo "Flutter analyze failed"
           cat pubspec.yaml || echo "pubspec.yaml not found"
