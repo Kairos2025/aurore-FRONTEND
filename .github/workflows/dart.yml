@@ -26,6 +26,10 @@ jobs:
           echo "Workflow started at: $(date)"
           echo "Listing directory contents:"
           ls -la
+          if [ -d "aurore_frontend" ]; then
+            echo "Listing aurore_frontend contents:"
+            ls -la aurore_frontend
+          fi
 
       # Step 3: Set up Java for Android builds
       - name: Set up Java
@@ -48,31 +52,28 @@ jobs:
         run: |
           echo "Flutter doctor output:"
           flutter doctor --verbose || echo "Flutter doctor failed, check logs."
-          echo "Accepting Android licenses:"
-          yes | flutter doctor --android-licenses || echo "Failed to accept Android licenses."
           flutter --version || echo "Flutter version check failed."
           if [ ! -f pubspec.yaml ]; then
             echo "Error: pubspec.yaml not found in $(pwd)"
-            echo "Trying to find pubspec.yaml in subdirectories:"
-            find . -name pubspec.yaml
             exit 1
           fi
           echo "pubspec.yaml found at: $(pwd)/pubspec.yaml"
           flutter pub get --verbose || echo "Dependency installation failed."
+        working-directory: ${{ github.workspace }}/aurore_frontend
 
       # Step 6: Run Dart analysis
       - name: Run Dart analysis
         run: |
           flutter analyze --no-fatal-infos > analysis_output.txt 2>&1 || echo "Dart analysis failed, proceeding."
         continue-on-error: true
-        working-directory: ${{ github.workspace }}
+        working-directory: ${{ github.workspace }}/aurore_frontend
 
       # Step 7: Upload analysis output
       - name: Upload Dart analysis output
         uses: actions/upload-artifact@v4
         with:
           name: dart-analysis-output
-          path: analysis_output.txt
+          path: aurore_frontend/analysis_output.txt
           if-no-files-found: warn
         continue-on-error: true
 
@@ -81,24 +82,48 @@ jobs:
         run: |
           flutter test --coverage || echo "Tests failed or not found."
         continue-on-error: true
-        working-directory: ${{ github.workspace }}
+        working-directory: ${{ github.workspace }}/aurore_frontend
 
       # Step 9: Build APK
       - name: Build APK
         run: flutter build apk --release || echo "APK build failed."
         continue-on-error: true
-        working-directory: ${{ github.workspace }}
+        working-directory: ${{ github.workspace }}/aurore_frontend
 
-      # Step 10: Upload APK artifact
+      # Step 10: Build IPA
+      - name: Build IPA
+        run: |
+          flutter build ios --release --no-codesign || echo "iOS build failed."
+          if [ -d "build/ios/iphoneos" ]; then
+            cd build/ios/iphoneos
+            mkdir -p Payload
+            mv Runner.app Payload/ 2>/dev/null || echo "Runner.app not found."
+            zip -r aurore.ipa Payload 2>/dev/null || echo "IPA creation failed."
+          else
+            echo "iOS build directory not found."
+          fi
+        continue-on-error: true
+        working-directory: ${{ github.workspace }}/aurore_frontend
+
+      # Step 11: Upload APK artifact
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: aurore-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: warn
         continue-on-error: true
 
-      # Step 11: Log completion
+      # Step 12: Upload IPA artifact
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: aurore-ipa
+          path: aurore_frontend/build/ios/iphoneos/aurore.ipa
+          if-no-files-found: ignore
+        continue-on-error: true
+
+      # Step 13: Log completion
       - name: Log completion
         run: |
           echo "Workflow completed at: $(date)"
