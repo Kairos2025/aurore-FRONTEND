@@ -43,7 +43,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0'  # Updated to include Dart 3.5.0
+          flutter-version: '3.24.0'  # Includes Dart 3.5.0
           channel: 'stable'
         continue-on-error: true
 
@@ -64,6 +64,7 @@ jobs:
             exit 1
           fi
           echo "pubspec.yaml found at: $(pwd)/pubspec.yaml"
+          flutter clean || echo "Flutter clean failed."
           flutter pub get --verbose || echo "Dependency installation failed."
         working-directory: ${{ github.workspace }}/aurore_frontend
 
