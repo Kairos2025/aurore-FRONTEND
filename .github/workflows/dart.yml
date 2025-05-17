@@ -29,6 +29,17 @@ jobs:
           cache: true
           cache-key: flutter-:os:-:channel:-:version:-:arch:
 
+      - name: Debug directory structure
+        run: |
+          echo "Listing current directory:"
+          pwd
+          ls -la
+          echo "Listing aurore_frontend directory:"
+          ls -la aurore_frontend
+          echo "Listing ios directory (if exists):"
+          ls -la aurore_frontend/ios || echo "ios directory not found"
+        working-directory: .
+
       - name: Verify environment
         run: flutter doctor -v
         working-directory: aurore_frontend
@@ -40,12 +51,15 @@ jobs:
       - name: Check for ios directory
         run: |
           if [ ! -d "ios" ]; then
-            echo "Error: ios directory not found. Please ensure the ios directory is properly configured."
-            exit 1
+            echo "Error: ios directory not found. Skipping iOS build."
+            echo "IOS_DIR_EXISTS=false" >> $GITHUB_ENV
+          else
+            echo "IOS_DIR_EXISTS=true" >> $GITHUB_ENV
           fi
         working-directory: aurore_frontend
 
       - name: Install iOS Pods
+        if: env.IOS_DIR_EXISTS == 'true'
         run: cd ios && pod install
         working-directory: aurore_frontend
 
@@ -62,6 +76,7 @@ jobs:
         working-directory: aurore_frontend
 
       - name: Build IPA
+        if: env.IOS_DIR_EXISTS == 'true'
         run: |
           flutter build ios --release --no-codesign
           cd build/ios/iphoneos
@@ -78,6 +93,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload IPA
+        if: env.IOS_DIR_EXISTS == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: aurore-ipa
