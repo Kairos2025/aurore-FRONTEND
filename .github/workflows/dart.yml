@@ -5,146 +5,89 @@ on:
     branches: [main, feature, dev]
   pull_request:
     branches: [main, feature, dev]
-  workflow_dispatch:  # Allow manual triggering
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: macos-latest  # macOS for iOS and Android builds
+    runs-on: macos-latest
 
     steps:
-      # Step 1: Checkout the repository
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      # Step 2: Log initial environment details
-      - name: Log environment details
-        run: |
-          echo "Runner OS: $RUNNER_OS"
-          echo "Runner Name: $RUNNER_NAME"
-          echo "Current directory: $(pwd)"
-          echo "GitHub Context: ${{ toJson(github) }}"
-          echo "Workflow started at: $(date)"
-          echo "Listing directory contents:"
-          ls -la
-          if [ -d "aurore_frontend" ]; then
-            echo "Listing aurore_frontend contents:"
-            ls -la aurore_frontend
-          fi
-          if [ -d "aurore_frontend/fonts" ]; then
-            echo "Listing aurore_frontend/fonts contents:"
-            ls -la aurore_frontend/fonts
-          else
-            echo "Error: aurore_frontend/fonts directory not found."
-          fi
-
-      # Step 3: Set up Java for Android builds
       - name: Set up Java
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
-        continue-on-error: true
 
-      # Step 4: Set up Flutter
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0'  # Includes Dart 3.5.0
+          flutter-version: '3.24.0'
           channel: 'stable'
-        continue-on-error: true
+          cache: true
 
-      # Step 5: Accept Android licenses
-      - name: Accept Android licenses
-        run: |
-          yes | flutter doctor --android-licenses || echo "Android license acceptance failed, proceeding."
-        continue-on-error: true
+      - name: Verify environment
+        run: flutter doctor -v
+        working-directory: aurore_frontend
 
-      # Step 6: Verify environment and project
-      - name: Verify environment and project
-        run: |
-          echo "Flutter doctor output:"
-          flutter doctor --verbose || echo "Flutter doctor failed, check logs."
-          flutter --version || echo "Flutter version check failed."
-          if [ ! -f pubspec.yaml ]; then
-            echo "Error: pubspec.yaml not found in $(pwd)"
-            exit 1
-          fi
-          echo "pubspec.yaml found at: $(pwd)/pubspec.yaml"
-          flutter clean || echo "Flutter clean failed."
-          flutter pub get --verbose || echo "Dependency installation failed."
-        working-directory: ${{ github.workspace }}/aurore_frontend
+      - name: Install dependencies
+        run: flutter pub get
+        working-directory: aurore_frontend
 
-      # Step 7: Install iOS Pods
       - name: Install iOS Pods
-        run: |
-          cd ios && pod install || echo "Pod install failed, proceeding."
-        continue-on-error: true
-        working-directory: ${{ github.workspace }}/aurore_frontend
+        run: cd ios && pod install
+        working-directory: aurore_frontend
 
-      # Step 8: Run Dart analysis
-      - name: Run Dart analysis
-        run: |
-          flutter analyze --no-fatal-infos > analysis_output.txt 2>&1 || echo "Dart analysis failed, proceeding."
-        continue-on-error: true
-        working-directory: ${{ github.workspace }}/aurore_frontend
+      - name: Run analysis
+        run: flutter analyze
+        working-directory: aurore_frontend
 
-      # Step 9: Upload analysis output
-      - name: Upload Dart analysis output
-        uses: actions/upload-artifact@v4
-        with:
-          name: dart-analysis-output
-          path: aurore_frontend/analysis_output.txt
-          if-no-files-found: warn
-        continue-on-error: true
-
-      # Step 10: Run tests
       - name: Run tests
-        run: |
-          flutter test --coverage || echo "Tests failed or not found."
-        continue-on-error: true
-        working-directory: ${{ github.workspace }}/aurore_frontend
+        run: flutter test
+        working-directory: aurore_frontend
 
-      # Step 11: Build APK
       - name: Build APK
-        run: flutter build apk --release || echo "APK build failed."
-        continue-on-error: true
-        working-directory: ${{ github.workspace }}/aurore_frontend
+        run: flutter build apk --release
+        working-directory: aurore_frontend
 
-      # Step 12: Build IPA
       - name: Build IPA
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
-          flutter build ios --release --no-codesign || echo "iOS build failed."
-          if [ -d "build/ios/iphoneos" ]; then
-            cd build/ios/iphoneos
-            mkdir -p Payload
-            mv Runner.app Payload/ 2>/dev/null || echo "Runner.app not found."
-            zip -r aurore.ipa Payload 2>/dev/null || echo "IPA creation failed."
-          else
-            echo "iOS build directory not found."
-          fi
-        continue-on-error: true
-        working-directory: ${{ github.workspace }}/aurore_frontend
+          # Create keychain
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
-      # Step 13: Upload APK artifact
+          # Import certificate and provisioning profile
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode --output "$RUNNER_TEMP/build_certificate.p12"
+          echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode --output "$RUNNER_TEMP/build_pp.mobileprovision"
+          security import "$RUNNER_TEMP/build_certificate.p12" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp "$RUNNER_TEMP/build_pp.mobileprovision" ~/Library/MobileDevice/Provisioning\ Profiles/
+
+          # Build IPA
+          flutter build ios --release --no-codesign
+          cd build/ios/iphoneos
+          mkdir -p Payload
+          cp -r Runner.app Payload/
+          zip -r aurore.ipa Payload
+        working-directory: aurore_frontend
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: aurore-apk
           path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
-          if-no-files-found: warn
-        continue-on-error: true
 
-      # Step 14: Upload IPA artifact
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: aurore-ipa
           path: aurore_frontend/build/ios/iphoneos/aurore.ipa
-          if-no-files-found: ignore
-        continue-on-error: true
-
-      # Step 15: Log completion
-      - name: Log completion
-        run: |
-          echo "Workflow completed at: $(date)"
-          echo "Job status: ${{ job.status }}"
