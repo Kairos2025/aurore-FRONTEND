@@ -1,4 +1,4 @@
-name: Debug Aurore Workflow
+name: Build Aurore App
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  debug:
+  build:
     runs-on: macos-latest
 
     steps:
@@ -37,3 +37,84 @@ jobs:
         with:
           flutter-version: '3.24.0'
           channel: 'stable'
+          cache: true
+          cache-key: flutter-:os:-:channel:-:version:-:arch:
+
+      - name: Verify environment
+        run: flutter doctor -v
+        working-directory: aurore_frontend
+
+      - name: Install dependencies
+        run: |
+          flutter pub get
+          echo "Dependencies installed. Listing pubspec.lock:"
+          cat pubspec.lock || echo "pubspec.lock not found"
+        working-directory: aurore_frontend
+
+      - name: Check for ios directory
+        run: |
+          if [ ! -d "ios" ]; then
+            echo "Error: ios directory not found. Skipping iOS build."
+            echo "IOS_DIR_EXISTS=false" >> $GITHUB_ENV
+          else
+            echo "IOS_DIR_EXISTS=true" >> $GITHUB_ENV
+            echo "Listing ios directory contents:"
+            ls -la ios
+          fi
+        working-directory: aurore_frontend
+
+      - name: Install iOS Pods
+        if: env.IOS_DIR_EXISTS == 'true'
+        run: |
+          cd ios && pod install
+          echo "Pods installed. Listing Podfile.lock:"
+          cat Podfile.lock || echo "Podfile.lock not found"
+        working-directory: aurore_frontend
+
+      - name: Run analysis
+        run: |
+          flutter analyze
+          echo "Analysis completed."
+        working-directory: aurore_frontend
+
+      - name: Run tests
+        run: |
+          flutter test
+          echo "Tests completed."
+        working-directory: aurore_frontend
+
+      - name: Build APK
+        run: |
+          flutter build apk --release
+          echo "APK build completed. Listing output directory:"
+          ls -la build/app/outputs/flutter-apk/
+        working-directory: aurore_frontend
+
+      - name: Build IPA
+        if: env.IOS_DIR_EXISTS == 'true'
+        run: |
+          flutter build ios --release --no-codesign
+          echo "IPA build completed. Listing output directory:"
+          ls -la build/ios/iphoneos/
+          cd build/ios/iphoneos
+          mkdir -p Payload
+          cp -r Runner.app Payload/
+          zip -r aurore.ipa Payload
+          echo "IPA archived. Listing final output:"
+          ls -la
+        working-directory: aurore_frontend
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: aurore-apk
+          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+
+      - name: Upload IPA
+        if: env.IOS_DIR_EXISTS == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: aurore-ipa
+          path: aurore_frontend/build/ios/iphoneos/aurore.ipa
+          if-no-files-found: error
