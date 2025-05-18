@@ -1,19 +1,30 @@
-name: CI - Build Aurore App
+name: Debug Aurore Workflow
 
 on:
   push:
-    branches: [main, feature, dev]
-  pull_request:
-    branches: [main, feature, dev]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
-  build:
+  debug:
     runs-on: macos-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Debug repository state
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Listing root directory:"
+          ls -la
+          echo "Listing aurore_frontend directory (if exists):"
+          ls -la aurore_frontend || echo "aurore_frontend directory not found"
+          echo "Listing ios directory (if exists):"
+          ls -la aurore_frontend/ios || echo "ios directory not found"
+          echo "Listing android directory (if exists):"
+          ls -la aurore_frontend/android || echo "android directory not found"
+        working-directory: .
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -26,76 +37,3 @@ jobs:
         with:
           flutter-version: '3.24.0'
           channel: 'stable'
-          cache: true
-          cache-key: flutter-:os:-:channel:-:version:-:arch:
-
-      - name: Debug directory structure
-        run: |
-          echo "Listing current directory:"
-          pwd
-          ls -la
-          echo "Listing aurore_frontend directory:"
-          ls -la aurore_frontend
-          echo "Listing ios directory (if exists):"
-          ls -la aurore_frontend/ios || echo "ios directory not found"
-        working-directory: .
-
-      - name: Verify environment
-        run: flutter doctor -v
-        working-directory: aurore_frontend
-
-      - name: Install dependencies
-        run: flutter pub get
-        working-directory: aurore_frontend
-
-      - name: Check for ios directory
-        run: |
-          if [ ! -d "ios" ]; then
-            echo "Error: ios directory not found. Skipping iOS build."
-            echo "IOS_DIR_EXISTS=false" >> $GITHUB_ENV
-          else
-            echo "IOS_DIR_EXISTS=true" >> $GITHUB_ENV
-          fi
-        working-directory: aurore_frontend
-
-      - name: Install iOS Pods
-        if: env.IOS_DIR_EXISTS == 'true'
-        run: cd ios && pod install
-        working-directory: aurore_frontend
-
-      - name: Run analysis
-        run: flutter analyze
-        working-directory: aurore_frontend
-
-      - name: Run tests
-        run: flutter test
-        working-directory: aurore_frontend
-
-      - name: Build APK
-        run: flutter build apk --release
-        working-directory: aurore_frontend
-
-      - name: Build IPA
-        if: env.IOS_DIR_EXISTS == 'true'
-        run: |
-          flutter build ios --release --no-codesign
-          cd build/ios/iphoneos
-          mkdir -p Payload
-          cp -r Runner.app Payload/
-          zip -r aurore.ipa Payload
-        working-directory: aurore_frontend
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: aurore-apk
-          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
-          if-no-files-found: error
-
-      - name: Upload IPA
-        if: env.IOS_DIR_EXISTS == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: aurore-ipa
-          path: aurore_frontend/build/ios/iphoneos/aurore.ipa
-          if-no-files-found: error
