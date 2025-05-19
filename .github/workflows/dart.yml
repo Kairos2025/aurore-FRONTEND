@@ -38,7 +38,6 @@ jobs:
           flutter-version: '3.24.0'
           channel: 'stable'
           cache: true
-          cache-key: flutter-:os:-:channel:-:version:-:arch:
 
       - name: Verify environment
         run: flutter doctor -v
@@ -64,7 +63,7 @@ jobs:
         working-directory: aurore_frontend
 
       - name: Install iOS Pods
-        if: env.IOS_DIR_EXISTS == 'true'
+        if: ${{ env.IOS_DIR_EXISTS == 'true' }}
         run: |
           cd ios && pod install
           echo "Pods installed. Listing Podfile.lock:"
@@ -91,7 +90,7 @@ jobs:
         working-directory: aurore_frontend
 
       - name: Build IPA
-        if: env.IOS_DIR_EXISTS == 'true'
+        if: ${{ env.IOS_DIR_EXISTS == 'true' }}
         run: |
           flutter build ios --release --no-codesign
           echo "IPA build completed. Listing output directory:"
@@ -112,7 +111,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload IPA
-        if: env.IOS_DIR_EXISTS == 'true'
+        if: ${{ env.IOS_DIR_EXISTS == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: aurore-ipa
