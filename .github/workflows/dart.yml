@@ -41,14 +41,14 @@ jobs:
 
       - name: Verify environment
         run: flutter doctor -v
-        working-directory: .
+        working-directory: aurore_frontend
 
       - name: Install dependencies
         run: |
           flutter pub get
           echo "Dependencies installed. Listing pubspec.lock:"
           cat pubspec.lock || echo "pubspec.lock not found"
-        working-directory: .
+        working-directory: aurore_frontend
 
       - name: Check for ios directory
         run: |
@@ -60,7 +60,7 @@ jobs:
             echo "Listing ios directory contents:"
             ls -la ios
           fi
-        working-directory: .
+        working-directory: aurore_frontend
 
       - name: Install iOS Pods
         if: ${{ env.IOS_DIR_EXISTS == 'true' }}
@@ -68,26 +68,26 @@ jobs:
           cd ios && pod install
           echo "Pods installed. Listing Podfile.lock:"
           cat Podfile.lock || echo "Podfile.lock not found"
-        working-directory: .
+        working-directory: aurore_frontend
 
       - name: Run analysis
         run: |
           flutter analyze
           echo "Analysis completed."
-        working-directory: .
+        working-directory: aurore_frontend
 
       - name: Run tests
         run: |
           flutter test
           echo "Tests completed."
-        working-directory: .
+        working-directory: aurore_frontend
 
       - name: Build APK
         run: |
           flutter build apk --release
           echo "APK build completed. Listing output directory:"
           ls -la build/app/outputs/flutter-apk/
-        working-directory: .
+        working-directory: aurore_frontend
 
       - name: Build IPA
         if: ${{ env.IOS_DIR_EXISTS == 'true' }}
@@ -101,13 +101,13 @@ jobs:
           zip -r aurore.ipa Payload
           echo "IPA archived. Listing final output:"
           ls -la
-        working-directory: .
+        working-directory: aurore_frontend
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: aurore-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
 
       - name: Upload IPA
@@ -115,5 +115,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: aurore-ipa
-          path: build/ios/iphoneos/aurore.ipa
+          path: aurore_frontend/build/ios/iphoneos/aurore.ipa
           if-no-files-found: error
