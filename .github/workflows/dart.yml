@@ -1,4 +1,3 @@
-
 name: Build Aurore App
 
 on:
@@ -17,13 +16,9 @@ jobs:
       - name: Debug repository state
         run: |
           echo "Current directory: $(pwd)"
-          echo "Listing root directory:"
           ls -la
-          echo "Listing aurore_frontend directory (if exists):"
           ls -la aurore_frontend || echo "aurore_frontend directory not found"
-          echo "Listing ios directory (if exists):"
           ls -la aurore_frontend/ios || echo "ios directory not found"
-          echo "Listing android directory (if exists):"
           ls -la aurore_frontend/android || echo "android directory not found"
         working-directory: .
 
@@ -39,6 +34,7 @@ jobs:
           flutter-version: '3.24.0'
           channel: 'stable'
           cache: true
+          cache-key: flutter-:os:-:channel:-:version:-:arch:
 
       - name: Verify environment
         run: flutter doctor -v
@@ -58,13 +54,12 @@ jobs:
             echo "IOS_DIR_EXISTS=false" >> $GITHUB_ENV
           else
             echo "IOS_DIR_EXISTS=true" >> $GITHUB_ENV
-            echo "Listing ios directory contents:"
             ls -la ios
           fi
         working-directory: aurore_frontend
 
       - name: Install iOS Pods
-        if: ${{ env.IOS_DIR_EXISTS == 'true' }}
+        if: env.IOS_DIR_EXISTS == 'true'
         run: |
           cd ios && pod install
           echo "Pods installed. Listing Podfile.lock:"
@@ -91,7 +86,7 @@ jobs:
         working-directory: aurore_frontend
 
       - name: Build IPA
-        if: ${{ env.IOS_DIR_EXISTS == 'true' }}
+        if: env.IOS_DIR_EXISTS == 'true'
         run: |
           flutter build ios --release --no-codesign
           echo "IPA build completed. Listing output directory:"
@@ -112,7 +107,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload IPA
-        if: ${{ env.IOS_DIR_EXISTS == 'true' }}
+        if: env.IOS_DIR_EXISTS == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: aurore-ipa
