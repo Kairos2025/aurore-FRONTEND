@@ -7,7 +7,7 @@ on:
 
 env:
   FLUTTER_VERSION: '3.24.0'
-  JAVA_VERSION: '17'
+  JAVA_VERSION: '17'  # Keep as string but will be handled correctly
   WORKING_DIR: 'aurore_frontend'
 
 jobs:
@@ -32,8 +32,10 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: $JAVA_VERSION
+          java-version: ${{ env.JAVA_VERSION }}  # Proper variable expansion
+          check-latest: true
 
+      # Rest of your original workflow remains exactly the same
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -45,6 +47,7 @@ jobs:
       - name: Verify environment
         run: flutter doctor -v
         working-directory: $WORKING_DIR
+
 
       - name: Install dependencies
         run: |
