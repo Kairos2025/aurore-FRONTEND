@@ -18,12 +18,12 @@ jobs:
           echo "Current directory: $(pwd)"
           echo "Listing root directory:"
           ls -la
-          echo "Listing aurore_frontend directory (if exists):"
-          ls -la aurore_frontend || echo "aurore_frontend directory not found"
+          echo "Listing lib directory (if exists):"
+          ls -la lib || echo "lib directory not found"
           echo "Listing ios directory (if exists):"
-          ls -la aurore_frontend/ios || echo "ios directory not found"
+          ls -la ios || echo "ios directory not found"
           echo "Listing android directory (if exists):"
-          ls -la aurore_frontend/android || echo "android directory not found"
+          ls -la android || echo "android directory not found"
         working-directory: .
 
       - name: Set up Java
@@ -41,14 +41,12 @@ jobs:
 
       - name: Verify environment
         run: flutter doctor -v
-        working-directory: aurore_frontend
 
       - name: Install dependencies
         run: |
           flutter pub get
           echo "Dependencies installed. Listing pubspec.lock:"
           cat pubspec.lock || echo "pubspec.lock not found"
-        working-directory: aurore_frontend
 
       - name: Check for ios directory
         run: |
@@ -60,7 +58,6 @@ jobs:
             echo "Listing ios directory contents:"
             ls -la ios
           fi
-        working-directory: aurore_frontend
 
       - name: Install iOS Pods
         if: ${{ env.IOS_DIR_EXISTS == 'true' }}
@@ -68,26 +65,22 @@ jobs:
           cd ios && pod install
           echo "Pods installed. Listing Podfile.lock:"
           cat Podfile.lock || echo "Podfile.lock not found"
-        working-directory: aurore_frontend
 
       - name: Run analysis
         run: |
           flutter analyze
           echo "Analysis completed."
-        working-directory: aurore_frontend
 
       - name: Run tests
         run: |
           flutter test
           echo "Tests completed."
-        working-directory: aurore_frontend
 
       - name: Build APK
         run: |
           flutter build apk --release
           echo "APK build completed. Listing output directory:"
           ls -la build/app/outputs/flutter-apk/
-        working-directory: aurore_frontend
 
       - name: Build IPA
         if: ${{ env.IOS_DIR_EXISTS == 'true' }}
@@ -101,19 +94,5 @@ jobs:
           zip -r aurore.ipa Payload
           echo "IPA archived. Listing final output:"
           ls -la
-        working-directory: aurore_frontend
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: aurore-apk
-          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
-          if-no-files-found: error
-
-      - name: Upload IPA
-        if: ${{ env.IOS_DIR_EXISTS == 'true' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: aurore-ipa
-          path: aurore_frontend/build/ios/iphoneos/aurore.ipa
-          if-no-files-found: error
+      - name: Upload
