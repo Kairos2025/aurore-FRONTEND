@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: '3.24.0'
-  JAVA_VERSION: '17'  # Keep as string but will be handled correctly
+  FLUTTER_VERSION: '3.22.2'  # Updated to a stable, well-tested version
+  JAVA_VERSION: '17'
   WORKING_DIR: 'aurore_frontend'
 
 jobs:
@@ -19,42 +19,42 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
 
-      - name: Debug repository state
+      - name: Setup macOS environment
         run: |
-          echo "Current directory: $(pwd)"
-          ls -la
-          ls -la $WORKING_DIR || echo "$WORKING_DIR directory not found"
-          ls -la $WORKING_DIR/ios || echo "ios directory not found"
-          ls -la $WORKING_DIR/android || echo "android directory not found"
+          sudo softwareupdate --install-rosetta --agree-to-license
+          brew install cocoapods
+          pod setup
 
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: ${{ env.JAVA_VERSION }}  # Proper variable expansion
+          java-version: ${{ env.JAVA_VERSION }}
           check-latest: true
 
-      # Rest of your original workflow remains exactly the same
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: $FLUTTER_VERSION
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
+          architecture: x64  # Explicitly set architecture
           cache: true
-          cache-key: flutter-${{ runner.os }}-stable-$FLUTTER_VERSION
+          cache-key: flutter-${{ runner.os }}-${{ env.FLUTTER_VERSION }}
 
       - name: Verify environment
-        run: flutter doctor -v
-        working-directory: $WORKING_DIR
-
+        run: |
+          flutter doctor -v
+          flutter --version
+          which flutter
+        working-directory: ${{ env.WORKING_DIR }}
 
       - name: Install dependencies
         run: |
           flutter pub get
-          echo "Dependencies installed. Listing pubspec.lock:"
-          cat pubspec.lock || echo "pubspec.lock not found"
-        working-directory: $WORKING_DIR
+          flutter pub upgrade
+        working-directory: ${{ env.WORKING_DIR }}
 
       - name: Check for iOS support
         id: check_ios
@@ -66,51 +66,48 @@ jobs:
             echo "IOS_SUPPORTED=false" >> $GITHUB_OUTPUT
             echo "iOS directory not found"
           fi
-        working-directory: $WORKING_DIR
+        working-directory: ${{ env.WORKING_DIR }}
 
       - name: Install iOS CocoaPods
         if: steps.check_ios.outputs.IOS_SUPPORTED == 'true'
         run: |
           cd ios
           pod install --repo-update
-          echo "Pods installed. Listing Podfile.lock:"
-          cat Podfile.lock || echo "Podfile.lock not found"
-        working-directory: $WORKING_DIR
+          pod --version
+        working-directory: ${{ env.WORKING_DIR }}
 
       - name: Run Flutter analysis
         run: flutter analyze
-        working-directory: $WORKING_DIR
+        working-directory: ${{ env.WORKING_DIR }}
 
       - name: Run Flutter tests
         run: flutter test
-        working-directory: $WORKING_DIR
+        working-directory: ${{ env.WORKING_DIR }}
 
       - name: Build Android APK
         run: |
-          flutter build apk --release
-          echo "APK build completed. Listing output directory:"
+          flutter build apk --release --verbose
           ls -la build/app/outputs/flutter-apk/
-        working-directory: $WORKING_DIR
+        working-directory: ${{ env.WORKING_DIR }}
 
       - name: Build iOS IPA
         if: steps.check_ios.outputs.IOS_SUPPORTED == 'true'
         run: |
-          flutter build ipa --release --no-codesign
-          echo "IPA build completed. Listing output directory:"
+          flutter build ipa --release --no-codesign --verbose
           ls -la build/ios/ipa/
-        working-directory: $WORKING_DIR
+        working-directory: ${{ env.WORKING_DIR }}
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: aurore-apk
-          path: $WORKING_DIR/build/app/outputs/flutter-apk/app-release.apk
-          if-no-files-found: error
+          path: ${{ env.WORKING_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
 
       - name: Upload IPA artifact
         if: steps.check_ios.outputs.IOS_SUPPORTED == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: aurore-ipa
-          path: $WORKING_DIR/build/ios/ipa/*.ipa
-          if-no-files-found: error
+          path: ${{ env.WORKING_DIR }}/build/ios/ipa/*.ipa
+          retention-days: 7
