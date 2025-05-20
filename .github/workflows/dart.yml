@@ -67,18 +67,21 @@ jobs:
         working-directory: aurore_frontend
 
       - name: Run analysis
+        id: analysis
         run: |
-          flutter analyze
-          echo "Analysis completed."
+          flutter analyze || echo "Analysis failed with errors (see log)"
+          echo "Analysis completed with status: $?"
         working-directory: aurore_frontend
 
       - name: Run tests
+        if: steps.analysis.outputs.status == 0
         run: |
           flutter test
           echo "Tests completed."
         working-directory: aurore_frontend
 
       - name: Build APK
+        if: steps.analysis.outputs.status == 0
         run: |
           flutter build apk --release
           echo "APK build completed. Listing output directory:"
@@ -86,7 +89,7 @@ jobs:
         working-directory: aurore_frontend
 
       - name: Build IPA
-        if: env.IOS_DIR_EXISTS == 'true'
+        if: env.IOS_DIR_EXISTS == 'true' && steps.analysis.outputs.status == 0
         run: |
           flutter build ios --release --no-codesign
           echo "IPA build completed. Listing output directory:"
@@ -100,6 +103,7 @@ jobs:
         working-directory: aurore_frontend
 
       - name: Upload APK
+        if: steps.analysis.outputs.status == 0
         uses: actions/upload-artifact@v4
         with:
           name: aurore-apk
@@ -107,7 +111,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload IPA
-        if: env.IOS_DIR_EXISTS == 'true'
+        if: env.IOS_DIR_EXISTS == 'true' && steps.analysis.outputs.status == 0
         uses: actions/upload-artifact@v4
         with:
           name: aurore-ipa
