@@ -39,6 +39,15 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
+    # Verify critical files exist
+    - name: Check for package.json
+      id: check-package
+      run: |
+        if [ ! -f "package.json" ]; then
+          echo "::error::package.json is missing!"
+          exit 1
+        fi
+        
     # JDK 17 setup
     - name: Set up JDK 17
       uses: actions/setup-java@v3
@@ -51,6 +60,7 @@ jobs:
       uses: actions/setup-node@v3
       with:
         node-version: '18'
+        cache: 'npm'
     
     # Setup Android
     - name: Set up Android SDK
@@ -59,30 +69,34 @@ jobs:
         sudo $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.0" "ndk;$NDK_VERSION"
         echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/$NDK_VERSION" >> $GITHUB_ENV
     
-    # Cache node_modules
-    - uses: actions/cache@v3
-      id: node-cache
-      with:
-        path: |
-          ~/.npm
-          node_modules
-        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-        restore-keys: |
-          ${{ runner.os }}-node-
-    
-    # Install dependencies - with fallback to npm install if package-lock.json is missing
+    # Install dependencies with robust error handling
     - name: Install dependencies
       run: |
+        echo "Current directory: $(pwd)"
+        echo "Directory contents:"
+        ls -la
+        
+        # Check if we're in the right directory
+        if [ ! -f "package.json" ]; then
+          echo "::error::package.json not found in current directory!"
+          exit 1
+        fi
+        
+        # Install dependencies based on available lockfile
         if [ -f "package-lock.json" ]; then
+          echo "Found package-lock.json, running npm ci..."
           npm ci
         else
+          echo "No package-lock.json found, running npm install..."
           npm install
-          # Ensure package-lock.json is generated for future runs
-          git config --global user.email "actions@github.com"
-          git config --global user.name "GitHub Actions"
-          git add package-lock.json
-          git commit -m "Generate package-lock.json" || echo "No changes to commit"
         fi
+        
+        # Verify installation succeeded
+        if [ $? -ne 0 ]; then
+          echo "::error::npm installation failed!"
+          exit 1
+        fi
+        
         cd android && ./gradlew dependencies
     
     # Rest of your Android build steps...
@@ -109,37 +123,47 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
+    # Verify critical files exist
+    - name: Check for package.json
+      id: check-package
+      run: |
+        if [ ! -f "package.json" ]; then
+          echo "::error::package.json is missing!"
+          exit 1
+        fi
+    
     # Node.js setup
     - name: Set up Node.js
       uses: actions/setup-node@v3
       with:
         node-version: '18'
+        cache: 'npm'
     
-    # Cache for node_modules and CocoaPods
-    - uses: actions/cache@v3
-      id: node-cache
-      with:
-        path: |
-          ~/.npm
-          node_modules
-          ios/Pods
-        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json', '**/Podfile.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-node-
-    
-    # Install dependencies with same fallback logic
+    # Install dependencies with robust error handling
     - name: Install dependencies
       run: |
+        echo "Current directory: $(pwd)"
+        echo "Directory contents:"
+        ls -la
+        
+        if [ ! -f "package.json" ]; then
+          echo "::error::package.json not found in current directory!"
+          exit 1
+        fi
+        
         if [ -f "package-lock.json" ]; then
+          echo "Found package-lock.json, running npm ci..."
           npm ci
         else
+          echo "No package-lock.json found, running npm install..."
           npm install
-          # Ensure package-lock.json is generated for future runs
-          git config --global user.email "actions@github.com"
-          git config --global user.name "GitHub Actions"
-          git add package-lock.json
-          git commit -m "Generate package-lock.json" || echo "No changes to commit"
         fi
+        
+        if [ $? -ne 0 ]; then
+          echo "::error::npm installation failed!"
+          exit 1
+        fi
+        
         cd ios && pod install
     
     # Rest of your iOS build steps...
