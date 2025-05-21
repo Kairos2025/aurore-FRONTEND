@@ -1,4 +1,4 @@
-name: React Native Build Pipeline
+name: Flutter Build Pipeline
 
 on:
   push:
@@ -15,40 +15,30 @@ on:
         options:
         - debug
         - release
+        - profile
 
 env:
-  NODE_VERSION: '18'
-  JDK_VERSION: '17'
-  NDK_VERSION: '27.0.11718014'
-  ANDROID_SDK_ROOT: '/usr/local/lib/android/sdk'
-  PROJECT_ROOT: './'
+  FLUTTER_VERSION: '3.19.5'  # Update to your Flutter version
+  PROJECT_DIR: 'aurore_frontend'  # Your Flutter project directory
 
 jobs:
   setup:
-    name: Verify Repository
+    name: Verify Environment
     runs-on: ubuntu-latest
     outputs:
       valid: ${{ steps.verify.outputs.valid }}
     
     steps:
     - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        
+      
     - name: Verify project structure
       id: verify
       run: |
         echo "Repository contents:"
         ls -la
         
-        if [ ! -f "package.json" ]; then
-          echo "::error::package.json is missing!"
-          echo "valid=false" >> $GITHUB_OUTPUT
-          exit 1
-        fi
-        
-        if [ ! -d "android" ] && [ ! -d "ios" ]; then
-          echo "::error::Neither android nor ios directories found!"
+        if [ ! -f "$PROJECT_DIR/pubspec.yaml" ]; then
+          echo "::error::pubspec.yaml is missing in $PROJECT_DIR!"
           echo "valid=false" >> $GITHUB_OUTPUT
           exit 1
         fi
@@ -58,120 +48,79 @@ jobs:
   android:
     name: Android Build
     needs: setup
-    if: ${{ needs.setup.outputs.valid == 'true' && (github.event_name != 'workflow_dispatch' || !inputs.skip-android) }}
+    if: ${{ needs.setup.outputs.valid == 'true' }}
     runs-on: ubuntu-latest
     
     steps:
     - uses: actions/checkout@v4
       
-    - name: Set up JDK ${{ env.JDK_VERSION }}
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: ${{ env.FLUTTER_VERSION }}
+        channel: 'stable'
+        
+    - name: Set up JDK
       uses: actions/setup-java@v3
       with:
-        java-version: ${{ env.JDK_VERSION }}
+        java-version: '17'
         distribution: 'temurin'
         
-    - name: Set up Node.js ${{ env.NODE_VERSION }}
-      uses: actions/setup-node@v3
-      with:
-        node-version: ${{ env.NODE_VERSION }}
-        cache: 'npm'
-        
-    - name: Install Android NDK ${{ env.NDK_VERSION }}
-      run: |
-        yes | sudo $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses
-        sudo $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "ndk;$NDK_VERSION"
-        echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/$NDK_VERSION" >> $GITHUB_ENV
-        
     - name: Install dependencies
+      working-directory: ${{ env.PROJECT_DIR }}
       run: |
-        # Check if in correct directory
-        echo "Working directory: $(pwd)"
-        ls -la
+        flutter pub get
         
-        # Install with fallback
-        if [ -f "package-lock.json" ]; then
-          echo "Using package-lock.json"
-          npm ci --no-audit
-        else
-          echo "No lockfile found, running npm install"
-          npm install --no-audit
-        fi
-        
-        # Verify installation
-        if [ ! -d "node_modules" ]; then
-          echo "::error::Dependencies failed to install!"
-          exit 1
-        fi
+    - name: Verify Flutter installation
+      run: flutter doctor -v
         
     - name: Build Android APK
+      working-directory: ${{ env.PROJECT_DIR }}
       run: |
-        cd android
-        ./gradlew clean
-        ./gradlew assemble${{ inputs.build-type == 'release' && 'Release' || 'Debug' }} \
-          -PMYAPP_RELEASE_STORE_FILE=keystore.jks \
-          -PMYAPP_RELEASE_KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }} \
-          -PMYAPP_RELEASE_STORE_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }} \
-          -PMYAPP_RELEASE_KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}
+        flutter build apk --${{ inputs.build-type }} \
+          --dart-define=APP_ENV=${{ inputs.build-type }} \
+          --release
           
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: android-${{ inputs.build-type }}
-        path: android/app/build/outputs/apk/${{ inputs.build-type == 'release' && 'release' || 'debug' }}/app-${{ inputs.build-type == 'release' && 'release' || 'debug' }}.apk
+        path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-${{ inputs.build-type }}.apk
 
   ios:
     name: iOS Build
     needs: setup
-    if: ${{ needs.setup.outputs.valid == 'true' && (github.event_name != 'workflow_dispatch' || !inputs.skip-ios) }}
+    if: ${{ needs.setup.outputs.valid == 'true' }}
     runs-on: macos-latest
     
     steps:
     - uses: actions/checkout@v4
       
-    - name: Set up Node.js ${{ env.NODE_VERSION }}
-      uses: actions/setup-node@v3
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
       with:
-        node-version: ${{ env.NODE_VERSION }}
-        cache: 'npm'
+        flutter-version: ${{ env.FLUTTER_VERSION }}
+        channel: 'stable'
         
     - name: Install dependencies
+      working-directory: ${{ env.PROJECT_DIR }}
       run: |
-        echo "Working directory: $(pwd)"
-        ls -la
-        
-        if [ -f "package-lock.json" ]; then
-          npm ci --no-audit
-        else
-          npm install --no-audit
-        fi
-        
-        if [ ! -d "node_modules" ]; then
-          echo "::error::Dependencies failed to install!"
-          exit 1
-        fi
-        
+        flutter pub get
         cd ios && pod install
         
-    - name: Build iOS IPA
-      run: |
-        cd ios
-        xcodebuild clean archive \
-          -workspace Aurore.xcworkspace \
-          -scheme Aurore \
-          -configuration ${{ inputs.build-type == 'release' && 'Release' || 'Debug' }} \
-          -archivePath build/Aurore.xcarchive \
-          -destination 'generic/platform=iOS' \
-          CODE_SIGN_IDENTITY="" \
-          CODE_SIGNING_REQUIRED=NO
+    - name: Verify Flutter installation
+      run: flutter doctor -v
         
-        xcodebuild -exportArchive \
-          -archivePath build/Aurore.xcarchive \
-          -exportOptionsPlist ExportOptions.plist \
-          -exportPath build \
-          -allowProvisioningUpdates
+    - name: Build iOS IPA
+      working-directory: ${{ env.PROJECT_DIR }}
+      run: |
+        flutter build ipa --${{ inputs.build-type }} \
+          --dart-define=APP_ENV=${{ inputs.build-type }} \
+          --release \
+          --no-codesign
           
     - name: Upload IPA
       uses: actions/upload-artifact@v4
       with:
         name: ios-${{ inputs.build-type }}
-        path: ios/build/Aurore.ipa
+        path: ${{ env.PROJECT_DIR }}/build/ios/ipa/*.ipa
