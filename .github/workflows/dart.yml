@@ -52,7 +52,7 @@ jobs:
       with:
         node-version: '18'
     
-    # Setup Android using basic Ubuntu image (already has Android SDK)
+    # Setup Android
     - name: Set up Android SDK
       run: |
         yes | sudo $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses
@@ -70,13 +70,22 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-node-
     
-    # Install dependencies
+    # Install dependencies - with fallback to npm install if package-lock.json is missing
     - name: Install dependencies
       run: |
-        npm ci
+        if [ -f "package-lock.json" ]; then
+          npm ci
+        else
+          npm install
+          # Ensure package-lock.json is generated for future runs
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git add package-lock.json
+          git commit -m "Generate package-lock.json" || echo "No changes to commit"
+        fi
         cd android && ./gradlew dependencies
     
-    # Build release APK
+    # Rest of your Android build steps...
     - name: Build APK
       run: |
         cd android && ./gradlew assembleRelease \
@@ -85,7 +94,6 @@ jobs:
           -PMYAPP_RELEASE_STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }} \
           -PMYAPP_RELEASE_KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}
     
-    # Upload APK artifact using verified action
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
@@ -119,13 +127,22 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-node-
     
-    # Install dependencies
+    # Install dependencies with same fallback logic
     - name: Install dependencies
       run: |
-        npm ci
+        if [ -f "package-lock.json" ]; then
+          npm ci
+        else
+          npm install
+          # Ensure package-lock.json is generated for future runs
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git add package-lock.json
+          git commit -m "Generate package-lock.json" || echo "No changes to commit"
+        fi
         cd ios && pod install
     
-    # Build and archive
+    # Rest of your iOS build steps...
     - name: Build iOS app
       run: |
         cd ios && xcodebuild \
@@ -136,7 +153,6 @@ jobs:
           -archivePath build/Aurore.xcarchive \
           clean archive
     
-    # Export IPA
     - name: Export IPA
       run: |
         cd ios && xcodebuild \
@@ -146,7 +162,6 @@ jobs:
           -exportPath build \
           -allowProvisioningUpdates
     
-    # Upload IPA artifact using verified action
     - name: Upload IPA
       uses: actions/upload-artifact@v4
       with:
