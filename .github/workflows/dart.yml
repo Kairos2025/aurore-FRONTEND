@@ -26,6 +26,9 @@ on:
         default: 'false'
         type: boolean
 
+env:
+  NDK_VERSION: '27.0.11718014'
+
 jobs:
   android:
     name: Android Build
@@ -48,15 +51,16 @@ jobs:
       with:
         node-version: '18'
     
-    # NDK 27 setup
-    - name: Set up Android NDK
-      uses: android-actions/setup-android-ndk@v1
-      with:
-        ndk-version: '27.0.11718014'
-    
-    # Android SDK setup
+    # Android setup (official actions)
     - name: Set up Android SDK
-      uses: android-actions/setup-android@v2
+      uses: android-actions/setup-android@v3
+    
+    # Install specific NDK version
+    - name: Install Android NDK
+      run: |
+        echo "y" | sudo ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --install "ndk;$NDK_VERSION"
+        echo "NDK_VERSION=$NDK_VERSION" >> $GITHUB_ENV
+        echo "NDK_HOME=${ANDROID_HOME}/ndk/$NDK_VERSION" >> $GITHUB_ENV
     
     # Cache node_modules
     - uses: actions/cache@v3
