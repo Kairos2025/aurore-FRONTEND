@@ -28,6 +28,7 @@ on:
 
 env:
   NDK_VERSION: '27.0.11718014'
+  ANDROID_SDK_ROOT: '/usr/local/lib/android/sdk'
 
 jobs:
   android:
@@ -51,16 +52,12 @@ jobs:
       with:
         node-version: '18'
     
-    # Android setup (official actions)
+    # Setup Android using basic Ubuntu image (already has Android SDK)
     - name: Set up Android SDK
-      uses: android-actions/setup-android@v3
-    
-    # Install specific NDK version
-    - name: Install Android NDK
       run: |
-        echo "y" | sudo ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --install "ndk;$NDK_VERSION"
-        echo "NDK_VERSION=$NDK_VERSION" >> $GITHUB_ENV
-        echo "NDK_HOME=${ANDROID_HOME}/ndk/$NDK_VERSION" >> $GITHUB_ENV
+        yes | sudo $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses
+        sudo $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.0" "ndk;$NDK_VERSION"
+        echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/$NDK_VERSION" >> $GITHUB_ENV
     
     # Cache node_modules
     - uses: actions/cache@v3
@@ -88,9 +85,9 @@ jobs:
           -PMYAPP_RELEASE_STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }} \
           -PMYAPP_RELEASE_KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}
     
-    # Upload APK artifact
+    # Upload APK artifact using verified action
     - name: Upload APK
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: app-release-android
         path: android/app/build/outputs/apk/release/app-release.apk
@@ -149,9 +146,9 @@ jobs:
           -exportPath build \
           -allowProvisioningUpdates
     
-    # Upload IPA artifact
+    # Upload IPA artifact using verified action
     - name: Upload IPA
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: app-release-ios
         path: ios/build/Aurore.ipa
