@@ -18,8 +18,8 @@ on:
         - profile
 
 env:
-  FLUTTER_VERSION: '3.19.5'  # Update to your Flutter version
-  PROJECT_DIR: 'aurore_frontend'  # Your Flutter project directory
+  FLUTTER_VERSION: '3.19.5'  # Flutter version that includes Dart 3.5.0+
+  PROJECT_DIR: 'aurore_frontend'
 
 jobs:
   setup:
@@ -54,11 +54,16 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       
-    - name: Set up Flutter
+    - name: Set up Flutter (with correct Dart SDK)
       uses: subosito/flutter-action@v2
       with:
         flutter-version: ${{ env.FLUTTER_VERSION }}
         channel: 'stable'
+        
+    - name: Verify Dart SDK version
+      run: |
+        dart --version
+        flutter --version
         
     - name: Set up JDK
       uses: actions/setup-java@v3
@@ -96,11 +101,16 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       
-    - name: Set up Flutter
+    - name: Set up Flutter (with correct Dart SDK)
       uses: subosito/flutter-action@v2
       with:
         flutter-version: ${{ env.FLUTTER_VERSION }}
         channel: 'stable'
+        
+    - name: Verify Dart SDK version
+      run: |
+        dart --version
+        flutter --version
         
     - name: Install dependencies
       working-directory: ${{ env.PROJECT_DIR }}
