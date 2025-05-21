@@ -1,4 +1,4 @@
-name: Combined Android & iOS Build
+name: React Native Build Pipeline
 
 on:
   push:
@@ -7,187 +7,171 @@ on:
     branches: [ main ]
   workflow_dispatch:
     inputs:
-      environment:
-        description: 'Select environment'
+      build-type:
+        description: 'Build type'
         required: true
-        default: 'production'
+        default: 'release'
         type: choice
         options:
-        - production
-        - staging
-      skip-android:
-        description: 'Skip Android build?'
-        required: false
-        default: 'false'
-        type: boolean
-      skip-ios:
-        description: 'Skip iOS build?'
-        required: false
-        default: 'false'
-        type: boolean
+        - debug
+        - release
 
 env:
+  NODE_VERSION: '18'
+  JDK_VERSION: '17'
   NDK_VERSION: '27.0.11718014'
   ANDROID_SDK_ROOT: '/usr/local/lib/android/sdk'
+  PROJECT_ROOT: './'
 
 jobs:
+  setup:
+    name: Verify Repository
+    runs-on: ubuntu-latest
+    outputs:
+      valid: ${{ steps.verify.outputs.valid }}
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Verify project structure
+      id: verify
+      run: |
+        echo "Repository contents:"
+        ls -la
+        
+        if [ ! -f "package.json" ]; then
+          echo "::error::package.json is missing!"
+          echo "valid=false" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+        
+        if [ ! -d "android" ] && [ ! -d "ios" ]; then
+          echo "::error::Neither android nor ios directories found!"
+          echo "valid=false" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+        
+        echo "valid=true" >> $GITHUB_OUTPUT
+
   android:
     name: Android Build
-    if: ${{ !inputs.skip-android || github.event_name != 'workflow_dispatch' }}
+    needs: setup
+    if: ${{ needs.setup.outputs.valid == 'true' && (github.event_name != 'workflow_dispatch' || !inputs.skip-android) }}
     runs-on: ubuntu-latest
     
     steps:
     - uses: actions/checkout@v4
-    
-    # Verify critical files exist
-    - name: Check for package.json
-      id: check-package
-      run: |
-        if [ ! -f "package.json" ]; then
-          echo "::error::package.json is missing!"
-          exit 1
-        fi
-        
-    # JDK 17 setup
-    - name: Set up JDK 17
+      
+    - name: Set up JDK ${{ env.JDK_VERSION }}
       uses: actions/setup-java@v3
       with:
-        java-version: '17'
+        java-version: ${{ env.JDK_VERSION }}
         distribution: 'temurin'
-    
-    # Node.js setup
-    - name: Set up Node.js
+        
+    - name: Set up Node.js ${{ env.NODE_VERSION }}
       uses: actions/setup-node@v3
       with:
-        node-version: '18'
+        node-version: ${{ env.NODE_VERSION }}
         cache: 'npm'
-    
-    # Setup Android
-    - name: Set up Android SDK
+        
+    - name: Install Android NDK ${{ env.NDK_VERSION }}
       run: |
         yes | sudo $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses
-        sudo $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.0" "ndk;$NDK_VERSION"
+        sudo $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "ndk;$NDK_VERSION"
         echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/$NDK_VERSION" >> $GITHUB_ENV
-    
-    # Install dependencies with robust error handling
+        
     - name: Install dependencies
       run: |
-        echo "Current directory: $(pwd)"
-        echo "Directory contents:"
+        # Check if in correct directory
+        echo "Working directory: $(pwd)"
         ls -la
         
-        # Check if we're in the right directory
-        if [ ! -f "package.json" ]; then
-          echo "::error::package.json not found in current directory!"
-          exit 1
-        fi
-        
-        # Install dependencies based on available lockfile
+        # Install with fallback
         if [ -f "package-lock.json" ]; then
-          echo "Found package-lock.json, running npm ci..."
-          npm ci
+          echo "Using package-lock.json"
+          npm ci --no-audit
         else
-          echo "No package-lock.json found, running npm install..."
-          npm install
+          echo "No lockfile found, running npm install"
+          npm install --no-audit
         fi
         
-        # Verify installation succeeded
-        if [ $? -ne 0 ]; then
-          echo "::error::npm installation failed!"
+        # Verify installation
+        if [ ! -d "node_modules" ]; then
+          echo "::error::Dependencies failed to install!"
           exit 1
         fi
         
-        cd android && ./gradlew dependencies
-    
-    # Rest of your Android build steps...
-    - name: Build APK
+    - name: Build Android APK
       run: |
-        cd android && ./gradlew assembleRelease \
+        cd android
+        ./gradlew clean
+        ./gradlew assemble${{ inputs.build-type == 'release' && 'Release' || 'Debug' }} \
           -PMYAPP_RELEASE_STORE_FILE=keystore.jks \
-          -PMYAPP_RELEASE_KEY_ALIAS=${{ secrets.KEY_ALIAS }} \
-          -PMYAPP_RELEASE_STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }} \
-          -PMYAPP_RELEASE_KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}
-    
+          -PMYAPP_RELEASE_KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }} \
+          -PMYAPP_RELEASE_STORE_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }} \
+          -PMYAPP_RELEASE_KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}
+          
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: app-release-android
-        path: android/app/build/outputs/apk/release/app-release.apk
+        name: android-${{ inputs.build-type }}
+        path: android/app/build/outputs/apk/${{ inputs.build-type == 'release' && 'release' || 'debug' }}/app-${{ inputs.build-type == 'release' && 'release' || 'debug' }}.apk
 
   ios:
     name: iOS Build
-    needs: android
-    if: ${{ !inputs.skip-ios || github.event_name != 'workflow_dispatch' }}
+    needs: setup
+    if: ${{ needs.setup.outputs.valid == 'true' && (github.event_name != 'workflow_dispatch' || !inputs.skip-ios) }}
     runs-on: macos-latest
     
     steps:
     - uses: actions/checkout@v4
-    
-    # Verify critical files exist
-    - name: Check for package.json
-      id: check-package
-      run: |
-        if [ ! -f "package.json" ]; then
-          echo "::error::package.json is missing!"
-          exit 1
-        fi
-    
-    # Node.js setup
-    - name: Set up Node.js
+      
+    - name: Set up Node.js ${{ env.NODE_VERSION }}
       uses: actions/setup-node@v3
       with:
-        node-version: '18'
+        node-version: ${{ env.NODE_VERSION }}
         cache: 'npm'
-    
-    # Install dependencies with robust error handling
+        
     - name: Install dependencies
       run: |
-        echo "Current directory: $(pwd)"
-        echo "Directory contents:"
+        echo "Working directory: $(pwd)"
         ls -la
         
-        if [ ! -f "package.json" ]; then
-          echo "::error::package.json not found in current directory!"
-          exit 1
-        fi
-        
         if [ -f "package-lock.json" ]; then
-          echo "Found package-lock.json, running npm ci..."
-          npm ci
+          npm ci --no-audit
         else
-          echo "No package-lock.json found, running npm install..."
-          npm install
+          npm install --no-audit
         fi
         
-        if [ $? -ne 0 ]; then
-          echo "::error::npm installation failed!"
+        if [ ! -d "node_modules" ]; then
+          echo "::error::Dependencies failed to install!"
           exit 1
         fi
         
         cd ios && pod install
-    
-    # Rest of your iOS build steps...
-    - name: Build iOS app
+        
+    - name: Build iOS IPA
       run: |
-        cd ios && xcodebuild \
+        cd ios
+        xcodebuild clean archive \
           -workspace Aurore.xcworkspace \
           -scheme Aurore \
-          -configuration Release \
-          -destination 'generic/platform=iOS' \
+          -configuration ${{ inputs.build-type == 'release' && 'Release' || 'Debug' }} \
           -archivePath build/Aurore.xcarchive \
-          clean archive
-    
-    - name: Export IPA
-      run: |
-        cd ios && xcodebuild \
-          -exportArchive \
+          -destination 'generic/platform=iOS' \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO
+        
+        xcodebuild -exportArchive \
           -archivePath build/Aurore.xcarchive \
           -exportOptionsPlist ExportOptions.plist \
           -exportPath build \
           -allowProvisioningUpdates
-    
+          
     - name: Upload IPA
       uses: actions/upload-artifact@v4
       with:
-        name: app-release-ios
+        name: ios-${{ inputs.build-type }}
         path: ios/build/Aurore.ipa
