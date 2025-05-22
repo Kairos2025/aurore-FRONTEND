@@ -55,17 +55,17 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       
-    - name: Install Flutter from GitHub Releases
-      uses: actions/flutter-tool-installer@v1
-      with:
-        flutter-version: ${{ env.FLUTTER_VERSION }}
-        channel: 'beta'
-      
-    - name: Verify Flutter Installation
+    - name: Install Flutter (Manual Installation)
       run: |
-        echo "=== FLUTTER VERSION ==="
+        # Download and install Flutter manually
+        echo "Installing Flutter $FLUTTER_VERSION"
+        git clone https://github.com/flutter/flutter.git --branch beta -v
+        cd flutter
+        git checkout $FLUTTER_VERSION
+        echo "$(pwd)/bin" >> $GITHUB_PATH
+        
+        # Verify installation
         flutter --version
-        echo "=== DART VERSION ==="
         dart --version
         
         # Verify Dart version meets requirement
@@ -110,17 +110,17 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       
-    - name: Install Flutter from GitHub Releases
-      uses: actions/flutter-tool-installer@v1
-      with:
-        flutter-version: ${{ env.FLUTTER_VERSION }}
-        channel: 'beta'
-      
-    - name: Verify Flutter Installation
+    - name: Install Flutter (Manual Installation)
       run: |
-        echo "=== FLUTTER VERSION ==="
+        # Download and install Flutter manually
+        echo "Installing Flutter $FLUTTER_VERSION"
+        git clone https://github.com/flutter/flutter.git --branch beta -v
+        cd flutter
+        git checkout $FLUTTER_VERSION
+        echo "$(pwd)/bin" >> $GITHUB_PATH
+        
+        # Verify installation
         flutter --version
-        echo "=== DART VERSION ==="
         dart --version
         
         # Verify Dart version meets requirement
