@@ -18,8 +18,8 @@ on:
         - profile
 
 env:
-  # Using Flutter 3.23.0-18.1.pre (beta) which includes Dart 3.5.0
-  FLUTTER_VERSION: '3.23.0-18.1.pre'
+  # Using Flutter 3.25.0-8.3.pre (beta) which includes Dart 3.5.0+
+  FLUTTER_VERSION: '3.25.0-8.3.pre'
   PROJECT_DIR: 'aurore_frontend'
 
 jobs:
@@ -55,18 +55,17 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       
-    - name: Install Flutter Beta Channel
-      uses: subosito/flutter-action@v2
+    - name: Install Flutter from GitHub Releases
+      uses: actions/flutter-tool-installer@v1
       with:
         flutter-version: ${{ env.FLUTTER_VERSION }}
         channel: 'beta'
-        cache: true
-        cache-key: flutter-beta-${{ env.FLUTTER_VERSION }}
       
-    - name: Force Verify Dart Version
+    - name: Verify Flutter Installation
       run: |
-        echo "=== VERSION VERIFICATION ==="
+        echo "=== FLUTTER VERSION ==="
         flutter --version
+        echo "=== DART VERSION ==="
         dart --version
         
         # Verify Dart version meets requirement
@@ -75,7 +74,6 @@ jobs:
         
         if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
           echo "::error::Dart version $DART_VERSION is lower than required $REQUIRED_VERSION"
-          echo "Please update the FLUTTER_VERSION in this workflow"
           exit 1
         fi
         
@@ -112,18 +110,17 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       
-    - name: Install Flutter Beta Channel
-      uses: subosito/flutter-action@v2
+    - name: Install Flutter from GitHub Releases
+      uses: actions/flutter-tool-installer@v1
       with:
         flutter-version: ${{ env.FLUTTER_VERSION }}
         channel: 'beta'
-        cache: true
-        cache-key: flutter-beta-${{ env.FLUTTER_VERSION }}
       
-    - name: Force Verify Dart Version
+    - name: Verify Flutter Installation
       run: |
-        echo "=== VERSION VERIFICATION ==="
+        echo "=== FLUTTER VERSION ==="
         flutter --version
+        echo "=== DART VERSION ==="
         dart --version
         
         # Verify Dart version meets requirement
@@ -132,7 +129,6 @@ jobs:
         
         if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
           echo "::error::Dart version $DART_VERSION is lower than required $REQUIRED_VERSION"
-          echo "Please update the FLUTTER_VERSION in this workflow"
           exit 1
         fi
         
