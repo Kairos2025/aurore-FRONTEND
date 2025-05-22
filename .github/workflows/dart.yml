@@ -18,8 +18,8 @@ on:
         - profile
 
 env:
-  # Using Flutter 3.22.1 which includes Dart 3.6.0
-  FLUTTER_VERSION: '3.22.1'  
+  # Using Flutter 3.23.0-18.1.pre (beta) which includes Dart 3.5.0
+  FLUTTER_VERSION: '3.23.0-18.1.pre'
   PROJECT_DIR: 'aurore_frontend'
 
 jobs:
@@ -55,14 +55,13 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       
-    - name: Install Exact Flutter Version
+    - name: Install Flutter Beta Channel
       uses: subosito/flutter-action@v2
       with:
-        # This exact version includes Dart 3.6.0
-        flutter-version: '3.22.1'
-        channel: 'stable'
+        flutter-version: ${{ env.FLUTTER_VERSION }}
+        channel: 'beta'
         cache: true
-        cache-key: flutter-3.22.1
+        cache-key: flutter-beta-${{ env.FLUTTER_VERSION }}
       
     - name: Force Verify Dart Version
       run: |
@@ -76,7 +75,7 @@ jobs:
         
         if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
           echo "::error::Dart version $DART_VERSION is lower than required $REQUIRED_VERSION"
-          echo "Please use a newer Flutter version that includes Dart ≥3.5.0"
+          echo "Please update the FLUTTER_VERSION in this workflow"
           exit 1
         fi
         
@@ -113,13 +112,13 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       
-    - name: Install Exact Flutter Version
+    - name: Install Flutter Beta Channel
       uses: subosito/flutter-action@v2
       with:
-        flutter-version: '3.22.1'
-        channel: 'stable'
+        flutter-version: ${{ env.FLUTTER_VERSION }}
+        channel: 'beta'
         cache: true
-        cache-key: flutter-3.22.1
+        cache-key: flutter-beta-${{ env.FLUTTER_VERSION }}
       
     - name: Force Verify Dart Version
       run: |
@@ -133,7 +132,7 @@ jobs:
         
         if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
           echo "::error::Dart version $DART_VERSION is lower than required $REQUIRED_VERSION"
-          echo "Please use a newer Flutter version that includes Dart ≥3.5.0"
+          echo "Please update the FLUTTER_VERSION in this workflow"
           exit 1
         fi
         
