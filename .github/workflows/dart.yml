@@ -18,8 +18,8 @@ on:
         - profile
 
 env:
-  # Using Flutter 3.22.0 which includes Dart 3.6.0
-  FLUTTER_VERSION: '3.22.0'  
+  # Using Flutter 3.22.1 which includes Dart 3.6.0
+  FLUTTER_VERSION: '3.22.1'  
   PROJECT_DIR: 'aurore_frontend'
 
 jobs:
@@ -59,10 +59,10 @@ jobs:
       uses: subosito/flutter-action@v2
       with:
         # This exact version includes Dart 3.6.0
-        flutter-version: '3.22.0'
+        flutter-version: '3.22.1'
         channel: 'stable'
         cache: true
-        cache-key: flutter-3.22.0
+        cache-key: flutter-3.22.1
       
     - name: Force Verify Dart Version
       run: |
@@ -76,6 +76,7 @@ jobs:
         
         if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
           echo "::error::Dart version $DART_VERSION is lower than required $REQUIRED_VERSION"
+          echo "Please use a newer Flutter version that includes Dart ≥3.5.0"
           exit 1
         fi
         
@@ -115,10 +116,10 @@ jobs:
     - name: Install Exact Flutter Version
       uses: subosito/flutter-action@v2
       with:
-        flutter-version: '3.22.0'
+        flutter-version: '3.22.1'
         channel: 'stable'
         cache: true
-        cache-key: flutter-3.22.0
+        cache-key: flutter-3.22.1
       
     - name: Force Verify Dart Version
       run: |
@@ -132,6 +133,7 @@ jobs:
         
         if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
           echo "::error::Dart version $DART_VERSION is lower than required $REQUIRED_VERSION"
+          echo "Please use a newer Flutter version that includes Dart ≥3.5.0"
           exit 1
         fi
         
