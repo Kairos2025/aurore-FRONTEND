@@ -18,7 +18,8 @@ on:
         - profile
 
 env:
-  FLUTTER_VERSION: '3.19.5'  # Flutter version that includes Dart 3.5.0+
+  # Using Flutter 3.19.6 which includes Dart 3.5.0
+  FLUTTER_VERSION: '3.19.6'  
   PROJECT_DIR: 'aurore_frontend'
 
 jobs:
@@ -54,16 +55,22 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       
-    - name: Set up Flutter (with correct Dart SDK)
+    - name: Install Specific Flutter Version
       uses: subosito/flutter-action@v2
       with:
-        flutter-version: ${{ env.FLUTTER_VERSION }}
+        # This exact version includes Dart 3.5.0
+        flutter-version: '3.19.6'  
         channel: 'stable'
-        
-    - name: Verify Dart SDK version
+        cache: true
+        cache-key: flutter-3.19.6
+        cache-path: ${{ github.workspace }}/flutter
+      
+    - name: Verify Versions
       run: |
-        dart --version
+        echo "Flutter version:"
         flutter --version
+        echo "Dart version:"
+        dart --version
         
     - name: Set up JDK
       uses: actions/setup-java@v3
@@ -71,13 +78,9 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
         
-    - name: Install dependencies
+    - name: Install Dependencies
       working-directory: ${{ env.PROJECT_DIR }}
-      run: |
-        flutter pub get
-        
-    - name: Verify Flutter installation
-      run: flutter doctor -v
+      run: flutter pub get
         
     - name: Build Android APK
       working-directory: ${{ env.PROJECT_DIR }}
@@ -101,25 +104,27 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       
-    - name: Set up Flutter (with correct Dart SDK)
+    - name: Install Specific Flutter Version
       uses: subosito/flutter-action@v2
       with:
-        flutter-version: ${{ env.FLUTTER_VERSION }}
+        flutter-version: '3.19.6'
         channel: 'stable'
-        
-    - name: Verify Dart SDK version
+        cache: true
+        cache-key: flutter-3.19.6
+        cache-path: ${{ github.workspace }}/flutter
+      
+    - name: Verify Versions
       run: |
-        dart --version
+        echo "Flutter version:"
         flutter --version
+        echo "Dart version:"
+        dart --version
         
-    - name: Install dependencies
+    - name: Install Dependencies
       working-directory: ${{ env.PROJECT_DIR }}
       run: |
         flutter pub get
         cd ios && pod install
-        
-    - name: Verify Flutter installation
-      run: flutter doctor -v
         
     - name: Build iOS IPA
       working-directory: ${{ env.PROJECT_DIR }}
