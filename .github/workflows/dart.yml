@@ -18,8 +18,8 @@ on:
         - profile
 
 env:
-  # Using Flutter 3.19.6 which includes Dart 3.5.0
-  FLUTTER_VERSION: '3.19.6'  
+  # Using Flutter 3.22.0 which includes Dart 3.6.0
+  FLUTTER_VERSION: '3.22.0'  
   PROJECT_DIR: 'aurore_frontend'
 
 jobs:
@@ -55,22 +55,29 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       
-    - name: Install Specific Flutter Version
+    - name: Install Exact Flutter Version
       uses: subosito/flutter-action@v2
       with:
-        # This exact version includes Dart 3.5.0
-        flutter-version: '3.19.6'  
+        # This exact version includes Dart 3.6.0
+        flutter-version: '3.22.0'
         channel: 'stable'
         cache: true
-        cache-key: flutter-3.19.6
-        cache-path: ${{ github.workspace }}/flutter
+        cache-key: flutter-3.22.0
       
-    - name: Verify Versions
+    - name: Force Verify Dart Version
       run: |
-        echo "Flutter version:"
+        echo "=== VERSION VERIFICATION ==="
         flutter --version
-        echo "Dart version:"
         dart --version
+        
+        # Verify Dart version meets requirement
+        DART_VERSION=$(dart --version 2>&1 | awk '{print $4}')
+        REQUIRED_VERSION="3.5.0"
+        
+        if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
+          echo "::error::Dart version $DART_VERSION is lower than required $REQUIRED_VERSION"
+          exit 1
+        fi
         
     - name: Set up JDK
       uses: actions/setup-java@v3
@@ -80,7 +87,8 @@ jobs:
         
     - name: Install Dependencies
       working-directory: ${{ env.PROJECT_DIR }}
-      run: flutter pub get
+      run: |
+        flutter pub get
         
     - name: Build Android APK
       working-directory: ${{ env.PROJECT_DIR }}
@@ -104,21 +112,28 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       
-    - name: Install Specific Flutter Version
+    - name: Install Exact Flutter Version
       uses: subosito/flutter-action@v2
       with:
-        flutter-version: '3.19.6'
+        flutter-version: '3.22.0'
         channel: 'stable'
         cache: true
-        cache-key: flutter-3.19.6
-        cache-path: ${{ github.workspace }}/flutter
+        cache-key: flutter-3.22.0
       
-    - name: Verify Versions
+    - name: Force Verify Dart Version
       run: |
-        echo "Flutter version:"
+        echo "=== VERSION VERIFICATION ==="
         flutter --version
-        echo "Dart version:"
         dart --version
+        
+        # Verify Dart version meets requirement
+        DART_VERSION=$(dart --version 2>&1 | awk '{print $4}')
+        REQUIRED_VERSION="3.5.0"
+        
+        if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$DART_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
+          echo "::error::Dart version $DART_VERSION is lower than required $REQUIRED_VERSION"
+          exit 1
+        fi
         
     - name: Install Dependencies
       working-directory: ${{ env.PROJECT_DIR }}
