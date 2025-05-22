@@ -18,8 +18,8 @@ on:
         - profile
 
 env:
-  # Using Flutter 3.25.0-8.3.pre (beta) which includes Dart 3.5.0+
-  FLUTTER_VERSION: '3.25.0-8.3.pre'
+  # Using Flutter 3.19.0 which includes Dart 3.5.0
+  FLUTTER_VERSION: '3.19.0'
   PROJECT_DIR: 'aurore_frontend'
 
 jobs:
@@ -57,12 +57,10 @@ jobs:
       
     - name: Install Flutter (Manual Installation)
       run: |
-        # Download and install Flutter manually
+        # Download and install Flutter
         echo "Installing Flutter $FLUTTER_VERSION"
-        git clone https://github.com/flutter/flutter.git --branch beta -v
-        cd flutter
-        git checkout $FLUTTER_VERSION
-        echo "$(pwd)/bin" >> $GITHUB_PATH
+        git clone https://github.com/flutter/flutter.git -b stable --depth 1
+        echo "$(pwd)/flutter/bin" >> $GITHUB_PATH
         
         # Verify installation
         flutter --version
@@ -112,12 +110,10 @@ jobs:
       
     - name: Install Flutter (Manual Installation)
       run: |
-        # Download and install Flutter manually
+        # Download and install Flutter
         echo "Installing Flutter $FLUTTER_VERSION"
-        git clone https://github.com/flutter/flutter.git --branch beta -v
-        cd flutter
-        git checkout $FLUTTER_VERSION
-        echo "$(pwd)/bin" >> $GITHUB_PATH
+        git clone https://github.com/flutter/flutter.git -b stable --depth 1
+        echo "$(pwd)/flutter/bin" >> $GITHUB_PATH
         
         # Verify installation
         flutter --version
