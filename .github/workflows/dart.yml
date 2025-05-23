@@ -18,7 +18,7 @@ on:
           - profile
 
 env:
-  FLUTTER_VERSION: '3.19.5'  # Includes Dart 3.5.0+
+  FLUTTER_VERSION: '3.22.1'  # Updated to include Dart 3.5.0+
   PROJECT_DIR: 'aurore_frontend'
 
 jobs:
