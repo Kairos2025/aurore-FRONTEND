@@ -18,7 +18,7 @@ on:
           - profile
 
 env:
-  FLUTTER_VERSION: '3.22.1'  # Updated to include Dart 3.5.0+
+  FLUTTER_VERSION: '3.22.2'  # Contains Dart 3.5.0+
   PROJECT_DIR: 'aurore_frontend'
 
 jobs:
@@ -30,6 +30,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Verify project structure
         id: verify
@@ -59,16 +61,20 @@ jobs:
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
+          cache: true
+          cache-key: flutter-${{ env.FLUTTER_VERSION }}
 
       - name: Set up JDK
         uses: actions/setup-java@v3
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: 'gradle'
 
       - name: Install Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
-        run: flutter pub get
+        run: |
+          flutter pub get
 
       - name: Build Android APK
         working-directory: ${{ env.PROJECT_DIR }}
@@ -96,15 +102,19 @@ jobs:
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
+          cache: true
+          cache-key: flutter-${{ env.FLUTTER_VERSION }}
 
       - name: Install CocoaPods
-        run: sudo gem install cocoapods
+        run: |
+          sudo gem install cocoapods
+          pod setup
 
       - name: Install Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           flutter pub get
-          cd ios && pod install
+          cd ios && pod install --repo-update
 
       - name: Set up Code Signing
         env:
