@@ -27,11 +27,21 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       valid: ${{ steps.verify.outputs.valid }}
+      flutter-version: ${{ steps.flutter-version.outputs.version }}
 
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Setup Flutter
+        id: flutter-version
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+          cache-key: flutter-${{ env.FLUTTER_VERSION }}
 
       - name: Verify project structure
         id: verify
@@ -46,6 +56,7 @@ jobs:
           fi
           
           echo "valid=true" >> $GITHUB_OUTPUT
+          echo "version=${{ env.FLUTTER_VERSION }}" >> $GITHUB_OUTPUT
 
   android:
     name: Android Build
@@ -59,10 +70,13 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
+          flutter-version: ${{ needs.setup.outputs.flutter-version }}
           channel: 'stable'
           cache: true
-          cache-key: flutter-${{ env.FLUTTER_VERSION }}
+          cache-key: flutter-${{ needs.setup.outputs.flutter-version }}
+
+      - name: Verify Dart version
+        run: flutter --version
 
       - name: Set up JDK
         uses: actions/setup-java@v3
@@ -100,10 +114,13 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
+          flutter-version: ${{ needs.setup.outputs.flutter-version }}
           channel: 'stable'
           cache: true
-          cache-key: flutter-${{ env.FLUTTER_VERSION }}
+          cache-key: flutter-${{ needs.setup.outputs.flutter-version }}
+
+      - name: Verify Dart version
+        run: flutter --version
 
       - name: Install CocoaPods
         run: |
