@@ -23,11 +23,11 @@ env:
 
 jobs:
   setup:
-    name: Verify Environment
+    name: Setup and Validate Environment
     runs-on: ubuntu-latest
     outputs:
-      valid: ${{ steps.verify.outputs.valid }}
-      flutter-version: ${{ steps.flutter-version.outputs.version }}
+      flutter-version: ${{ steps.set-flutter.outputs.version }}
+      valid: ${{ steps.validate.outputs.valid }}
 
     steps:
       - uses: actions/checkout@v4
@@ -35,7 +35,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Flutter
-        id: flutter-version
+        id: set-flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -43,18 +43,34 @@ jobs:
           cache: true
           cache-key: flutter-${{ env.FLUTTER_VERSION }}
 
-      - name: Verify project structure
-        id: verify
+      - name: Verify Versions
         run: |
-          echo "Repository contents:"
-          ls -la
-          
-          if [ ! -f "$PROJECT_DIR/pubspec.yaml" ]; then
+          echo "Flutter version:"
+          flutter --version
+          echo "Dart version:"
+          dart --version
+
+      - name: Validate Environment
+        id: validate
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          # Check project structure
+          if [ ! -f "pubspec.yaml" ]; then
             echo "::error::pubspec.yaml is missing in $PROJECT_DIR!"
             echo "valid=false" >> $GITHUB_OUTPUT
             exit 1
           fi
-          
+
+          # Check Dart SDK constraint
+          MIN_DART_VERSION=$(grep 'sdk: ' pubspec.yaml | awk '{print $2}' | tr -d "'\"" | cut -c2-)
+          CURRENT_DART_VERSION=$(dart --version | awk '{print $4}')
+
+          if [ "$(printf '%s\n' "$MIN_DART_VERSION" "$CURRENT_DART_VERSION" | sort -V | head -n1)" != "$MIN_DART_VERSION" ]; then
+            echo "::error::Dart SDK version $CURRENT_DART_VERSION is lower than required $MIN_DART_VERSION"
+            echo "valid=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
           echo "valid=true" >> $GITHUB_OUTPUT
           echo "version=${{ env.FLUTTER_VERSION }}" >> $GITHUB_OUTPUT
 
@@ -75,10 +91,7 @@ jobs:
           cache: true
           cache-key: flutter-${{ needs.setup.outputs.flutter-version }}
 
-      - name: Verify Dart version
-        run: flutter --version
-
-      - name: Set up JDK
+      - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
           java-version: '17'
@@ -88,18 +101,24 @@ jobs:
       - name: Install Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
+          flutter pub upgrade --major-versions
           flutter pub get
+
+      - name: Run Flutter Analyzer
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: flutter analyze
 
       - name: Build Android APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           flutter build apk --${{ github.event.inputs.build-type || 'release' }} \
-            --dart-define=APP_ENV=${{ github.event.inputs.build-type || 'release' }}
+            --dart-define=APP_ENV=${{ github.event.inputs.build-type || 'release' }} \
+            --verbose
 
-      - name: Upload APK
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: android-${{ github.event.inputs.build-type || 'release' }}
+          name: android-${{ github.event.inputs.build-type || 'release' }}-apk
           path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-*.apk
 
   ios:
@@ -119,9 +138,6 @@ jobs:
           cache: true
           cache-key: flutter-${{ needs.setup.outputs.flutter-version }}
 
-      - name: Verify Dart version
-        run: flutter --version
-
       - name: Install CocoaPods
         run: |
           sudo gem install cocoapods
@@ -130,6 +146,7 @@ jobs:
       - name: Install Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
+          flutter pub upgrade --major-versions
           flutter pub get
           cd ios && pod install --repo-update
 
@@ -162,10 +179,11 @@ jobs:
         run: |
           flutter build ipa --${{ github.event.inputs.build-type || 'release' }} \
             --dart-define=APP_ENV=${{ github.event.inputs.build-type || 'release' }} \
-            --export-options-plist=ios/ExportOptions.plist
+            --export-options-plist=ios/ExportOptions.plist \
+            --verbose
 
-      - name: Upload IPA
+      - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ios-${{ github.event.inputs.build-type || 'release' }}
-          path: ${{ env.PROJECT_DIR }}/build/ios/ipa/*.ipa
+          name: ios-${{ github.event.inputs.build-type || 'release' }}-ipa
+          path: ${{ env.PROJECT_DIR }}/build/ios/ipa/*.ipa 
