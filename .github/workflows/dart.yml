@@ -18,16 +18,18 @@ on:
           - profile
 
 env:
-  FLUTTER_VERSION: '3.22.2'  # Contains Dart 3.5.0+
+  FLUTTER_VERSION: '3.22.4'  # Contains Dart 3.5.2
   PROJECT_DIR: 'aurore_frontend'
+  BUILD_CACHE_KEY: ${{ github.run_id }}-${{ github.run_attempt }}
 
 jobs:
   setup:
-    name: Setup and Validate Environment
+    name: Setup and Validate
     runs-on: ubuntu-latest
     outputs:
-      flutter-version: ${{ steps.set-flutter.outputs.version }}
       valid: ${{ steps.validate.outputs.valid }}
+      flutter-version: ${{ env.FLUTTER_VERSION }}
+      dart-version: ${{ steps.get-versions.outputs.dart-version }}
 
     steps:
       - uses: actions/checkout@v4
@@ -35,44 +37,46 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Flutter
-        id: set-flutter
+        id: flutter-setup
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: 'stable'
+          channel: stable
           cache: true
-          cache-key: flutter-${{ env.FLUTTER_VERSION }}
+          cache-key: flutter-${{ env.FLUTTER_VERSION }}-${{ env.BUILD_CACHE_KEY }}
 
-      - name: Verify Versions
+      - name: Get Versions
+        id: get-versions
         run: |
           echo "Flutter version:"
           flutter --version
           echo "Dart version:"
           dart --version
+          DART_VERSION=$(dart --version | awk '{print $4}')
+          echo "dart-version=$DART_VERSION" >> $GITHUB_OUTPUT
 
       - name: Validate Environment
         id: validate
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          # Check project structure
+          # Verify project structure
           if [ ! -f "pubspec.yaml" ]; then
-            echo "::error::pubspec.yaml is missing in $PROJECT_DIR!"
+            echo "::error::pubspec.yaml not found in $PROJECT_DIR!"
             echo "valid=false" >> $GITHUB_OUTPUT
             exit 1
           fi
 
-          # Check Dart SDK constraint
-          MIN_DART_VERSION=$(grep 'sdk: ' pubspec.yaml | awk '{print $2}' | tr -d "'\"" | cut -c2-)
-          CURRENT_DART_VERSION=$(dart --version | awk '{print $4}')
+          # Verify Dart version
+          REQUIRED_DART=$(grep 'sdk:' pubspec.yaml | awk '{print $2}' | tr -d "'\"" | cut -c2-)
+          CURRENT_DART=${{ steps.get-versions.outputs.dart-version }}
 
-          if [ "$(printf '%s\n' "$MIN_DART_VERSION" "$CURRENT_DART_VERSION" | sort -V | head -n1)" != "$MIN_DART_VERSION" ]; then
-            echo "::error::Dart SDK version $CURRENT_DART_VERSION is lower than required $MIN_DART_VERSION"
+          if [ "$(printf '%s\n' "$REQUIRED_DART" "$CURRENT_DART" | sort -V | head -n1)" != "$REQUIRED_DART" ]; then
+            echo "::error::Dart SDK $CURRENT_DART < required $REQUIRED_DART"
             echo "valid=false" >> $GITHUB_OUTPUT
             exit 1
           fi
 
           echo "valid=true" >> $GITHUB_OUTPUT
-          echo "version=${{ env.FLUTTER_VERSION }}" >> $GITHUB_OUTPUT
 
   android:
     name: Android Build
@@ -87,9 +91,9 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ needs.setup.outputs.flutter-version }}
-          channel: 'stable'
+          channel: stable
           cache: true
-          cache-key: flutter-${{ needs.setup.outputs.flutter-version }}
+          cache-key: flutter-${{ needs.setup.outputs.flutter-version }}-${{ env.BUILD_CACHE_KEY }}
 
       - name: Set up JDK 17
         uses: actions/setup-java@v3
@@ -98,10 +102,22 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
+      - name: Restore Dependency Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ${{ env.PROJECT_DIR }}/.dart_tool
+            ${{ env.PROJECT_DIR }}/.flutter-plugins
+            ${{ env.PROJECT_DIR }}/.flutter-plugins-dependencies
+            ${{ env.PROJECT_DIR }}/.pub-cache
+          key: flutter-deps-${{ env.BUILD_CACHE_KEY }}
+          restore-keys: |
+            flutter-deps-
+
       - name: Install Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          flutter pub upgrade --major-versions
+          flutter pub upgrade
           flutter pub get
 
       - name: Run Flutter Analyzer
@@ -134,19 +150,31 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ needs.setup.outputs.flutter-version }}
-          channel: 'stable'
+          channel: stable
           cache: true
-          cache-key: flutter-${{ needs.setup.outputs.flutter-version }}
+          cache-key: flutter-${{ needs.setup.outputs.flutter-version }}-${{ env.BUILD_CACHE_KEY }}
 
       - name: Install CocoaPods
         run: |
           sudo gem install cocoapods
           pod setup
 
+      - name: Restore Dependency Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ${{ env.PROJECT_DIR }}/.dart_tool
+            ${{ env.PROJECT_DIR }}/.flutter-plugins
+            ${{ env.PROJECT_DIR }}/.flutter-plugins-dependencies
+            ${{ env.PROJECT_DIR }}/.pub-cache
+            ${{ env.PROJECT_DIR }}/ios/Pods
+          key: flutter-ios-deps-${{ env.BUILD_CACHE_KEY }}
+          restore-keys: |
+            flutter-ios-deps-
+
       - name: Install Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          flutter pub upgrade --major-versions
           flutter pub get
           cd ios && pod install --repo-update
 
@@ -186,4 +214,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ios-${{ github.event.inputs.build-type || 'release' }}-ipa
-          path: ${{ env.PROJECT_DIR }}/build/ios/ipa/*.ipa 
+          path: ${{ env.PROJECT_DIR }}/build/ios/ipa/*.ipa
