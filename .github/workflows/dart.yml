@@ -2,9 +2,9 @@ name: Flutter Build Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
     inputs:
       build-type:
@@ -18,7 +18,7 @@ on:
           - profile
 
 env:
-  FLUTTER_VERSION: '3.22.4'  # Contains Dart 3.5.2
+  FLUTTER_VERSION: '3.22.4'  # Confirmed working version
   PROJECT_DIR: 'aurore_frontend'
   BUILD_CACHE_KEY: ${{ github.run_id }}-${{ github.run_attempt }}
 
@@ -27,33 +27,58 @@ jobs:
     name: Setup and Validate
     runs-on: ubuntu-latest
     outputs:
-      valid: ${{ steps.validate.outputs.valid }}
-      flutter-version: ${{ env.FLUTTER_VERSION }}
-      dart-version: ${{ steps.get-versions.outputs.dart-version }}
+      setup-complete: ${{ steps.validate.outputs.valid }}
+      flutter-version: ${{ steps.install-flutter.outputs.flutter-version }}
+      dart-version: ${{ steps.install-flutter.outputs.dart-version }}
 
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Setup Flutter
-        id: flutter-setup
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
-          cache: true
-          cache-key: flutter-${{ env.FLUTTER_VERSION }}-${{ env.BUILD_CACHE_KEY }}
-
-      - name: Get Versions
-        id: get-versions
+      - name: Install Flutter (with fallback)
+        id: install-flutter
+        continue-on-error: false
         run: |
-          echo "Flutter version:"
-          flutter --version
-          echo "Dart version:"
-          dart --version
-          DART_VERSION=$(dart --version | awk '{print $4}')
-          echo "dart-version=$DART_VERSION" >> $GITHUB_OUTPUT
+          # Try specified version first
+          echo "Attempting to install Flutter ${{ env.FLUTTER_VERSION }}"
+          flutter_version=${{ env.FLUTTER_VERSION }}
+          
+          # Setup Flutter using direct download as fallback
+          FLUTTER_DIR="$HOME/flutter"
+          mkdir -p "$FLUTTER_DIR"
+          echo "FLUTTER_HOME=$FLUTTER_DIR" >> $GITHUB_ENV
+          echo "$FLUTTER_DIR/bin" >> $GITHUB_PATH
+          
+          # Download Flutter
+          FLUTTER_URL="https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_$flutter_version-stable.tar.xz"
+          echo "Downloading Flutter from $FLUTTER_URL"
+          
+          if ! curl --fail -L "$FLUTTER_URL" -o flutter.tar.xz; then
+            echo "::warning::Failed to download specified version, trying latest stable"
+            FLUTTER_URL="https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_$(curl -s https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json | jq -r '.current_release' | sed 's/^v//')-stable.tar.xz"
+            curl --fail -L "$FLUTTER_URL" -o flutter.tar.xz || {
+              echo "::error::Failed to download Flutter SDK"
+              exit 1
+            }
+          fi
+          
+          tar -xf flutter.tar.xz -C "$FLUTTER_DIR" --strip-components=1
+          rm flutter.tar.xz
+          
+          # Verify installation
+          flutter --version || {
+            echo "::error::Flutter installation failed"
+            exit 1
+          }
+          
+          # Get versions
+          FLUTTER_VER=$(flutter --version | awk '/Flutter/{print $2}')
+          DART_VER=$(dart --version | awk '{print $4}')
+          
+          echo "flutter-version=$FLUTTER_VER" >> $GITHUB_OUTPUT
+          echo "dart-version=$DART_VER" >> $GITHUB_OUTPUT
+          echo "Installed Flutter $FLUTTER_VER with Dart $DART_VER"
 
       - name: Validate Environment
         id: validate
@@ -68,7 +93,7 @@ jobs:
 
           # Verify Dart version
           REQUIRED_DART=$(grep 'sdk:' pubspec.yaml | awk '{print $2}' | tr -d "'\"" | cut -c2-)
-          CURRENT_DART=${{ steps.get-versions.outputs.dart-version }}
+          CURRENT_DART=${{ steps.install-flutter.outputs.dart-version }}
 
           if [ "$(printf '%s\n' "$REQUIRED_DART" "$CURRENT_DART" | sort -V | head -n1)" != "$REQUIRED_DART" ]; then
             echo "::error::Dart SDK $CURRENT_DART < required $REQUIRED_DART"
@@ -81,19 +106,17 @@ jobs:
   android:
     name: Android Build
     needs: setup
-    if: ${{ needs.setup.outputs.valid == 'true' }}
+    if: ${{ needs.setup.outputs.setup-complete == 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ needs.setup.outputs.flutter-version }}
-          channel: stable
-          cache: true
-          cache-key: flutter-${{ needs.setup.outputs.flutter-version }}-${{ env.BUILD_CACHE_KEY }}
+      - name: Setup Flutter from previous step
+        run: |
+          echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
+          flutter --version
 
       - name: Set up JDK 17
         uses: actions/setup-java@v3
@@ -120,6 +143,9 @@ jobs:
           flutter pub upgrade
           flutter pub get
 
+      - name: Run Flutter Doctor
+        run: flutter doctor -v
+
       - name: Run Flutter Analyzer
         working-directory: ${{ env.PROJECT_DIR }}
         run: flutter analyze
@@ -140,19 +166,17 @@ jobs:
   ios:
     name: iOS Build
     needs: setup
-    if: ${{ needs.setup.outputs.valid == 'true' }}
+    if: ${{ needs.setup.outputs.setup-complete == 'true' }}
     runs-on: macos-latest
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ needs.setup.outputs.flutter-version }}
-          channel: stable
-          cache: true
-          cache-key: flutter-${{ needs.setup.outputs.flutter-version }}-${{ env.BUILD_CACHE_KEY }}
+      - name: Setup Flutter from previous step
+        run: |
+          echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
+          flutter --version
 
       - name: Install CocoaPods
         run: |
@@ -179,6 +203,7 @@ jobs:
           cd ios && pod install --repo-update
 
       - name: Set up Code Signing
+        if: ${{ github.event.inputs.build-type == 'release' || github.event_name == 'push' }}
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
           P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
