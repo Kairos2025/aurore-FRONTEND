@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       build-type:
-        description: 'Build type'
+        description: 'Build type (debug, release, or profile)'
         required: true
         default: 'release'
         type: choice
@@ -71,17 +71,26 @@ jobs:
             echo "valid=false" >> $GITHUB_OUTPUT
             exit 1
           fi
-          # Extract Dart SDK constraint (e.g., '>=3.5.0 <4.0.0' or '=3.5.0')
+          # Extract Dart SDK constraint (e.g., '=3.5.0' or '>=3.5.0 <4.0.0')
           REQUIRED_DART=$(grep 'sdk:' pubspec.yaml | sed 's/.*sdk: *//; s/[ \t]*$//' | tr -d "'\"")
           CURRENT_DART=${{ steps.verify-flutter.outputs.dart-version }}
           echo "Required Dart: $REQUIRED_DART"
           echo "Current Dart: $CURRENT_DART"
-          # Handle exact version (=3.5.0) or range (>=3.5.0 <4.0.0)
-          dart --version
-          if ! dart run --enable-asserts -e "import 'package:pubspec_parse/pubspec_parse.dart'; void main() { var pubspec = Pubspec.parse('environment: {sdk: \"'$REQUIRED_DART'\"}'); assert(pubspec.sdkConstraint!.allows(Version.parse('$CURRENT_DART'))); }" >/dev/null 2>&1; then
-            echo "::error::Dart SDK $CURRENT_DART does not satisfy required $REQUIRED_DART"
-            echo "valid=false" >> $GITHUB_OUTPUT
-            exit 1
+          # Normalize constraint for comparison
+          if [[ "$REQUIRED_DART" == "= "* ]]; then
+            REQUIRED_DART_CLEAN=$(echo "$REQUIRED_DART" | sed 's/^= *//')
+            if [ "$CURRENT_DART" != "$REQUIRED_DART_CLEAN" ]; then
+              echo "::error::Dart SDK $CURRENT_DART does not satisfy required $REQUIRED_DART"
+              echo "valid=false" >> $GITHUB_OUTPUT
+              exit 1
+            fi
+          else
+            # Handle range constraints (e.g., '>=3.5.0 <4.0.0')
+            dpkg --compare-versions "$CURRENT_DART" "$REQUIRED_DART" || {
+              echo "::error::Dart SDK $CURRENT_DART does not satisfy required $REQUIRED_DART"
+              echo "valid=false" >> $GITHUB_OUTPUT
+              exit 1
+            }
           fi
           echo "valid=true" >> $GITHUB_OUTPUT
 
