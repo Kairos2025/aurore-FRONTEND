@@ -21,6 +21,7 @@ env:
   FLUTTER_VERSION: '3.24.0'  # Includes Dart 3.5.0
   PROJECT_DIR: 'aurore_frontend'
   BUILD_CACHE_KEY: ${{ github.run_id }}-${{ github.run_attempt }}
+  VERSION_OFFSET: 1000  # Base offset for build number
 
 jobs:
   setup:
@@ -29,10 +30,13 @@ jobs:
     outputs:
       setup-complete: ${{ steps.validate.outputs.valid }}
       flutter-version: ${{ steps.install-flutter.outputs.flutter-version }}
-      dart-version: ${{ steps.install-flutter.outputs.dart-version }}
+      dart-version: ${{ steps.verify-flutter.outputs.dart-version }}
+      build-number: ${{ steps.set-build-number.outputs.build-number }}
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for commit count
 
       - name: Cache Flutter SDK
         uses: actions/cache@v4
@@ -62,6 +66,14 @@ jobs:
           echo "dart-version=$DART_VER" >> $GITHUB_OUTPUT
           echo "Installed Flutter $FLUTTER_VER with Dart $DART_VER"
 
+      - name: Calculate Build Number
+        id: set-build-number
+        run: |
+          COMMIT_COUNT=$(git rev-list --count HEAD)
+          BUILD_NUMBER=$((COMMIT_COUNT + ${{ env.VERSION_OFFSET }}))
+          echo "build-number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
+          echo "Build number set to $BUILD_NUMBER"
+
       - name: Validate Environment
         id: validate
         working-directory: ${{ env.PROJECT_DIR }}
@@ -76,7 +88,7 @@ jobs:
           CURRENT_DART=${{ steps.verify-flutter.outputs.dart-version }}
           echo "Required Dart: $REQUIRED_DART"
           echo "Current Dart: $CURRENT_DART"
-          # Normalize constraint for comparison
+          # Handle exact version (=3.5.0) and ranges
           if [[ "$REQUIRED_DART" == "= "* ]]; then
             REQUIRED_DART_CLEAN=$(echo "$REQUIRED_DART" | sed 's/^= *//')
             if [ "$CURRENT_DART" != "$REQUIRED_DART_CLEAN" ]; then
@@ -85,7 +97,6 @@ jobs:
               exit 1
             fi
           else
-            # Handle range constraints (e.g., '>=3.5.0 <4.0.0')
             dpkg --compare-versions "$CURRENT_DART" "$REQUIRED_DART" || {
               echo "::error::Dart SDK $CURRENT_DART does not satisfy required $REQUIRED_DART"
               echo "valid=false" >> $GITHUB_OUTPUT
@@ -150,6 +161,7 @@ jobs:
         run: |
           flutter build apk --${{ github.event.inputs.build-type || 'release' }} \
             --dart-define=APP_ENV=${{ github.event.inputs.build-type || 'release' }} \
+            --build-number=${{ needs.setup.outputs.build-number }} \
             --verbose
 
       - name: Upload APK Artifact
@@ -231,6 +243,7 @@ jobs:
         run: |
           flutter build ipa --${{ github.event.inputs.build-type || 'release' }} \
             --dart-define=APP_ENV=${{ github.event.inputs.build-type || 'release' }} \
+            --build-number=${{ needs.setup.outputs.build-number }} \
             --export-options-plist=ios/ExportOptions.plist \
             --verbose
 
