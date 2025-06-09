@@ -18,7 +18,7 @@ on:
           - profile
 
 env:
-  FLUTTER_VERSION: '3.24.0'  # Updated to include Dart >=3.5.0
+  FLUTTER_VERSION: '3.24.0'  # Includes Dart 3.5.0
   PROJECT_DIR: 'aurore_frontend'
   BUILD_CACHE_KEY: ${{ github.run_id }}-${{ github.run_attempt }}
 
@@ -71,10 +71,15 @@ jobs:
             echo "valid=false" >> $GITHUB_OUTPUT
             exit 1
           fi
-          REQUIRED_DART=$(grep 'sdk:' pubspec.yaml | awk '{print $2}' | tr -d "'\"" | cut -c2-)
+          # Extract Dart SDK constraint (e.g., '>=3.5.0 <4.0.0' or '=3.5.0')
+          REQUIRED_DART=$(grep 'sdk:' pubspec.yaml | sed 's/.*sdk: *//; s/[ \t]*$//' | tr -d "'\"")
           CURRENT_DART=${{ steps.verify-flutter.outputs.dart-version }}
-          if [ "$(printf '%s\n' "$REQUIRED_DART" "$CURRENT_DART" | sort -V | head -n1)" != "$REQUIRED_DART" ]; then
-            echo "::error::Dart SDK $CURRENT_DART < required $REQUIRED_DART"
+          echo "Required Dart: $REQUIRED_DART"
+          echo "Current Dart: $CURRENT_DART"
+          # Handle exact version (=3.5.0) or range (>=3.5.0 <4.0.0)
+          dart --version
+          if ! dart run --enable-asserts -e "import 'package:pubspec_parse/pubspec_parse.dart'; void main() { var pubspec = Pubspec.parse('environment: {sdk: \"'$REQUIRED_DART'\"}'); assert(pubspec.sdkConstraint!.allows(Version.parse('$CURRENT_DART'))); }" >/dev/null 2>&1; then
+            echo "::error::Dart SDK $CURRENT_DART does not satisfy required $REQUIRED_DART"
             echo "valid=false" >> $GITHUB_OUTPUT
             exit 1
           fi
