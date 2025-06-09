@@ -18,7 +18,7 @@ on:
           - profile
 
 env:
-  FLUTTER_VERSION: '3.22.1'  # Verified existing version
+  FLUTTER_VERSION: '3.24.0'  # Updated to include Dart >=3.5.0
   PROJECT_DIR: 'aurore_frontend'
   BUILD_CACHE_KEY: ${{ github.run_id }}-${{ github.run_attempt }}
 
