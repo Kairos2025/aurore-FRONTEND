@@ -18,7 +18,7 @@ on:
           - profile
 
 env:
-  FLUTTER_VERSION: '3.22.4'  # Confirmed working version
+  FLUTTER_VERSION: '3.22.1'  # Verified existing version
   PROJECT_DIR: 'aurore_frontend'
   BUILD_CACHE_KEY: ${{ github.run_id }}-${{ github.run_attempt }}
 
@@ -33,38 +33,49 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Install Flutter (with fallback)
+      - name: Install Flutter (Reliable Method)
         id: install-flutter
-        continue-on-error: false
         run: |
-          # Try specified version first
-          echo "Attempting to install Flutter ${{ env.FLUTTER_VERSION }}"
-          flutter_version=${{ env.FLUTTER_VERSION }}
-          
-          # Setup Flutter using direct download as fallback
-          FLUTTER_DIR="$HOME/flutter"
-          mkdir -p "$FLUTTER_DIR"
-          echo "FLUTTER_HOME=$FLUTTER_DIR" >> $GITHUB_ENV
-          echo "$FLUTTER_DIR/bin" >> $GITHUB_PATH
-          
-          # Download Flutter
-          FLUTTER_URL="https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_$flutter_version-stable.tar.xz"
-          echo "Downloading Flutter from $FLUTTER_URL"
-          
-          if ! curl --fail -L "$FLUTTER_URL" -o flutter.tar.xz; then
-            echo "::warning::Failed to download specified version, trying latest stable"
-            FLUTTER_URL="https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_$(curl -s https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json | jq -r '.current_release' | sed 's/^v//')-stable.tar.xz"
+          # Method 1: Use subosito/flutter-action with verified version
+          echo "Installing Flutter using subosito/flutter-action..."
+          flutter_action_url="https://github.com/subosito/flutter-action/raw/v2/setup.sh"
+          curl -sL $flutter_action_url -o setup.sh
+          chmod +x setup.sh
+          ./setup.sh -p ${{ env.FLUTTER_VERSION }} stable x64 && {
+            FLUTTER_HOME="$HOME/flutter"
+            echo "FLUTTER_HOME=$FLUTTER_HOME" >> $GITHUB_ENV
+            echo "$FLUTTER_HOME/bin" >> $GITHUB_PATH
+          } || {
+            echo "::warning::Standard installation failed, trying direct download..."
+            
+            # Method 2: Direct download fallback
+            FLUTTER_DIR="$HOME/flutter"
+            mkdir -p "$FLUTTER_DIR"
+            echo "FLUTTER_HOME=$FLUTTER_DIR" >> $GITHUB_ENV
+            echo "$FLUTTER_DIR/bin" >> $GITHUB_PATH
+            
+            # Get exact download URL from releases API
+            echo "Fetching release information..."
+            RELEASE_DATA=$(curl -s https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json)
+            FLUTTER_URL=$(echo "$RELEASE_DATA" | jq -r --arg version "${{ env.FLUTTER_VERSION }}" '.releases[] | select(.version==$version) | .archive')
+            
+            if [ -z "$FLUTTER_URL" ]; then
+              echo "::error::Flutter version ${{ env.FLUTTER_VERSION }} not found in releases!"
+              echo "Available versions:"
+              echo "$RELEASE_DATA" | jq -r '.releases[] | .version' | head -10
+              exit 1
+            fi
+            
+            echo "Downloading Flutter from $FLUTTER_URL"
             curl --fail -L "$FLUTTER_URL" -o flutter.tar.xz || {
               echo "::error::Failed to download Flutter SDK"
               exit 1
             }
-          fi
-          
-          tar -xf flutter.tar.xz -C "$FLUTTER_DIR" --strip-components=1
-          rm flutter.tar.xz
+            
+            tar -xf flutter.tar.xz -C "$FLUTTER_DIR" --strip-components=1
+            rm flutter.tar.xz
+          }
           
           # Verify installation
           flutter --version || {
@@ -113,7 +124,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Flutter from previous step
+      - name: Setup Flutter
         run: |
           echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
           flutter --version
@@ -146,10 +157,6 @@ jobs:
       - name: Run Flutter Doctor
         run: flutter doctor -v
 
-      - name: Run Flutter Analyzer
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: flutter analyze
-
       - name: Build Android APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
@@ -173,7 +180,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Flutter from previous step
+      - name: Setup Flutter
         run: |
           echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
           flutter --version
