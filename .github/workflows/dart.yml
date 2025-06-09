@@ -34,59 +34,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Flutter (Reliable Method)
+      - name: Cache Flutter SDK
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.tool_cache }}/flutter
+          key: flutter-sdk-${{ env.FLUTTER_VERSION }}-stable
+          restore-keys: flutter-sdk-
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
         id: install-flutter
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          architecture: x64
+          cache: true
+          cache-key: flutter-sdk-${{ env.FLUTTER_VERSION }}-stable
+        continue-on-error: false
+
+      - name: Verify Flutter Installation
+        id: verify-flutter
         run: |
-          # Method 1: Use subosito/flutter-action with verified version
-          echo "Installing Flutter using subosito/flutter-action..."
-          flutter_action_url="https://github.com/subosito/flutter-action/raw/v2/setup.sh"
-          curl -sL $flutter_action_url -o setup.sh
-          chmod +x setup.sh
-          ./setup.sh -p ${{ env.FLUTTER_VERSION }} stable x64 && {
-            FLUTTER_HOME="$HOME/flutter"
-            echo "FLUTTER_HOME=$FLUTTER_HOME" >> $GITHUB_ENV
-            echo "$FLUTTER_HOME/bin" >> $GITHUB_PATH
-          } || {
-            echo "::warning::Standard installation failed, trying direct download..."
-            
-            # Method 2: Direct download fallback
-            FLUTTER_DIR="$HOME/flutter"
-            mkdir -p "$FLUTTER_DIR"
-            echo "FLUTTER_HOME=$FLUTTER_DIR" >> $GITHUB_ENV
-            echo "$FLUTTER_DIR/bin" >> $GITHUB_PATH
-            
-            # Get exact download URL from releases API
-            echo "Fetching release information..."
-            RELEASE_DATA=$(curl -s https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json)
-            FLUTTER_URL=$(echo "$RELEASE_DATA" | jq -r --arg version "${{ env.FLUTTER_VERSION }}" '.releases[] | select(.version==$version) | .archive')
-            
-            if [ -z "$FLUTTER_URL" ]; then
-              echo "::error::Flutter version ${{ env.FLUTTER_VERSION }} not found in releases!"
-              echo "Available versions:"
-              echo "$RELEASE_DATA" | jq -r '.releases[] | .version' | head -10
-              exit 1
-            fi
-            
-            echo "Downloading Flutter from $FLUTTER_URL"
-            curl --fail -L "$FLUTTER_URL" -o flutter.tar.xz || {
-              echo "::error::Failed to download Flutter SDK"
-              exit 1
-            }
-            
-            tar -xf flutter.tar.xz -C "$FLUTTER_DIR" --strip-components=1
-            rm flutter.tar.xz
-          }
-          
-          # Verify installation
-          flutter --version || {
-            echo "::error::Flutter installation failed"
-            exit 1
-          }
-          
-          # Get versions
+          flutter --version || { echo "::error::Flutter installation failed"; exit 1; }
           FLUTTER_VER=$(flutter --version | awk '/Flutter/{print $2}')
           DART_VER=$(dart --version | awk '{print $4}')
-          
           echo "flutter-version=$FLUTTER_VER" >> $GITHUB_OUTPUT
           echo "dart-version=$DART_VER" >> $GITHUB_OUTPUT
           echo "Installed Flutter $FLUTTER_VER with Dart $DART_VER"
@@ -95,23 +66,18 @@ jobs:
         id: validate
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          # Verify project structure
           if [ ! -f "pubspec.yaml" ]; then
             echo "::error::pubspec.yaml not found in $PROJECT_DIR!"
             echo "valid=false" >> $GITHUB_OUTPUT
             exit 1
           fi
-
-          # Verify Dart version
           REQUIRED_DART=$(grep 'sdk:' pubspec.yaml | awk '{print $2}' | tr -d "'\"" | cut -c2-)
-          CURRENT_DART=${{ steps.install-flutter.outputs.dart-version }}
-
+          CURRENT_DART=${{ steps.verify-flutter.outputs.dart-version }}
           if [ "$(printf '%s\n' "$REQUIRED_DART" "$CURRENT_DART" | sort -V | head -n1)" != "$REQUIRED_DART" ]; then
             echo "::error::Dart SDK $CURRENT_DART < required $REQUIRED_DART"
             echo "valid=false" >> $GITHUB_OUTPUT
             exit 1
           fi
-
           echo "valid=true" >> $GITHUB_OUTPUT
 
   android:
@@ -124,35 +90,43 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Cache Flutter SDK
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.tool_cache }}/flutter
+          key: flutter-sdk-${{ env.FLUTTER_VERSION }}-stable
+          restore-keys: flutter-sdk-
+
       - name: Setup Flutter
-        run: |
-          echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
-          flutter --version
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          architecture: x64
+          cache: true
+          cache-key: flutter-sdk-${{ env.FLUTTER_VERSION }}-stable
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
           cache: 'gradle'
 
       - name: Restore Dependency Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ${{ env.PROJECT_DIR }}/.dart_tool
             ${{ env.PROJECT_DIR }}/.flutter-plugins
             ${{ env.PROJECT_DIR }}/.flutter-plugins-dependencies
             ${{ env.PROJECT_DIR }}/.pub-cache
-          key: flutter-deps-${{ env.BUILD_CACHE_KEY }}
-          restore-keys: |
-            flutter-deps-
+          key: flutter-deps-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: flutter-deps-
 
       - name: Install Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          flutter pub upgrade
-          flutter pub get
+        run: flutter pub get
 
       - name: Run Flutter Doctor
         run: flutter doctor -v
@@ -169,6 +143,7 @@ jobs:
         with:
           name: android-${{ github.event.inputs.build-type || 'release' }}-apk
           path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-*.apk
+          retention-days: 7
 
   ios:
     name: iOS Build
@@ -180,10 +155,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Cache Flutter SDK
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.tool_cache }}/flutter
+          key: flutter-sdk-${{ env.FLUTTER_VERSION }}-stable
+          restore-keys: flutter-sdk-
+
       - name: Setup Flutter
-        run: |
-          echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
-          flutter --version
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          architecture: x64
+          cache: true
+          cache-key: flutter-sdk-${{ env.FLUTTER_VERSION }}-stable
 
       - name: Install CocoaPods
         run: |
@@ -191,7 +177,7 @@ jobs:
           pod setup
 
       - name: Restore Dependency Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ${{ env.PROJECT_DIR }}/.dart_tool
@@ -199,15 +185,14 @@ jobs:
             ${{ env.PROJECT_DIR }}/.flutter-plugins-dependencies
             ${{ env.PROJECT_DIR }}/.pub-cache
             ${{ env.PROJECT_DIR }}/ios/Pods
-          key: flutter-ios-deps-${{ env.BUILD_CACHE_KEY }}
-          restore-keys: |
-            flutter-ios-deps-
+          key: flutter-ios-deps-${{ hashFiles('**/pubspec.lock', '**/Podfile.lock') }}
+          restore-keys: flutter-ios-deps-
 
       - name: Install Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           flutter pub get
-          cd ios && pod install --repo-update
+          cd ios && pod install
 
       - name: Set up Code Signing
         if: ${{ github.event.inputs.build-type == 'release' || github.event_name == 'push' }}
@@ -217,21 +202,14 @@ jobs:
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
           PROFILE_BASE64: ${{ secrets.PROFILE_BASE64 }}
         run: |
-          # Create keychain
           security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-
-          # Import certificate
           echo "$BUILD_CERTIFICATE_BASE64" | base64 --decode > build_certificate.p12
           security import build_certificate.p12 -k build.keychain -P "$P12_PASSWORD" -T /usr/bin/codesign
-
-          # Import provisioning profile
           echo "$PROFILE_BASE64" | base64 --decode > profile.mobileprovision
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
-          rm profile.mobileprovision
-
           security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" build.keychain
 
       - name: Build iOS IPA
@@ -247,3 +225,4 @@ jobs:
         with:
           name: ios-${{ github.event.inputs.build-type || 'release' }}-ipa
           path: ${{ env.PROJECT_DIR }}/build/ios/ipa/*.ipa
+          retention-days: 7
