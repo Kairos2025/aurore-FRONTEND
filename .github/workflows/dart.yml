@@ -88,10 +88,24 @@ jobs:
           CURRENT_DART=${{ steps.verify-flutter.outputs.dart-version }}
           echo "Required Dart: $REQUIRED_DART"
           echo "Current Dart: $CURRENT_DART"
-          # Use Dart to validate SDK constraint
+          # Create Dart script for validation
           echo "Checking Dart SDK compatibility..."
+          cat > validate_sdk.dart << 'EOF'
+          import 'package:pubspec_parse/pubspec_parse.dart';
+          import 'package:pub_semver/pub_semver.dart';
+          void main() {
+            var constraint = VersionConstraint.parse('$REQUIRED_DART');
+            var version = Version.parse('$CURRENT_DART');
+            if (!constraint.allows(version)) {
+              print('Dart SDK $CURRENT_DART does not satisfy $REQUIRED_DART');
+              throw Exception('Version check failed');
+            }
+          }
+          EOF
+          # Add pubspec_parse dependency
           dart pub add pubspec_parse --dev > /dev/null
-          if ! dart run --enable-asserts -e "import 'package:pubspec_parse/pubspec_parse.dart'; import 'package:pub_semver/pub_semver.dart'; void main() { var constraint = VersionConstraint.parse('$REQUIRED_DART'); var version = Version.parse('$CURRENT_DART'); assert(constraint.allows(version), 'Dart SDK $CURRENT_DART does not satisfy $REQUIRED_DART'); }" > /dev/null; then
+          # Run validation script
+          if ! dart run validate_sdk.dart; then
             echo "::error::Dart SDK $CURRENT_DART does not satisfy required $REQUIRED_DART"
             echo "valid=false" >> $GITHUB_OUTPUT
             exit 1
