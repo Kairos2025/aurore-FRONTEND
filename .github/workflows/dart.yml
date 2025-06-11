@@ -94,11 +94,11 @@ jobs:
           import 'package:pubspec_parse/pubspec_parse.dart';
           import 'package:pub_semver/pub_semver.dart';
           void main() {
-            var constraint = VersionConstraint.parse('$REQUIRED_DART');
-            var version = Version.parse('$CURRENT_DART');
+            var constraint = VersionConstraint.parse("${REQUIRED_DART}");
+            var version = Version.parse("${CURRENT_DART}");
             if (!constraint.allows(version)) {
-              print('Dart SDK $CURRENT_DART does not satisfy $REQUIRED_DART');
-              throw Exception('Version check failed');
+              print("Dart SDK ${CURRENT_DART} does not satisfy ${REQUIRED_DART}");
+              throw Exception("Version check failed");
             }
           }
           EOF
