@@ -90,7 +90,7 @@ jobs:
           echo "Current Dart: $CURRENT_DART"
           # Create Dart script for validation
           echo "Checking Dart SDK compatibility..."
-          cat > validate_sdk.dart << 'EOF'
+          cat > validate_sdk.dart << EOF
           import 'package:pubspec_parse/pubspec_parse.dart';
           import 'package:pub_semver/pub_semver.dart';
           void main() {
