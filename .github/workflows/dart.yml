@@ -28,10 +28,10 @@ jobs:
     name: Setup and Validate
     runs-on: ubuntu-latest
     outputs:
-      setup-complete: ${{ steps.validate.outputs.valid }}
-      flutter-version: ${{ steps.install-flutter.outputs.flutter-version }}
-      dart-version: ${{ steps.verify-flutter.outputs.dart-version }}
-      build-number: ${{ steps.set-build-number.outputs.build-number }}
+      setup-complete: ${{ steps.validate.outputs.setup_complete }}
+      flutter-version: ${{ steps.install-flutter.outputs.flutter_version }}
+      dart-version: ${{ steps.verify-flutter.outputs.dart_version }}
+      build-number: ${{ steps.build-number.outputs.build_number }}
 
     steps:
       - uses: actions/checkout@v4
@@ -59,19 +59,19 @@ jobs:
       - name: Verify Flutter Installation
         id: verify-flutter
         run: |
-          flutter --version > /dev/null || { echo "::error::Flutter installation failed"; exit 1; }
-          FLUTTER_VER=$(flutter --version | awk '/Flutter/{print $2}')
-          DART_VER=$(dart --version | awk '{print $4}')
-          echo "flutter-version=$FLUTTER_VER" >> $GITHUB_OUTPUT
-          echo "dart-version=$DART_VER" >> $GITHUB_OUTPUT
-          echo "Installed Flutter $FLUTTER_VER with Dart $DART_VER"
+          flutter --version >/dev/null || { echo "::error::Flutter installation failed"; exit 1; }
+          FLUTTER_VERSION=$(flutter --version | awk '/Flutter/{print $2}')
+          DART_VERSION=$(dart --version 2>/dev/null | awk '{print $4}')
+          echo "flutter_version=$FLUTTER_VERSION" >> "$GITHUB_OUTPUT"
+          echo "dart_version=$DART_VERSION" >> "$GITHUB_OUTPUT"
+          echo "Installed Flutter $FLUTTER_VERSION with Dart $DART_VERSION"
 
       - name: Calculate Build Number
-        id: set-build-number
+        id: build-number
         run: |
           COMMIT_COUNT=$(git rev-list --count HEAD)
           BUILD_NUMBER=$((COMMIT_COUNT + ${{ env.VERSION_OFFSET }}))
-          echo "build-number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
+          echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
           echo "Build number set to $BUILD_NUMBER"
 
       - name: Validate Environment
@@ -80,42 +80,35 @@ jobs:
         run: |
           if [ ! -f "pubspec.yaml" ]; then
             echo "::error::pubspec.yaml not found in $PROJECT_DIR!"
-            echo "valid=false" >> $GITHUB_OUTPUT
+            echo "setup_complete=false" >> "$GITHUB_OUTPUT"
             exit 1
           fi
-          # Extract Dart SDK constraint (e.g., '>=3.5.0 <4.0.0' or '=3.5.0')
-          REQUIRED_DART=$(grep 'sdk:' pubspec.yaml | sed 's/.*sdk: *//; s/[ \t]*$//' | tr -d "'\"")
-          CURRENT_DART=${{ steps.verify-flutter.outputs.dart-version }}
+          # Extract Dart SDK constraint (e.g., '>=3.5.0 <4.0.0')
+          REQUIRED_DART=$(grep 'sdk:' pubspec.yaml | sed 's/.*sdk: *//; s/[ \t]*$//; s/[\"\']//g')
+          CURRENT_DART=${{ steps.verify-flutter.outputs.dart_version }}
           echo "Required Dart: $REQUIRED_DART"
           echo "Current Dart: $CURRENT_DART"
-          # Create temporary directory for script
-          mkdir -p tmp
-          # Create Dart script for validation
-          echo "Checking Dart SDK compatibility..."
-          echo 'import "package:pubspec_parse/pubspec_parse.dart";' > tmp/validate_sdk.dart
-          echo 'import "package:pub_semver/pub_semver.dart";' >> tmp/validate_sdk.dart
-          echo 'void main() {' >> tmp/validate_sdk.dart
-          echo "  var constraint = VersionConstraint.parse(\"$REQUIRED_DART\");" >> tmp/validate_sdk.dart
-          echo "  var version = Version.parse(\"$CURRENT_DART\");" >> tmp/validate_sdk.dart
-          echo '  if (!constraint.allows(version)) {' >> tmp/validate_sdk.dart
-          echo "    print(\"Dart SDK $CURRENT_DART does not satisfy $REQUIRED_DART\");" >> tmp/validate_sdk.dart
-          echo '    throw Exception("Version check failed");' >> tmp/validate_sdk.dart
-          echo '  }' >> tmp/validate_sdk.dart
-          echo '}' >> tmp/validate_sdk.dart
-          # Add pubspec_parse dependency
-          dart pub add pubspec_parse --dev > /dev/null
-          # Run validation script
-          if ! dart run tmp/validate_sdk.dart; then
-            echo "::error::Dart SDK $CURRENT_DART does not satisfy required $REQUIRED_DART"
-            echo "valid=false" >> $GITHUB_OUTPUT
+          # Parse version range (e.g., '>=3.5.0 <4.0.0')
+          MIN_VERSION=$(echo "$REQUIRED_DART" | grep -o '>=.*' | sed 's/>=//; s/ *<.*//')
+          MAX_VERSION=$(echo "$REQUIRED_DART" | grep -o '<.*' | sed 's/<//')
+          if [ -z "$MIN_VERSION" ] || [ -z "$MAX_VERSION" ]; then
+            echo "::error::Failed to parse version range from $REQUIRED_DART"
+            echo "setup_complete=false" >> "$GITHUB_OUTPUT"
             exit 1
           fi
-          echo "valid=true" >> $GITHUB_OUTPUT
+          echo "Checking Dart SDK compatibility..."
+          # Validate using dpkg --compare-versions
+          if ! dpkg --compare-versions "$CURRENT_DART" ge "$MIN_VERSION" || ! dpkg --compare-versions "$CURRENT_DART" lt "$MAX_VERSION"; then
+            echo "::error::Dart SDK $CURRENT_DART does not satisfy required $REQUIRED_DART"
+            echo "setup_complete=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "setup_complete=true" >> "$GITHUB_OUTPUT"
 
   android:
     name: Android Build
     needs: setup
-    if: ${{ needs.setup.outputs.setup-complete == 'true' }}
+    if: ${{ needs.setup.outputs.setup_complete == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -168,7 +161,7 @@ jobs:
         run: |
           flutter build apk --${{ github.event.inputs.build-type || 'release' }} \
             --dart-define=APP_ENV=${{ github.event.inputs.build-type || 'release' }} \
-            --build-number=${{ needs.setup.outputs.build-number }} \
+            --build-number=${{ needs.setup.outputs.build_number }} \
             --verbose
 
       - name: Upload APK Artifact
@@ -181,7 +174,7 @@ jobs:
   ios:
     name: iOS Build
     needs: setup
-    if: ${{ needs.setup.outputs.setup-complete == 'true' }}
+    if: ${{ needs.setup.outputs.setup_complete == 'true' }}
     runs-on: macos-latest
     timeout-minutes: 45
 
@@ -250,7 +243,7 @@ jobs:
         run: |
           flutter build ipa --${{ github.event.inputs.build-type || 'release' }} \
             --dart-define=APP_ENV=${{ github.event.inputs.build-type || 'release' }} \
-            --build-number=${{ needs.setup.outputs.build-number }} \
+            --build-number=${{ needs.setup.outputs.build_number }} \
             --export-options-plist=ios/ExportOptions.plist \
             --verbose
 
