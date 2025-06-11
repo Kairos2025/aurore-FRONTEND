@@ -59,7 +59,7 @@ jobs:
       - name: Verify Flutter Installation
         id: verify-flutter
         run: |
-          flutter --version || { echo "::error::Flutter installation failed"; exit 1; }
+          flutter --version > /dev/null || { echo "::error::Flutter installation failed"; exit 1; }
           FLUTTER_VER=$(flutter --version | awk '/Flutter/{print $2}')
           DART_VER=$(dart --version | awk '{print $4}')
           echo "flutter-version=$FLUTTER_VER" >> $GITHUB_OUTPUT
@@ -88,24 +88,24 @@ jobs:
           CURRENT_DART=${{ steps.verify-flutter.outputs.dart-version }}
           echo "Required Dart: $REQUIRED_DART"
           echo "Current Dart: $CURRENT_DART"
+          # Create temporary directory for script
+          mkdir -p tmp
           # Create Dart script for validation
           echo "Checking Dart SDK compatibility..."
-          cat > validate_sdk.dart << EOF
-          import 'package:pubspec_parse/pubspec_parse.dart';
-          import 'package:pub_semver/pub_semver.dart';
-          void main() {
-            var constraint = VersionConstraint.parse("${REQUIRED_DART}");
-            var version = Version.parse("${CURRENT_DART}");
-            if (!constraint.allows(version)) {
-              print("Dart SDK ${CURRENT_DART} does not satisfy ${REQUIRED_DART}");
-              throw Exception("Version check failed");
-            }
-          }
-          EOF
+          echo 'import "package:pubspec_parse/pubspec_parse.dart";' > tmp/validate_sdk.dart
+          echo 'import "package:pub_semver/pub_semver.dart";' >> tmp/validate_sdk.dart
+          echo 'void main() {' >> tmp/validate_sdk.dart
+          echo "  var constraint = VersionConstraint.parse(\"$REQUIRED_DART\");" >> tmp/validate_sdk.dart
+          echo "  var version = Version.parse(\"$CURRENT_DART\");" >> tmp/validate_sdk.dart
+          echo '  if (!constraint.allows(version)) {' >> tmp/validate_sdk.dart
+          echo "    print(\"Dart SDK $CURRENT_DART does not satisfy $REQUIRED_DART\");" >> tmp/validate_sdk.dart
+          echo '    throw Exception("Version check failed");' >> tmp/validate_sdk.dart
+          echo '  }' >> tmp/validate_sdk.dart
+          echo '}' >> tmp/validate_sdk.dart
           # Add pubspec_parse dependency
           dart pub add pubspec_parse --dev > /dev/null
           # Run validation script
-          if ! dart run validate_sdk.dart; then
+          if ! dart run tmp/validate_sdk.dart; then
             echo "::error::Dart SDK $CURRENT_DART does not satisfy required $REQUIRED_DART"
             echo "valid=false" >> $GITHUB_OUTPUT
             exit 1
