@@ -1,138 +1,342 @@
-name: Build Flutter APK and IPA
+name: Flutter Build Pipeline
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
-    branches:
-      - main
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      build-type:
+        description: 'Build type (debug, release, or profile)'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - debug
+          - release
+          - profile
+
+env:
+  FLUTTER_VERSION: '3.24.0'  # Includes Dart 3.5.0
+  PROJECT_DIR: 'aurore_frontend'
+  BUILD_CACHE_KEY: ${{ github.run_id }}-${{ github.run_attempt }}
+  VERSION_OFFSET: 1000  # Base offset for build number
 
 jobs:
-  build:
-    runs-on: macos-latest
+  setup:
+    name: Setup and Validate
+    runs-on: ubuntu-latest
+    outputs:
+      setup-complete: ${{ steps.validate.outputs.setup_complete }}
+      flutter-version: ${{ steps.install-flutter.outputs.flutter_version }}
+      dart-version: ${{ steps.verify-flutter.outputs.dart_version }}
+      build-number: ${{ steps.build-number.outputs.build_number }}
 
     steps:
-      # Checkout the repository
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      # Log workflow file for debugging
-      - name: Log workflow file
-        run: cat .github/workflows/build.yml
-
-      # Set up JDK
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
         with:
-          distribution: 'temurin'
-          java-version: '21'
+          fetch-depth: 0  # Full history for commit count
 
-      # Cache Flutter SDK
+      - name: Debug Workflow File
+        run: |
+          echo "Workflow file content:"
+          cat .github/workflows/flutter-build.yml || echo "Workflow file not found"
+
       - name: Cache Flutter SDK
         uses: actions/cache@v4
         with:
-          path: /Users/runner/hostedtoolcache/flutter
-          key: flutter-sdk-${{ runner.os }}-3.29.3
-          restore-keys: flutter-sdk-${{ runner.os }}-
+          path: ${{ runner.tool_cache }}/flutter
+          key: flutter-sdk-${{ env.FLUTTER_VERSION }}-stable
+          restore-keys: flutter-sdk-
 
-      # Set up Flutter
-      - name: Set up Flutter
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        id: install-flutter
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          architecture: x64
+          cache: true
+          cache-key: flutter-sdk-${{ env.FLUTTER_VERSION }}-stable
+        continue-on-error: false
+
+      - name: Verify Flutter Installation
+        id: verify-flutter
+        run: |
+          set -e
+          flutter --version >/dev/null || { echo "::error::Flutter installation failed"; exit 1; }
+          FLUTTER_VERSION=$(flutter --version | awk '/Flutter/{print $2}')
+          DART_VERSION=$(dart --version 2>/dev/null | awk '{print $4}')
+          echo "flutter_version=$FLUTTER_VERSION" >> "$GITHUB_OUTPUT"
+          echo "dart_version=$DART_VERSION" >> "$GITHUB_OUTPUT"
+          echo "Installed Flutter $FLUTTER_VERSION with Dart $DART_VERSION"
+
+      - name: Calculate Build Number
+        id: build-number
+        run: |
+          set -e
+          COMMIT_COUNT=$(git rev-list --count HEAD)
+          BUILD_NUMBER=$((COMMIT_COUNT + ${{ env.VERSION_OFFSET }}))
+          echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "Build number set to $BUILD_NUMBER"
+
+      - name: Validate Environment
+        id: validate
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -e
+          set -x
+          if [ ! -f "pubspec.yaml" ]; then
+            echo "::error::pubspec.yaml not found in $PWD"
+            echo "setup_complete=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          SDK_LINE=$(grep 'sdk:' pubspec.yaml || echo "sdk: not found")
+          echo "Raw SDK line: $SDK_LINE"
+          REQUIRED_DART=$(echo "$SDK_LINE" | sed 's/.*sdk: *//; s/[ \t]*$//; s/"//g; s/'\''//g' || echo "")
+          if [ -z "$REQUIRED_DART" ]; then
+            echo "::error::Failed to extract Dart SDK constraint from pubspec.yaml"
+            echo "setup_complete=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          CURRENT_DART=${{ steps.verify-flutter.outputs.dart_version }}
+          echo "Required Dart: $REQUIRED_DART"
+          echo "Current Dart: $CURRENT_DART"
+          MIN_VERSION=$(echo "$REQUIRED_DART" | grep -o '>=.*' | sed 's/>=//; s/ *<.*//' || echo "")
+          MAX_VERSION=$(echo "$REQUIRED_DART" | grep -o '<.*' | sed 's/<//' || echo "")
+          echo "Min Version: $MIN_VERSION"
+          echo "Max Version: $MAX_VERSION"
+          if [ -z "$MIN_VERSION" ] || [ -z "$MAX_VERSION" ]; then
+            echo "::error::Failed to parse version range from $REQUIRED_DART"
+            echo "setup_complete=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "Checking Dart SDK compatibility..."
+          if ! dpkg --compare-versions "$CURRENT_DART" ge "$MIN_VERSION" || ! dpkg --compare-versions "$CURRENT_DART" lt "$MAX_VERSION"; then
+            echo "::error::Dart SDK $CURRENT_DART does not satisfy required $REQUIRED_DART"
+            echo "setup_complete=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "setup_complete=true" >> "$GITHUB_OUTPUT"
+
+  android:
+    name: Android Build
+    needs: setup
+    if: ${{ needs.setup.outputs.setup_complete == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Flutter SDK
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.tool_cache }}/flutter
+          key: flutter-sdk-${{ env.FLUTTER_VERSION }}-stable
+          restore-keys: flutter-sdk-
+
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.29.3'
-          channel: 'stable'
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          architecture: x64
           cache: true
+          cache-key: flutter-sdk-${{ env.FLUTTER_VERSION }}-stable
 
-      # Cache Gradle dependencies
-      - name: Cache Gradle dependencies
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Debug Environment
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -x
+          echo "Java version:"
+          java -version
+          echo "Gradle version:"
+          ./gradlew --version || echo "Gradle not found"
+          echo "Flutter doctor:"
+          flutter doctor -v
+          echo "Project dir contents:"
+          ls -la
+          echo "Android dir contents:"
+          ls -la android/
+
+      - name: Restore Dependency Cache
         uses: actions/cache@v4
         with:
           path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: gradle-${{ runner.os }}-
+            ${{ env.PROJECT_DIR }}/.dart_tool
+            ${{ env.PROJECT_DIR }}/.flutter-plugins
+            ${{ env.PROJECT_DIR }}/.flutter-plugins-dependencies
+            ${{ env.PROJECT_DIR }}/.pub-cache
+          key: flutter-deps-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: flutter-deps-
 
-      # Install Android SDK command-line tools
-      - name: Install Android SDK command-line tools
+      - name: Install Dependencies
+        working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          echo "Installing Android SDK command-line tools"
-          sdkmanager --install "cmdline-tools;latest" --sdk_root=$ANDROID_HOME
-          ls -la $ANDROID_HOME/cmdline-tools || echo "Failed to install cmdline-tools"
+          set -e
+          flutter pub get || { echo "::error::Failed to install dependencies"; exit 1; }
 
-      # Accept Android SDK licenses
-      - name: Accept Android SDK licenses
-        run: yes | sdkmanager --licenses --sdk_root=$ANDROID_HOME
-
-      # Verify project directory
-      - name: Verify project directory
+      - name: Build Android APK
+        working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          ls -la aurore_frontend
-          test -f aurore_frontend/pubspec.yaml || echo "pubspec.yaml not found in aurore_frontend"
-        continue-on-error: true
+          set -e
+          set -x
+          flutter build apk --${{ github.event.inputs.build-type || 'release' }} \
+            --dart-define=APP_ENV=${{ github.event.inputs.build-type || 'release' }} \
+            --build-number=${{ needs.setup.outputs.build_number }} \
+            --verbose
+          echo "APK dir contents:"
+          ls -la build/app/outputs/flutter-apk/ || echo "APK directory not found"
 
-      # Navigate to project directory
-      - name: Navigate to project directory
-        run: cd aurore_frontend
-
-      # Get Flutter dependencies
-      - name: Get dependencies
-        run: flutter pub get
-        working-directory: aurore_frontend
-
-      # Fix dependency conflicts
-      - name: Update pubspec.yaml for dependency conflicts
+      - name: Verify APK
+        working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          sed -i '' 's/firebase_auth: ^6.3.0/firebase_auth: ^5.6.0/' pubspec.yaml
-          sed -i '' 's/material_color_utilities: ^0.12.0/material_color_utilities: ^0.11.1/' pubspec.yaml
-        working-directory: aurore_frontend
+          set -e
+          if ! ls build/app/outputs/flutter-apk/*.apk >/dev/null 2>&1; then
+            echo "::error::No APK found in build/app/outputs/flutter-apk/"
+            exit 1
+          fi
+          echo "APK(s) found:"
+          ls -l build/app/outputs/flutter-apk/*.apk
 
-      # Run flutter pub get again after dependency fixes
-      - name: Get dependencies after fixes
-        run: flutter pub get
-        working-directory: aurore_frontend
-
-      # Set NDK version
-      - name: Set NDK version
-        run: |
-          sed -i '' 's/ndkVersion.*/ndkVersion "27.0.12077973"/' android/app/build.gradle.kts
-        working-directory: aurore_frontend
-
-      # Build APK
-      - name: Build APK
-        run: flutter build apk --release --no-debug
-        working-directory: aurore_frontend
-        env:
-          FLUTTER_BUILD_MODE: release
-
-      # Build IPA
-      - name: Build IPA
-        run: flutter build ios --release --no-codesign --no-debug
-        working-directory: aurore_frontend
-        env:
-          FLUTTER_BUILD_MODE: release
-
-      # Upload APK artifact
-      - name: Upload APK
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-apk
-          path: aurore_frontend/build/app/outputs/flutter-apk/app-release.apk
+          name: android-${{ github.event.inputs.build-type || 'release' }}-apk
+          path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/*.apk
           retention-days: 7
+          if-no-files-found: error
 
-      # Upload IPA artifact
-      - name: Upload IPA
+  ios:
+    name: iOS Build
+    needs: setup
+    if: ${{ needs.setup.outputs.setup_complete == 'true' }}
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Flutter SDK
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.tool_cache }}/flutter
+          key: flutter-sdk-${{ env.FLUTTER_VERSION }}-stable
+          restore-keys: flutter-sdk-
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          architecture: x64
+          cache: true
+          cache-key: flutter-sdk-${{ env.FLUTTER_VERSION }}-stable
+
+      - name: Install CocoaPods
+        run: |
+          set -e
+          sudo gem install cocoapods
+          pod setup
+
+      - name: Debug Environment
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -x
+          echo "CocoaPods version:"
+          pod --version
+          echo "Flutter doctor:"
+          flutter doctor -v
+          echo "Project dir contents:"
+          ls -la
+          echo "iOS dir contents:"
+          ls -la ios/
+          if [ -f "ios/ExportOptions.plist" ]; then
+            echo "ExportOptions.plist found"
+          else
+            echo "::error::ExportOptions.plist not found"
+          fi
+
+      - name: Restore Dependency Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.PROJECT_DIR }}/.dart_tool
+            ${{ env.PROJECT_DIR }}/.flutter-plugins
+            ${{ env.PROJECT_DIR }}/.flutter-plugins-dependencies
+            ${{ env.PROJECT_DIR }}/.pub-cache
+            ${{ env.PROJECT_DIR }}/ios/Pods
+          key: flutter-ios-deps-${{ hashFiles('**/pubspec.lock', '**/ios/Podfile.lock') }}
+          restore-keys: flutter-ios-deps-
+
+      - name: Install Dependencies
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -e
+          flutter pub get
+          cd ios && pod install || { echo "::error::Failed to install iOS dependencies"; exit 1; }
+
+      - name: Set up Code Signing
+        if: ${{ github.event.inputs.build-type == 'release' || github.event_name == 'push' }}
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          PROFILE_BASE64: ${{ secrets.PROFILE_BASE64 }}
+        run: |
+          set -e
+          set -x
+          if [ -z "$BUILD_CERTIFICATE_BASE64" ] || [ -z "$P12_PASSWORD" ] || [ -z "$KEYCHAIN_PASSWORD" ] || [ -z "$PROFILE_BASE64" ]; then
+            echo "::error::Missing code-signing secrets"
+            exit 1
+          fi
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          echo "$BUILD_CERTIFICATE_BASE64" | base64 --decode > build_certificate.p12
+          security import build_certificate.p12 -k build.keychain -P "$P12_PASSWORD" -T /usr/bin/codesign
+          echo "$PROFILE_BASE64" | base64 --decode > profile.mobileprovision
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+
+      - name: Build iOS IPA
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -e
+          set -x
+          flutter build ipa --${{ github.event.inputs.build-type || 'release' }} \
+            --dart-define=APP_ENV=${{ github.event.inputs.build-type || 'release' }} \
+            --build-number=${{ needs.setup.outputs.build_number }} \
+            --export-options-plist=ios/ExportOptions.plist \
+            --verbose
+          echo "IPA dir contents:"
+          ls -la build/ios/ipa/ || echo "IPA directory not found"
+
+      - name: Verify IPA
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -e
+          if ! ls build/ios/ipa/*.ipa >/dev/null 2>&1; then
+            echo "::error::No IPA found in build/ios/ipa/"
+            exit 1
+          fi
+          echo "IPA(s) found:"
+          ls -l build/ios/ipa/*.ipa
+
+      - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-ipa
-          path: aurore_frontend/build/ios/ipa/*.ipa
+          name: ios-${{ github.event.inputs.build-type || 'release' }}-ipa
+          path: ${{ env.PROJECT_DIR }}/build/ios/ipa/*.ipa
           retention-days: 7
-
-      # Debug logging on failure
-      - name: Debug on failure
-        if: failure()
-        run: |
-          echo "Build failed. Running verbose build for details."
-          flutter build apk --release --verbose
-        working-directory: aurore_frontend
+          if-no-files-found: error
