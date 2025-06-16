@@ -38,6 +38,11 @@ jobs:
         with:
           fetch-depth: 0  # Full history for commit count
 
+      - name: Debug Workflow File
+        run: |
+          echo "Workflow file content:"
+          cat .github/workflows/flutter-build.yml || echo "Workflow file not found"
+
       - name: Cache Flutter SDK
         uses: actions/cache@v4
         with:
@@ -59,6 +64,7 @@ jobs:
       - name: Verify Flutter Installation
         id: verify-flutter
         run: |
+          set -e
           flutter --version >/dev/null || { echo "::error::Flutter installation failed"; exit 1; }
           FLUTTER_VERSION=$(flutter --version | awk '/Flutter/{print $2}')
           DART_VERSION=$(dart --version 2>/dev/null | awk '{print $4}')
@@ -69,6 +75,7 @@ jobs:
       - name: Calculate Build Number
         id: build-number
         run: |
+          set -e
           COMMIT_COUNT=$(git rev-list --count HEAD)
           BUILD_NUMBER=$((COMMIT_COUNT + ${{ env.VERSION_OFFSET }}))
           echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
@@ -78,26 +85,34 @@ jobs:
         id: validate
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
+          set -e
+          set -x  # Enable tracing for debugging
           if [ ! -f "pubspec.yaml" ]; then
-            echo "::error::pubspec.yaml not found in $PROJECT_DIR!"
+            echo "::error::pubspec.yaml not found in $PWD"
             echo "setup_complete=false" >> "$GITHUB_OUTPUT"
             exit 1
           fi
           # Extract Dart SDK constraint (e.g., '>=3.5.0 <4.0.0')
-          REQUIRED_DART=$(grep 'sdk:' pubspec.yaml | sed 's/.*sdk: *//; s/[ \t]*$//; s/[\"\']//g')
+          REQUIRED_DART=$(grep 'sdk:' pubspec.yaml | sed 's/.*sdk: *//; s/[ \t]*$//; s/[\"\']//g' || echo "")
+          if [ -z "$REQUIRED_DART" ]; then
+            echo "::error::Failed to extract Dart SDK constraint from pubspec.yaml"
+            echo "setup_complete=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
           CURRENT_DART=${{ steps.verify-flutter.outputs.dart_version }}
           echo "Required Dart: $REQUIRED_DART"
           echo "Current Dart: $CURRENT_DART"
           # Parse version range (e.g., '>=3.5.0 <4.0.0')
-          MIN_VERSION=$(echo "$REQUIRED_DART" | grep -o '>=.*' | sed 's/>=//; s/ *<.*//')
-          MAX_VERSION=$(echo "$REQUIRED_DART" | grep -o '<.*' | sed 's/<//')
+          MIN_VERSION=$(echo "$REQUIRED_DART" | grep -o '>=.*' | sed 's/>=//; s/ *<.*//' || echo "")
+          MAX_VERSION=$(echo "$REQUIRED_DART" | grep -o '<.*' | sed 's/<//' || echo "")
+          echo "Min Version: $MIN_VERSION"
+          echo "Max Version: $MAX_VERSION"
           if [ -z "$MIN_VERSION" ] || [ -z "$MAX_VERSION" ]; then
             echo "::error::Failed to parse version range from $REQUIRED_DART"
             echo "setup_complete=false" >> "$GITHUB_OUTPUT"
             exit 1
           fi
           echo "Checking Dart SDK compatibility..."
-          # Validate using dpkg --compare-versions
           if ! dpkg --compare-versions "$CURRENT_DART" ge "$MIN_VERSION" || ! dpkg --compare-versions "$CURRENT_DART" lt "$MAX_VERSION"; then
             echo "::error::Dart SDK $CURRENT_DART does not satisfy required $REQUIRED_DART"
             echo "setup_complete=false" >> "$GITHUB_OUTPUT"
