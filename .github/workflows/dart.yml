@@ -47,18 +47,18 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ runner.tool_cache }}/flutter
-          key: flutter-sdk-${{ env.FLUTTER_VERSION }}-stable
+          key: flutter-sdk-${{ env FLUTTER_VERSION }}
           restore-keys: flutter-sdk-
 
-      - name: Install Flutter
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         id: install-flutter
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
+          channel: 'stable'
           architecture: x64
           cache: true
-          cache-key: flutter-sdk-${{ env.FLUTTER_VERSION }}-stable
+          cache-key: 'flutter-sdk-${{ env.FLUTTER_VERSION }}'
         continue-on-error: false
 
       - name: Verify Flutter Installation
@@ -86,16 +86,14 @@ jobs:
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           set -e
-          set -x  # Enable tracing
+          set -x
           if [ ! -f "pubspec.yaml" ]; then
             echo "::error::pubspec.yaml not found in $PWD"
             echo "setup_complete=false" >> "$GITHUB_OUTPUT"
             exit 1
           fi
-          # Log raw sdk line for debugging
           SDK_LINE=$(grep 'sdk:' pubspec.yaml || echo "sdk: not found")
           echo "Raw SDK line: $SDK_LINE"
-          # Extract Dart SDK constraint (e.g., '>=3.5.0 <4.0.0')
           REQUIRED_DART=$(echo "$SDK_LINE" | sed 's/.*sdk: *//; s/[ \t]*$//; s/"//g; s/'\''//g' || echo "")
           if [ -z "$REQUIRED_DART" ]; then
             echo "::error::Failed to extract Dart SDK constraint from pubspec.yaml"
@@ -105,7 +103,6 @@ jobs:
           CURRENT_DART=${{ steps.verify-flutter.outputs.dart_version }}
           echo "Required Dart: $REQUIRED_DART"
           echo "Current Dart: $CURRENT_DART"
-          # Parse version range (e.g., '>=3.5.0 <4.0.0')
           MIN_VERSION=$(echo "$REQUIRED_DART" | grep -o '>=.*' | sed 's/>=//; s/ *<.*//' || echo "")
           MAX_VERSION=$(echo "$REQUIRED_DART" | grep -o '<.*' | sed 's/<//' || echo "")
           echo "Min Version: $MIN_VERSION"
@@ -128,7 +125,7 @@ jobs:
     needs: setup
     if: ${{ needs.setup.outputs.setup_complete == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40  # Increased to handle slower builds
 
     steps:
       - uses: actions/checkout@v4
@@ -156,6 +153,19 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
+      - name: Debug Environment
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -x
+          echo "Java version:"
+          java -version
+          echo "Gradle version:"
+          ./gradlew --version
+          echo "Flutter doctor:"
+          flutter doctor -v
+          echo "Project dir contents:"
+          ls -la
+
       - name: Restore Dependency Cache
         uses: actions/cache@v4
         with:
@@ -169,34 +179,48 @@ jobs:
 
       - name: Install Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
-        run: flutter pub get
+        run: |
+          set -e
+          flutter pub get || { echo "::error::Failed to install dependencies"; exit 1; }
 
-      - name: Run Flutter Doctor
-        run: flutter doctor -v
-
-      - name: Build Android APK
+      - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
+          set -e
+          set -x
           flutter build apk --${{ github.event.inputs.build-type || 'release' }} \
             --dart-define=APP_ENV=${{ github.event.inputs.build-type || 'release' }} \
-            --build-number=${{ needs.setup.outputs.build_number }} \
+            --build-number=${{ needs.setup.outputs.build-number }} \
             --verbose
+          echo "APK dir contents:"
+          ls -la build/app/outputs/apk/**
 
-      - name: Upload APK Artifact
+      - name: Verify APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -e
+          if [ ! -f "build/app/outputs/flutter-apk/app/*.apk" ]; then
+            echo "::error::No APK found in build/app/outputs/flutter-apk/"
+            exit 1
+          fi
+          echo "APK(s) found:"
+          ls -l build/app/outputs/flutter-apk/*.apk
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: android-${{ github.event.inputs.build-type || 'release' }}-apk
-          path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-*.apk
+          path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/*.apk
           retention-days: 7
+          if-no-files-found: error
 
   ios:
     name: iOS Build
     needs: setup
     if: ${{ needs.setup.outputs.setup_complete == 'true' }}
     runs-on: macos-latest
-    timeout-minutes: 45
-
-    steps:
+    timeout-minutes: 60  # Increased for iOS build
+- **steps**:
       - uses: actions/checkout@v4
 
       - name: Cache Flutter SDK
@@ -217,8 +241,22 @@ jobs:
 
       - name: Install CocoaPods
         run: |
+          set -e
           sudo gem install cocoapods
           pod setup
+
+      - name: Debug Environment
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -x
+          echo "CocoaPods version:"
+          pod --version
+          echo "Flutter doctor:"
+          flutter doctor -v
+          echo "Project dir contents:"
+          ls -la
+          echo "ios dir contents:"
+          ls -la ios/
 
       - name: Restore Dependency Cache
         uses: actions/cache@v4
@@ -229,14 +267,15 @@ jobs:
             ${{ env.PROJECT_DIR }}/.flutter-plugins-dependencies
             ${{ env.PROJECT_DIR }}/.pub-cache
             ${{ env.PROJECT_DIR }}/ios/Pods
-          key: flutter-ios-deps-${{ hashFiles('**/pubspec.lock', '**/Podfile.lock') }}
+          key: flutter-ios-deps-${{ hashFiles('**/pubspec.lock', '**/ios/Podfile.lock') }}
           restore-keys: flutter-ios-deps-
 
       - name: Install Dependencies
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
+          set -e
           flutter pub get
-          cd ios && pod install
+          cd ios && pod install || { echo "::error::Failed to install iOS dependencies"; exit 1; }
 
       - name: Set up Code Signing
         if: ${{ github.event.inputs.build-type == 'release' || github.event_name == 'push' }}
@@ -246,6 +285,7 @@ jobs:
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
           PROFILE_BASE64: ${{ secrets.PROFILE_BASE64 }}
         run: |
+          set -e
           security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
@@ -259,15 +299,31 @@ jobs:
       - name: Build iOS IPA
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
+          set -e
+          set -x
           flutter build ipa --${{ github.event.inputs.build-type || 'release' }} \
             --dart-define=APP_ENV=${{ github.event.inputs.build-type || 'release' }} \
             --build-number=${{ needs.setup.outputs.build_number }} \
             --export-options-plist=ios/ExportOptions.plist \
             --verbose
+          echo "IPA dir contents:"
+          ls -la build/ios/ipa/
 
-      - name: Upload IPA Artifact
+      - name: Verify IPA
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -e
+          if [ ! -f "build/ios/ipa/*.ipa" ]; then
+            echo "::error::No IPA found in build/ios/ipa/"
+            exit 1
+          fi
+          echo "IPA(s) found:"
+          ls -l build/ios/ipa/*.ipa
+
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: ios-${{ github.event.inputs.build-type || 'release' }}-ipa
           path: ${{ env.PROJECT_DIR }}/build/ios/ipa/*.ipa
           retention-days: 7
+          if-no-files-found: error
