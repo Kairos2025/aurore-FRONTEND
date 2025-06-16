@@ -86,14 +86,17 @@ jobs:
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           set -e
-          set -x  # Enable tracing for debugging
+          set -x  # Enable tracing
           if [ ! -f "pubspec.yaml" ]; then
             echo "::error::pubspec.yaml not found in $PWD"
             echo "setup_complete=false" >> "$GITHUB_OUTPUT"
             exit 1
           fi
+          # Log raw sdk line for debugging
+          SDK_LINE=$(grep 'sdk:' pubspec.yaml || echo "sdk: not found")
+          echo "Raw SDK line: $SDK_LINE"
           # Extract Dart SDK constraint (e.g., '>=3.5.0 <4.0.0')
-          REQUIRED_DART=$(grep 'sdk:' pubspec.yaml | sed 's/.*sdk: *//; s/[ \t]*$//; s/[\"\']//g' || echo "")
+          REQUIRED_DART=$(echo "$SDK_LINE" | sed 's/.*sdk: *//; s/[ \t]*$//; s/"//g; s/'\''//g' || echo "")
           if [ -z "$REQUIRED_DART" ]; then
             echo "::error::Failed to extract Dart SDK constraint from pubspec.yaml"
             echo "setup_complete=false" >> "$GITHUB_OUTPUT"
